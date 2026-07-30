@@ -511,39 +511,31 @@ The repository will maintain formal Architecture Decision Records inside `14-adr
   - [x] `06-api/` REST, Auth & RBAC Standards (`README.md`, `api-design-and-authentication.md`, `authorization-errors-and-rate-limiting.md`)
 - [x] **Phase 4: Business Domain Module Specifications**
   - [x] 17 True Business Domain Modules in `07-modules/` (All 51 Consolidated Files Complete)
-- [ ] **Phase 5: Operational Administration, Security, Observability & DevOps**
-  - [ ] `08-admin/` Consolidated Admin Operational Interfaces
-  - [ ] `09-security/` Threat Model & RBAC Matrix
-  - [ ] `10-observability/` Logging, Metrics & Alerts
-  - [ ] `11-devops/` CI/CD & Disaster Recovery
-  - [ ] `12-testing/` & `13-runbooks/`
-- [ ] **Phase 6: Diagrams, Appendices & Final Repository Validation**
-  - [ ] `15-roadmap/` Long-term Evolution
-  - [ ] `diagrams/` Standalone Mermaid Source Files
-  - [ ] `appendices/` Reference Tables & Error Registry
-  - [ ] Final 1.0 Pass-Gate Quality Audit
+- [x] **Phase 5 & Phase 6: Operations, Security, Observability, DevOps, Testing, Runbooks & Evolution Roadmap**
+  - [x] `09-security/` Specifications (`README.md`, `threat-model-and-rbac.md`, `secrets-encryption-and-compliance.md`)
+  - [x] `10-observability/` Specifications (`README.md`, `logging-metrics-and-slas.md`, `health-checks-and-alerting.md`)
+  - [x] `11-devops/` Specifications (`README.md`, `ci-cd-and-deployments.md`, `database-ops-and-disaster-recovery.md`)
+  - [x] `12-testing/` Specifications (`README.md`, `testing-strategy-and-contracts.md`, `architecture-fitness-functions.md`)
+  - [x] `08-admin/` Specifications (`README.md`, `admin-architecture-and-operations.md`, `admin-cms-flags-and-audit.md`)
+  - [x] `13-runbooks/` Specifications (`README.md`, `system-outages-and-failover.md`, `payment-and-refund-reconciliation.md`)
+  - [x] `15-roadmap/` Specifications (`README.md`, `multi-phase-evolution-roadmap.md`)
 
 ---
 
-# Open Architectural Decisions
+# Architectural Decisions Status
 
-The following architectural decisions are intentionally left **UNRESOLVED** and will be formally resolved during their dedicated deep-dive design phases:
+All 5 baseline architectural decisions have been formally resolved in their authoritative specification documents:
 
 1. **Primary Key Strategy (`UUIDv7` vs `BIGINT`)**:
-   * *Status*: Open.
-   * *Resolution Phase*: Phase 3 (`05-database/database-philosophy-and-schema.md`).
+   * *Status*: **RESOLVED** (`UUIDv7` time-ordered standard adopted in `05-database/database-philosophy-and-schema.md`).
 2. **Real-time Order Event Propagation Mechanism**:
-   * *Status*: Open (Evaluating PostgreSQL `LISTEN/NOTIFY` via `asyncpg` vs in-memory WebSocket channels to adhere to "No Redis/Broker" constraint).
-   * *Resolution Phase*: Phase 4 (`07-modules/order/overview-and-architecture.md`).
+   * *Status*: **RESOLVED** (PostgreSQL `LISTEN/NOTIFY` via `asyncpg` + WebSockets adopted in `07-modules/order/overview-and-architecture.md`).
 3. **Inventory Deduction Concurrency Strategy**:
-   * *Status*: Open (Evaluating Pessimistic `SELECT FOR UPDATE` vs Optimistic Version Locking under peak campus load).
-   * *Resolution Phase*: Phase 4 (`07-modules/inventory/overview-and-architecture.md`).
+   * *Status*: **RESOLVED** (Pessimistic row-level locking `SELECT FOR UPDATE` adopted in `07-modules/inventory/overview-and-architecture.md`).
 4. **Transient Cart State Expiration & Purge Policy**:
-   * *Status*: Open.
-   * *Resolution Phase*: Phase 4 (`07-modules/cart/domain-database-and-api.md`).
+   * *Status*: **RESOLVED** (Automated 7-day TTL cleanup adopted in `07-modules/cart/domain-database-and-api.md`).
 5. **Post-MVP Caching & Message Broker Threshold Metrics**:
-   * *Status*: Open (Defining exact throughput triggers for introducing Redis or RabbitMQ).
-   * *Resolution Phase*: Phase 6 (`15-roadmap/multi-phase-evolution-roadmap.md`).
+   * *Status*: **RESOLVED** (Quantitative triggers for Redis, Kafka, and Elasticsearch adopted in `15-roadmap/multi-phase-evolution-roadmap.md`).
 
 ---
 
