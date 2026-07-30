@@ -501,10 +501,10 @@ The repository will maintain formal Architecture Decision Records inside `14-adr
   - [x] `00-foundation/` Specifications (`README.md`, `foundation-overview.md`, `architecture-and-quality-attributes.md`)
   - [x] `03.5-non-functional/` Dedicated NFR Specifications (`README.md`, `performance-scalability-and-sla.md`, `resilience-disaster-recovery-and-security-nfrs.md`)
   - [x] `14-adrs/` Baseline Architectural ADR Suite (ADR-0001 through ADR-0012 complete)
-- [ ] **Phase 2: Business Domain Model & High-Level System Architecture**
-  - [ ] `01-business/` Specifications
-  - [ ] `02-domain-model/` Bounded Contexts & Aggregate Roots
-  - [ ] `03-system/` High-Level Architecture & Boundaries
+- [x] **Phase 2: Business Domain Model & High-Level System Architecture**
+  - [x] `01-business/` Specifications (`README.md`, `business-model-and-monetization.md`, `merchant-and-customer-journeys.md`)
+  - [x] `02-domain-model/` Bounded Contexts & Aggregate Roots (`README.md`, `bounded-contexts-and-aggregates.md`, `domain-invariants-and-events.md`)
+  - [x] `03-system/` High-Level Architecture & Boundaries (`README.md`, `system-architecture-and-boundaries.md`, `failure-and-isolation-boundaries.md`)
 - [ ] **Phase 3: Technical Platform Core**
   - [ ] `04-backend/` FastAPI Layered Specifications
   - [ ] `05-database/` Shared Database Standards
