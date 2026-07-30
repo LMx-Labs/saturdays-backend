@@ -494,8 +494,10 @@ The repository will maintain formal Architecture Decision Records inside `14-adr
   - [x] Master Execution Plan (`EXECUTION_PLAN.md`)
   - [x] Master Repository Index (`README.md`)
   - [x] Live Project State Tracking (`PROJECT_STATE.md`)
-  - [x] Master Table of Contents (`SUMMARY.md`)
-  - [ ] Root Index & Navigation Files (`GLOSSARY.md`, `ARCHITECTURE_PRINCIPLES.md`, `CONTRIBUTING.md`, `CHANGELOG.md`)
+  - [x] Governance Guidelines (`CONTRIBUTING.md`)
+  - [x] Version History Ledger (`CHANGELOG.md`)
+  - [x] Canonical Terminology Glossary (`GLOSSARY.md`)
+  - [x] Core Axioms (`ARCHITECTURE_PRINCIPLES.md`)
   - [ ] `00-foundation/` Specifications
   - [ ] `03.5-non-functional/` Dedicated NFR Specifications
   - [ ] `14-adrs/` Baseline Architectural ADR Suite (ADR-0001 through ADR-0012)
