@@ -499,7 +499,7 @@ The repository will maintain formal Architecture Decision Records inside `14-adr
   - [x] Canonical Terminology Glossary (`GLOSSARY.md`)
   - [x] Core Axioms (`ARCHITECTURE_PRINCIPLES.md`)
   - [x] `00-foundation/` Specifications (`README.md`, `foundation-overview.md`, `architecture-and-quality-attributes.md`)
-  - [/] `03.5-non-functional/` Dedicated NFR Specifications (`README.md` complete)
+  - [x] `03.5-non-functional/` Dedicated NFR Specifications (`README.md`, `performance-scalability-and-sla.md`, `resilience-disaster-recovery-and-security-nfrs.md`)
   - [ ] `14-adrs/` Baseline Architectural ADR Suite (ADR-0001 through ADR-0012)
 - [ ] **Phase 2: Business Domain Model & High-Level System Architecture**
   - [ ] `01-business/` Specifications
