@@ -445,12 +445,29 @@ The repository will maintain formal Architecture Decision Records inside `14-adr
 
 ---
 
-# Review Strategy
+# Review Strategy & Permanent Governance Rules
 
 ## Continuous Quality Reviews
 * **Immediate Document Review**: Every single document generated MUST undergo a self-review pass against the checklist in [08_REVIEWER.md](file:///Users/adith/Documents/Dev/LMX/Saturdays/prompts/08_REVIEWER.md) before the next document generation begins.
-* **Continuous State Tracking**: Immediately after every file creation, `PROJECT_STATE.md` MUST be updated to record completed file count, term counts, ADR counts, and current status.
-* **Consistency Verification**: After completing each directory section, cross-references across earlier documents MUST be inspected and updated to prevent broken links or stale assumptions.
+* **Rule 1 — Mandatory Repository Consistency Audits**: After every completed phase OR every 10 generated documents (whichever comes first), a formal Repository Consistency Audit MUST be executed. The audit verifies:
+  - Terminology consistency
+  - Glossary synchronization (`GLOSSARY.md`)
+  - Cross-reference link integrity
+  - Zero duplicate concept ownership
+  - Zero conflicting domain ownership
+  - Valid ADR references (`14-adrs/`)
+  - Zero broken markdown links
+  - Absence of architectural drift
+  - Outdated architectural assumptions
+  All required fixes discovered during audits MUST be applied before generating additional documents.
+* **Rule 2 — Formal Review Reporting Format**: Numerical scores (e.g. 100/100) are forbidden. All review reports and consistency audits MUST use the following mandatory reporting schema:
+  - Status: **PASS** or **FAIL**
+  - Critical Issues
+  - High Priority Issues
+  - Medium Priority Issues
+  - Issues Automatically Fixed
+  - Remaining Risks
+* **Continuous State Tracking**: Immediately after every file creation or audit, `PROJECT_STATE.md` MUST be updated to record completed file count, term counts, ADR counts, and current status.
 * **Glossary Maintenance**: Whenever a new domain term or technical acronym is introduced, it MUST be immediately added to `GLOSSARY.md` with an authoritative definition.
 
 ## Preventing Architectural Drift
@@ -477,7 +494,8 @@ The repository will maintain formal Architecture Decision Records inside `14-adr
   - [x] Master Execution Plan (`EXECUTION_PLAN.md`)
   - [x] Master Repository Index (`README.md`)
   - [x] Live Project State Tracking (`PROJECT_STATE.md`)
-  - [ ] Root Index & Navigation Files (`SUMMARY.md`, `GLOSSARY.md`, `ARCHITECTURE_PRINCIPLES.md`, etc.)
+  - [x] Master Table of Contents (`SUMMARY.md`)
+  - [ ] Root Index & Navigation Files (`GLOSSARY.md`, `ARCHITECTURE_PRINCIPLES.md`, `CONTRIBUTING.md`, `CHANGELOG.md`)
   - [ ] `00-foundation/` Specifications
   - [ ] `03.5-non-functional/` Dedicated NFR Specifications
   - [ ] `14-adrs/` Baseline Architectural ADR Suite (ADR-0001 through ADR-0012)
