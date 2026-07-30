@@ -1,7 +1,7 @@
 # SATURDAYS ARCHITECTURE EXECUTION PLAN
 
-Version: 1.1  
-Status: Authoritative Master Roadmap (Revised & Approved Governance Model)  
+Version: 1.2  
+Status: Authoritative Master Roadmap (High-Granularity & Consolidated Maintenance Model)  
 Target: Saturdays Engineering Architecture Repository  
 Author: Chief Architect  
 
@@ -16,12 +16,15 @@ This repository is NOT marketing material, developer onboarding tutorials, or im
 
 The documentation MUST serve as an immutable source of truth capable of allowing a completely new engineering team to rebuild, maintain, scale, or refactor the platform without reliance on original authors or tribal knowledge.
 
+## Documentation Granularity Directive
+In accordance with Staff+ engineering design standards, documentation is optimized for long-term maintainability, easy navigation, stable cross-referencing, and minimal duplication. Rather than fragmenting documentation into hundreds of shallow files containing a few paragraphs, closely related architectural concepts are consolidated into comprehensive, rich specifications with clear internal section hierarchies (`H1` through `H4`).
+
 ## Definition of Done
 The Saturdays Architecture Repository Version 1.0 is considered complete ONLY when:
 1. Every checkbox in [11_ARCHITECT_CHECKLIST.md](file:///Users/adith/Documents/Dev/LMX/Saturdays/prompts/11_ARCHITECT_CHECKLIST.md) (adjusted for governance revisions) is marked complete.
-2. Every directory and file defined in this revised execution plan exists and satisfies all mandatory section requirements specified in [03_DOCUMENT_REQUIREMENTS.md](file:///Users/adith/Documents/Dev/LMX/Saturdays/prompts/03_DOCUMENT_REQUIREMENTS.md).
+2. Every directory and file defined in this consolidated execution plan exists and satisfies all mandatory section requirements specified in [03_DOCUMENT_REQUIREMENTS.md](file:///Users/adith/Documents/Dev/LMX/Saturdays/prompts/03_DOCUMENT_REQUIREMENTS.md).
 3. The root repository contains `PROJECT_STATE.md`, which is continuously updated after every single document generation.
-4. Every true business domain module in `07-modules/` (17 business modules total; excluding administrative interfaces and generic shared catch-alls) contains all 14 mandatory module specification files (`README.md`, `overview.md`, `responsibilities.md`, `architecture.md`, `database.md`, `api.md`, `events.md`, `state-machines.md`, `sequence-diagrams.md`, `security.md`, `testing.md`, `monitoring.md`, `future.md`).
+4. Every true business domain module in `07-modules/` (17 business modules total; excluding administrative interfaces and generic shared catch-alls) contains 3 rich, deep specification documents (`overview-and-architecture.md`, `domain-database-and-api.md`, `workflows-and-state-machines.md`).
 5. All administrative functionality is consolidated into `08-admin/` (Admin is an operational interface over domain modules, not a business domain).
 6. Non-functional requirements (Availability, Performance, Latency, Scalability, SLOs/SLIs, RTO/RPO) are fully specified in a dedicated `03.5-non-functional/` directory as first-class architectural specifications.
 7. Every single database table has a dedicated architectural specification covering ownership, indexes, foreign keys, query patterns, growth expectations, retention, and migration strategy.
@@ -37,14 +40,7 @@ All documentation produced MUST strictly adhere to RFC 2119 terminology (`MUST`,
 
 # Repository Overview
 
-## Governance & Architecture Refinements
-1. **Removal of `07-modules/admin/`**: Admin is NOT a business domain module. It is an operational interface spanning domain modules. All admin specifications are strictly consolidated within `08-admin/`.
-2. **Removal of `07-modules/shared/`**: Generic catch-all "shared" modules are forbidden to prevent boundary erosion. Common capabilities are modeled explicitly as Shared Kernels (DDD), Common Infrastructure, or Cross-cutting Layering within backend specifications.
-3. **Addition of `PROJECT_STATE.md`**: A live metadata tracking document created in Phase 1 at `architecture/PROJECT_STATE.md` and updated after every completed document to maintain 100% real-time progress visibility.
-4. **Dedicated Non-Functional Requirements (`03.5-non-functional/`)**: A dedicated top-level section for SLAs, SLOs, SLIs, Latency Targets, Capacity Limits, RTO/RPO, and Security/Compliance objectives.
-5. **Architectural ADR Scope**: Initial ADRs are focused exclusively on structural trade-offs (e.g. Modular Monolith, Shared DB, Merchant Hierarchy, In-Database Event Propagation, Real-Time WebSockets). Framework and library choices (FastAPI, SQLAlchemy, React) are documented directly in technical stack specifications (`04-backend/` and `00-foundation/`).
-
-## Complete Directory Tree
+## Consolidated Directory Tree
 
 ```
 architecture/
@@ -59,148 +55,95 @@ architecture/
 │
 ├── 00-foundation/
 │   ├── README.md
-│   ├── vision-and-mission.md
-│   ├── engineering-principles.md
-│   ├── architecture-style.md
-│   ├── system-constraints.md
-│   └── quality-attributes.md
+│   ├── foundation-overview.md
+│   └── architecture-and-quality-attributes.md
 │
 ├── 01-business/
 │   ├── README.md
-│   ├── business-model.md
-│   ├── merchant-lifecycle.md
-│   ├── customer-journey.md
-│   ├── revenue-model.md
-│   └── operational-policies.md
+│   ├── business-model-and-monetization.md
+│   └── merchant-and-customer-journeys.md
 │
 ├── 02-domain-model/
 │   ├── README.md
-│   ├── domain-overview.md
-│   ├── bounded-contexts.md
-│   ├── aggregate-roots.md
-│   ├── domain-invariants.md
-│   └── domain-events.md
+│   ├── bounded-contexts-and-aggregates.md
+│   └── domain-invariants-and-events.md
 │
 ├── 03-system/
 │   ├── README.md
-│   ├── high-level-architecture.md
-│   ├── component-boundaries.md
-│   ├── service-communication.md
-│   └── failure-boundaries.md
+│   ├── system-architecture-and-boundaries.md
+│   └── failure-and-isolation-boundaries.md
 │
 ├── 03.5-non-functional/
 │   ├── README.md
-│   ├── availability-and-reliability.md
-│   ├── performance-and-latency-targets.md
-│   ├── capacity-planning-and-scalability.md
-│   ├── slos-slis-and-error-budgets.md
-│   ├── disaster-recovery-rto-rpo.md
-│   └── security-and-compliance-nfrs.md
+│   ├── performance-scalability-and-sla.md
+│   └── resilience-disaster-recovery-and-security-nfrs.md
 │
 ├── 04-backend/
 │   ├── README.md
-│   ├── fastapi-architecture.md
-│   ├── layered-architecture.md
-│   ├── folder-structure.md
-│   ├── dependency-injection.md
-│   ├── background-tasks.md
-│   └── transaction-management.md
+│   ├── fastapi-architecture-and-layering.md
+│   └── concurrency-transactions-and-background-tasks.md
 │
 ├── 05-database/
 │   ├── README.md
-│   ├── database-philosophy.md
-│   ├── naming-standards.md
-│   ├── schema-design.md
-│   ├── index-strategy.md
-│   ├── migration-strategy.md
-│   ├── soft-deletes.md
-│   └── audit-logging.md
+│   ├── database-philosophy-and-schema.md
+│   └── indexing-migrations-and-auditing.md
 │
 ├── 06-api/
 │   ├── README.md
-│   ├── api-standards.md
-│   ├── authentication-standards.md
-│   ├── authorization-standards.md
-│   ├── error-standards.md
-│   ├── pagination-filtering.md
-│   └── rate-limiting.md
+│   ├── api-design-and-authentication.md
+│   └── authorization-errors-and-rate-limiting.md
 │
 ├── 07-modules/
 │   ├── auth/
 │   │   ├── README.md
-│   │   ├── overview.md
-│   │   ├── responsibilities.md
-│   │   ├── architecture.md
-│   │   ├── database.md
-│   │   ├── api.md
-│   │   ├── events.md
-│   │   ├── state-machines.md
-│   │   ├── sequence-diagrams.md
-│   │   ├── security.md
-│   │   ├── testing.md
-│   │   ├── monitoring.md
-│   │   └── future.md
-│   ├── customer/            [13 standard module files]
-│   ├── merchant/            [13 standard module files]
-│   ├── brand/               [13 standard module files]
-│   ├── branch/              [13 standard module files]
-│   ├── kitchen/             [13 standard module files]
-│   ├── menu/                [13 standard module files]
-│   ├── inventory/           [13 standard module files]
-│   ├── search/              [13 standard module files]
-│   ├── cart/                [13 standard module files]
-│   ├── checkout/            [13 standard module files]
-│   ├── order/               [13 standard module files]
-│   ├── payment/             [13 standard module files]
-│   ├── coupon/              [13 standard module files]
-│   ├── review/              [13 standard module files]
-│   ├── notification/        [13 standard module files]
-│   └── subscription/        [13 standard module files]
+│   │   ├── overview-and-architecture.md
+│   │   ├── domain-database-and-api.md
+│   │   └── workflows-and-state-machines.md
+│   ├── customer/            [3 rich consolidated spec files]
+│   ├── merchant/            [3 rich consolidated spec files]
+│   ├── brand/               [3 rich consolidated spec files]
+│   ├── branch/              [3 rich consolidated spec files]
+│   ├── kitchen/             [3 rich consolidated spec files]
+│   ├── menu/                [3 rich consolidated spec files]
+│   ├── inventory/           [3 rich consolidated spec files]
+│   ├── search/              [3 rich consolidated spec files]
+│   ├── cart/                [3 rich consolidated spec files]
+│   ├── checkout/            [3 rich consolidated spec files]
+│   ├── order/               [3 rich consolidated spec files]
+│   ├── payment/             [3 rich consolidated spec files]
+│   ├── coupon/              [3 rich consolidated spec files]
+│   ├── review/              [3 rich consolidated spec files]
+│   ├── notification/        [3 rich consolidated spec files]
+│   └── subscription/        [3 rich consolidated spec files]
 │
 ├── 08-admin/
 │   ├── README.md
-│   ├── overview-and-architecture.md
-│   ├── merchant-onboarding-ops.md
-│   ├── customer-moderation-ops.md
-│   ├── payment-and-refund-ops.md
-│   ├── cms-and-banner-management.md
-│   ├── feature-flag-management.md
-│   └── audit-log-monitoring.md
+│   ├── admin-architecture-and-operations.md
+│   └── admin-cms-flags-and-audit.md
 │
 ├── 09-security/
 │   ├── README.md
-│   ├── threat-model.md
-│   ├── rbac-matrix.md
-│   ├── secrets-management.md
-│   ├── data-encryption.md
-│   └── audit-compliance.md
+│   ├── threat-model-and-rbac.md
+│   └── secrets-encryption-and-compliance.md
 │
 ├── 10-observability/
 │   ├── README.md
-│   ├── structured-logging.md
-│   ├── metrics-and-slas.md
-│   ├── health-checks.md
-│   └── alerting-rules.md
+│   ├── logging-metrics-and-slas.md
+│   └── health-checks-and-alerting.md
 │
 ├── 11-devops/
 │   ├── README.md
-│   ├── ci-cd-pipeline.md
-│   ├── deployment-architecture.md
-│   ├── database-migrations-ops.md
-│   └── disaster-recovery.md
+│   ├── ci-cd-and-deployments.md
+│   └── database-ops-and-disaster-recovery.md
 │
 ├── 12-testing/
 │   ├── README.md
-│   ├── unit-testing.md
-│   ├── integration-testing.md
-│   └── contract-testing.md
+│   └── testing-strategy-and-contracts.md
 │
 ├── 13-runbooks/
 │   ├── README.md
-│   ├── payment-outage.md
-│   ├── database-failover.md
-│   ├── restaurant-offline.md
-│   └── refund-reconciliation.md
+│   ├── system-outages-and-failover.md
+│   └── payment-and-refund-reconciliation.md
 │
 ├── 14-adrs/
 │   ├── README.md
@@ -219,10 +162,7 @@ architecture/
 │
 ├── 15-roadmap/
 │   ├── README.md
-│   ├── phase-1-vit-vellore.md
-│   ├── phase-2-multi-city-expansion.md
-│   ├── phase-3-rider-integration-roadmap.md
-│   └── phase-4-ai-search-and-recommendations.md
+│   └── multi-phase-evolution-roadmap.md
 │
 ├── diagrams/
 │   ├── README.md
@@ -237,34 +177,32 @@ architecture/
 │
 └── appendices/
     ├── README.md
-    ├── reference-tables.md
-    ├── http-status-codes.md
-    └── error-code-registry.md
+    └── reference-tables-and-error-registry.md
 ```
 
-## Quantitative Estimates
+## Quantitative Estimates (High-Granularity Consolidated Model)
 
 | Artifact Category | Estimated Metric Count |
 | :--- | :--- |
-| **Total Specification Documents** | ~345 markdown files |
-| **Total Business Domain Modules** | 17 modules (238 module spec files) |
-| **Total Diagrams (Mermaid/PlantUML)** | ~60 diagrams |
-| **Architecture Decision Records (ADRs)** | 12 primary initial ADRs |
-| **Database Tables Documented** | 28 core schema tables |
-| **API Endpoints Documented** | ~80 REST endpoints |
-| **State Machines Documented** | 7 formal state machines |
-| **Sequence Diagrams** | 16 cross-subsystem workflow diagrams |
+| **Total Specification Documents** | **~105 consolidated markdown files** |
+| **Total Business Domain Modules** | **17 modules (51 rich module spec files)** |
+| **Total Diagrams (Mermaid/PlantUML)** | **~60 embedded & standalone diagrams** |
+| **Architecture Decision Records (ADRs)** | **12 primary initial ADRs** |
+| **Database Tables Documented** | **28 core schema tables** |
+| **API Endpoints Documented** | **~80 REST endpoints** |
+| **State Machines Documented** | **7 formal state machines** |
+| **Sequence Diagrams** | **16 cross-subsystem workflow diagrams** |
 
 ---
 
 # Generation Phases
 
 ## Phase 1: Core Foundation, Repository Tracking & Master ADR Suite
-* **Purpose**: Establish root repository navigation, engineering principles, continuous state tracking (`PROJECT_STATE.md`), core domain philosophy, non-functional requirement frameworks, and major structural ADRs.
+* **Purpose**: Establish root repository navigation (`README.md`, `SUMMARY.md`), continuous state tracking (`PROJECT_STATE.md`), core domain philosophy, non-functional requirement frameworks, and major structural ADRs.
 * **Documents to Generate**:
   * Root index & state tracking files: `README.md`, `PROJECT_STATE.md`, `SUMMARY.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `GLOSSARY.md`, `ARCHITECTURE_PRINCIPLES.md`.
-  * `00-foundation/` specifications (vision, engineering principles, architecture style, system constraints, quality attributes).
-  * `03.5-non-functional/` specifications (availability, latency, scalability, SLOs, RTO/RPO, compliance).
+  * `00-foundation/` specifications (`foundation-overview.md`, `architecture-and-quality-attributes.md`).
+  * `03.5-non-functional/` specifications (`performance-scalability-and-sla.md`, `resilience-disaster-recovery-and-security-nfrs.md`).
   * `14-adrs/` baseline architectural records (ADR-0001 through ADR-0012).
 * **Dependencies**: Governing documents in `prompts/`.
 * **Deliverables**: Root state tracking system, baseline foundation specifications, initial NFR specs, and primary ADR suite.
@@ -273,9 +211,9 @@ architecture/
 ## Phase 2: Business Domain Model & High-Level System Architecture
 * **Purpose**: Formalize business models, bounded contexts, aggregate roots, domain invariants, and global system failure boundaries.
 * **Documents to Generate**:
-  * `01-business/` (business model, merchant lifecycle, customer journey, revenue model, operational policies).
-  * `02-domain-model/` (domain overview, bounded contexts, aggregate roots, invariants, domain events).
-  * `03-system/` (high-level architecture, component boundaries, service communication, failure boundaries).
+  * `01-business/` (`business-model-and-monetization.md`, `merchant-and-customer-journeys.md`).
+  * `02-domain-model/` (`bounded-contexts-and-aggregates.md`, `domain-invariants-and-events.md`).
+  * `03-system/` (`system-architecture-and-boundaries.md`, `failure-and-isolation-boundaries.md`).
 * **Dependencies**: Phase 1 foundation documents, NFR specifications, and ADRs.
 * **Deliverables**: Complete domain specification and high-level system boundary models.
 * **Exit Criteria**: Domain invariants mapped to owning aggregate roots; zero circular bounded context dependencies.
@@ -283,9 +221,9 @@ architecture/
 ## Phase 3: Technical Platform Core (Backend, Database Standards, API Architecture)
 * **Purpose**: Define technical execution patterns for FastAPI layer architecture, database governance, and API design standards.
 * **Documents to Generate**:
-  * `04-backend/` (FastAPI architecture, layered architecture, folder structure, DI, background tasks, transaction management).
-  * `05-database/` (philosophy, naming standards, schema design, index strategy, migrations, soft deletes, audit logging).
-  * `06-api/` (standards, auth standards, RBAC standards, error standards, pagination/filtering, rate limiting).
+  * `04-backend/` (`fastapi-architecture-and-layering.md`, `concurrency-transactions-and-background-tasks.md`).
+  * `05-database/` (`database-philosophy-and-schema.md`, `indexing-migrations-and-auditing.md`).
+  * `06-api/` (`api-design-and-authentication.md`, `authorization-errors-and-rate-limiting.md`).
 * **Dependencies**: Phase 2 domain model and system architecture specifications.
 * **Deliverables**: Standardized code, database schema, and REST payload guidelines for downstream modules.
 * **Exit Criteria**: Error codes, HTTP status mappings, and transaction boundary rules standardized without ambiguity.
@@ -293,20 +231,20 @@ architecture/
 ## Phase 4: Business Domain Module Specifications (17 Modules)
 * **Purpose**: Generate deep-dive specifications for all 17 true business domain modules inside `07-modules/` (excluding admin interfaces and shared catch-alls).
 * **Documents to Generate**:
-  * 17 module directories (`auth`, `customer`, `merchant`, `brand`, `branch`, `kitchen`, `menu`, `inventory`, `search`, `cart`, `checkout`, `order`, `payment`, `coupon`, `review`, `notification`, `subscription`), each containing all 14 mandatory module files.
+  * 17 module directories (`auth`, `customer`, `merchant`, `brand`, `branch`, `kitchen`, `menu`, `inventory`, `search`, `cart`, `checkout`, `order`, `payment`, `coupon`, `review`, `notification`, `subscription`), each containing 3 consolidated, rich specification files.
 * **Dependencies**: Phase 3 backend, database, and API standards.
-* **Deliverables**: 238 detailed module specification files covering models, endpoints, state machines, events, and failure modes.
+* **Deliverables**: 51 comprehensive module specification files covering models, endpoints, state machines, events, and failure modes.
 * **Exit Criteria**: Every module has singular business ownership, zero duplicated business logic, complete API/schema coverage, and explicit state machine definitions.
 
 ## Phase 5: Operational Administration, Security, Observability & DevOps
 * **Purpose**: Detail internal administration (`08-admin/`), security posture, observability stack, CI/CD, and operational runbooks.
 * **Documents to Generate**:
-  * `08-admin/` (consolidated admin operational interface over all domain modules: merchant onboarding, moderation, payment ops, CMS, feature flags, audit log monitoring).
-  * `09-security/` (threat model, RBAC matrix, secrets, encryption, audit compliance).
-  * `10-observability/` (structured logging, metrics/SLAs, health checks, alerting).
-  * `11-devops/` (ci/cd, deployment architecture, database migration ops, disaster recovery).
-  * `12-testing/` (unit, integration, contract testing strategies).
-  * `13-runbooks/` (payment outage, database failover, restaurant offline, refund reconciliation).
+  * `08-admin/` (`admin-architecture-and-operations.md`, `admin-cms-flags-and-audit.md`).
+  * `09-security/` (`threat-model-and-rbac.md`, `secrets-encryption-and-compliance.md`).
+  * `10-observability/` (`logging-metrics-and-slas.md`, `health-checks-and-alerting.md`).
+  * `11-devops/` (`ci-cd-and-deployments.md`, `database-ops-and-disaster-recovery.md`).
+  * `12-testing/` (`testing-strategy-and-contracts.md`).
+  * `13-runbooks/` (`system-outages-and-failover.md`, `payment-and-refund-reconciliation.md`).
 * **Dependencies**: Phase 4 business module specifications.
 * **Deliverables**: Production operational handbooks, runbooks, and security specifications.
 * **Exit Criteria**: Every operational failure scenario has a documented detection and recovery procedure.
@@ -314,9 +252,9 @@ architecture/
 ## Phase 6: Diagrams, Appendices & Final Repository Validation
 * **Purpose**: Consolidate visual Mermaid diagrams, appendices, cross-reference integrity, and perform final quality gate review.
 * **Documents to Generate**:
-  * `15-roadmap/` (phase 1 through phase 4 evolution roadmaps).
+  * `15-roadmap/` (`multi-phase-evolution-roadmap.md`).
   * `diagrams/` (standalone Mermaid source files for context, ER, sequence, state, infrastructure).
-  * `appendices/` (reference tables, HTTP status codes, error code registry).
+  * `appendices/` (`reference-tables-and-error-registry.md`).
 * **Dependencies**: Phases 1 through 5.
 * **Deliverables**: Complete master repository with 100% cross-linked specification files.
 * **Exit Criteria**: 100% checklist completion on `11_ARCHITECT_CHECKLIST.md`; PASS score across all review categories in `08_REVIEWER.md`.
@@ -329,7 +267,7 @@ Every document in the repository will be generated in strict sequential order. S
 
 | Seq # | Target Document Path | Description / Purpose | Key Dependencies | Complexity | Review Mandate |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **1** | `architecture/README.md` | Master repository entrypoint and navigation map. | `prompts/05_OUTPUT_STRUCTURE.md` | Low | Structural validation |
+| **1** | `architecture/README.md` | Master repository entrypoint and navigation map. | `prompts/05_OUTPUT_STRUCTURE.md` | Medium | Structural validation |
 | **2** | `architecture/PROJECT_STATE.md` | Live metadata tracking document for continuous state. | Root index | Low | State check |
 | **3** | `architecture/SUMMARY.md` | Complete index tree for GitBook / documentation rendering. | `architecture/README.md` | Low | Link integrity |
 | **4** | `architecture/CONTRIBUTING.md` | Guidelines for updating architecture specs without drift. | `prompts/04_WORKFLOW.md` | Medium | Governance check |
@@ -337,47 +275,40 @@ Every document in the repository will be generated in strict sequential order. S
 | **6** | `architecture/GLOSSARY.md` | Single canonical repository dictionary for all domain terms. | `prompts/02_PROJECT.md` | High | Terminology consistency |
 | **7** | `architecture/ARCHITECTURE_PRINCIPLES.md` | Core engineering axioms for Saturdays platform architecture. | `prompts/01_ROLE.md` | Medium | Alignment check |
 | **8** | `architecture/00-foundation/README.md` | Foundation layer overview and index. | Root index | Low | Structure check |
-| **9** | `architecture/00-foundation/vision-and-mission.md` | Strategic objectives, platform mission, and non-goals. | `prompts/02_PROJECT.md` | Medium | Vision verification |
-| **10** | `architecture/00-foundation/engineering-principles.md` | Standard engineering rules (Explicit > Implicit, Simple > Clever). | `prompts/06_GENERATION_RULES.md` | Medium | Rule compliance |
-| **11** | `architecture/00-foundation/architecture-style.md` | Rationale for Production-Grade Modular Monolith. | `prompts/09_DECISIONS.md` | High | ADR-0001 cross-ref |
-| **12** | `architecture/00-foundation/system-constraints.md` | Hard technological, geographic, and business bounds. | `prompts/09_DECISIONS.md` | Medium | Constraints review |
-| **13** | `architecture/00-foundation/quality-attributes.md` | Overview of target non-functional attributes. | `prompts/03_DOCUMENT_REQUIREMENTS.md` | Medium | Metrics alignment |
-| **14** | `architecture/03.5-non-functional/README.md` | Non-functional requirements section index. | Foundation specs | Low | Structure check |
-| **15** | `architecture/03.5-non-functional/availability-and-reliability.md` | Uptime SLA, fault tolerance, circuit breaker specs. | Quality attributes | High | NFR review |
-| **16** | `architecture/03.5-non-functional/performance-and-latency-targets.md` | Latency p95/p99 targets, query budgets, throughput bounds.| System constraints | High | Latency review |
-| **17** | `architecture/03.5-non-functional/capacity-planning-and-scalability.md` | Scale limits for restaurants, active users, DB connections. | Constraints | High | Scale review |
-| **18** | `architecture/03.5-non-functional/slos-slis-and-error-budgets.md` | Service level objectives, indicators, error budget policies. | Availability NFR | High | Operations review |
-| **19** | `architecture/03.5-non-functional/disaster-recovery-rto-rpo.md` | RTO/RPO targets, database backup strategies, failover bounds.| Availability NFR | High | DR review |
-| **20** | `architecture/03.5-non-functional/security-and-compliance-nfrs.md` | OWASP compliance, encryption targets, regulatory bounds. | Foundation specs | High | Security review |
-| **21** | `architecture/14-adrs/README.md` | ADR directory overview and index. | Root index | Low | Structure check |
-| **22** | `architecture/14-adrs/ADR-0001-modular-monolith-architecture.md` | Architectural decision for Modular Monolith. | `architecture-style.md` | High | ADR format check |
-| **23** | `architecture/14-adrs/ADR-0002-shared-postgresql-database.md` | Architectural decision for shared Postgres instance. | `prompts/09_DECISIONS.md` | High | Boundary check |
-| **24** | `architecture/14-adrs/ADR-0003-merchant-brand-branch-kitchen-hierarchy.md` | Rationale for 4-tier merchant organizational structure. | Domain hierarchy | High | Hierarchy check |
-| **25** | `architecture/14-adrs/ADR-0004-multi-tenant-authentication-identity-strategy.md` | Rationale for multi-tenant JWT & OAuth identity. | Identity strategy | High | Identity review |
-| **26** | `architecture/14-adrs/ADR-0005-in-database-order-processing-model.md` | Rationale for real-time in-database order state updates. | Order strategy | High | Process review |
-| **27** | `architecture/14-adrs/ADR-0006-inventory-ownership-write-rule.md` | Rationale for exclusive DineGuru inventory write rule. | Inventory strategy | High | Ownership check |
-| **28** | `architecture/14-adrs/ADR-0007-in-process-domain-event-propagation.md` | Rationale for in-process event bus vs external broker. | Event strategy | High | Coupling review |
-| **29** | `architecture/14-adrs/ADR-0008-api-versioning-and-backward-compatibility.md` | Rationale for URL path versioning protocol. | API standards | Medium | API review |
-| **30** | `architecture/14-adrs/ADR-0009-deferred-redis-and-message-brokers.md` | Rationale for omitting Redis/Kafka in initial MVP. | Operational specs | High | Scale review |
-| **31** | `architecture/14-adrs/ADR-0010-real-time-websocket-architecture.md` | Rationale for WebSocket connection handling in FastAPI. | Communication strategy| High | Push review |
-| **32** | `architecture/14-adrs/ADR-0011-provider-agnostic-notification-architecture.md` | Rationale for provider-agnostic notification adapter. | Notification strategy | Medium | Adapter review |
-| **33** | `architecture/14-adrs/ADR-0012-append-only-payment-ledger-and-refunds.md` | Rationale for immutable payment transactions. | Payment strategy | High | Financial review |
-| **34** | `architecture/01-business/README.md` to `operational-policies.md` | Business models, customer journey, revenue models. | Foundation & ADRs | Medium | Business review |
-| **35** | `architecture/02-domain-model/README.md` to `domain-events.md` | Bounded contexts, aggregate roots, domain invariants. | Business specs | High | Domain purity |
-| **36** | `architecture/03-system/README.md` to `failure-boundaries.md` | System container architecture and communication. | Domain model | High | Boundary review |
-| **37** | `architecture/04-backend/README.md` to `transaction-management.md` | FastAPI layered architecture, DI, transactions. | System specs | High | Tech stack review |
-| **38** | `architecture/05-database/README.md` to `audit-logging.md` | Database philosophy, schema standards, migrations. | Backend specs | High | Schema review |
-| **39** | `architecture/06-api/README.md` to `rate-limiting.md` | REST conventions, auth header, RBAC, error schema. | Backend & DB specs | High | REST review |
-| **40–277**| `architecture/07-modules/[17 modules]/[14 files each]` | Deep specifications for all 17 business modules. | Phases 1–3 complete | Critical | Module audit |
-| **278**| `architecture/08-admin/README.md` to `audit-log-monitoring.md` | Consolidated admin operational interfaces. | Module specs | High | Admin security |
-| **279**| `architecture/09-security/README.md` to `audit-compliance.md` | Threat model, RBAC matrix, encryption, security NFRs. | API & System specs | Critical | Security audit |
-| **280**| `architecture/10-observability/README.md` to `alerting-rules.md` | Structured logging, metrics, health probes, alerting. | System & NFR specs | High | Alert review |
-| **281**| `architecture/11-devops/README.md` to `disaster-recovery.md` | CI/CD pipelines, database migration ops, backups. | System & DB specs | High | Ops readiness |
-| **282**| `architecture/12-testing/README.md` to `contract-testing.md` | Unit, integration, and contract testing specifications. | Backend & DB specs | Medium | QA coverage |
-| **283**| `architecture/13-runbooks/README.md` to `refund-reconciliation.md` | Operational incident runbooks for failure scenarios. | All modules & system | High | Operational check |
-| **284**| `architecture/15-roadmap/README.md` to `phase-4-...md` | 4-phase evolution roadmap (Multi-city, Riders, AI). | Platform vision | Medium | Roadmap review |
-| **285**| `architecture/diagrams/README.md` & `.mmd` files | Standalone Mermaid diagrams directory. | Complete specs | High | Render check |
-| **286**| `architecture/appendices/README.md` & reference files | Reference tables, error codes, HTTP status mapping. | Master specs | Medium | Appendix review |
+| **9** | `architecture/00-foundation/foundation-overview.md` | Vision, mission, engineering principles, non-goals. | `prompts/02_PROJECT.md` | High | Vision verification |
+| **10** | `architecture/00-foundation/architecture-and-quality-attributes.md` | Modular monolith style, constraints, quality attributes. | `prompts/09_DECISIONS.md` | High | Stack review |
+| **11** | `architecture/03.5-non-functional/README.md` | Non-functional requirements section index. | Foundation specs | Low | Structure check |
+| **12** | `architecture/03.5-non-functional/performance-scalability-and-sla.md` | Latency targets, throughput, SLAs/SLOs, capacity bounds.| System constraints | High | NFR review |
+| **13** | `architecture/03.5-non-functional/resilience-disaster-recovery-and-security-nfrs.md` | RTO/RPO, backups, failover, OWASP security/compliance. | Availability NFR | High | DR review |
+| **14** | `architecture/14-adrs/README.md` | ADR directory overview and index. | Root index | Low | Structure check |
+| **15** | `architecture/14-adrs/ADR-0001-modular-monolith-architecture.md` | Architectural decision for Modular Monolith. | Foundation specs | High | ADR format check |
+| **16** | `architecture/14-adrs/ADR-0002-shared-postgresql-database.md` | Architectural decision for shared Postgres instance. | `prompts/09_DECISIONS.md` | High | Boundary check |
+| **17** | `architecture/14-adrs/ADR-0003-merchant-brand-branch-kitchen-hierarchy.md` | Rationale for 4-tier merchant organizational structure. | Domain hierarchy | High | Hierarchy check |
+| **18** | `architecture/14-adrs/ADR-0004-multi-tenant-authentication-identity-strategy.md` | Rationale for multi-tenant JWT & OAuth identity. | Identity strategy | High | Identity review |
+| **19** | `architecture/14-adrs/ADR-0005-in-database-order-processing-model.md` | Rationale for real-time in-database order state updates. | Order strategy | High | Process review |
+| **20** | `architecture/14-adrs/ADR-0006-inventory-ownership-write-rule.md` | Rationale for exclusive DineGuru inventory write rule. | Inventory strategy | High | Ownership check |
+| **21** | `architecture/14-adrs/ADR-0007-in-process-domain-event-propagation.md` | Rationale for in-process event bus vs external broker. | Event strategy | High | Coupling review |
+| **22** | `architecture/14-adrs/ADR-0008-api-versioning-and-backward-compatibility.md` | Rationale for URL path versioning protocol. | API standards | Medium | API review |
+| **23** | `architecture/14-adrs/ADR-0009-deferred-redis-and-message-brokers.md` | Rationale for omitting Redis/Kafka in initial MVP. | Operational specs | High | Scale review |
+| **24** | `architecture/14-adrs/ADR-0010-real-time-websocket-architecture.md` | Rationale for WebSocket connection handling in FastAPI. | Communication strategy| High | Push review |
+| **25** | `architecture/14-adrs/ADR-0011-provider-agnostic-notification-architecture.md` | Rationale for provider-agnostic notification adapter. | Notification strategy | Medium | Adapter review |
+| **26** | `architecture/14-adrs/ADR-0012-append-only-payment-ledger-and-refunds.md` | Rationale for immutable payment transactions. | Payment strategy | High | Financial review |
+| **27** | `architecture/01-business/README.md` to `merchant-and-customer-journeys.md` | Business models, customer/merchant workflows. | Foundation & ADRs | Medium | Business review |
+| **28** | `architecture/02-domain-model/README.md` to `domain-invariants-and-events.md` | Bounded contexts, aggregate roots, invariants. | Business specs | High | Domain purity |
+| **29** | `architecture/03-system/README.md` to `failure-and-isolation-boundaries.md` | System container layout, component communication. | Domain model | High | Boundary review |
+| **30** | `architecture/04-backend/README.md` to `concurrency-transactions-...md` | FastAPI layered architecture, DI, transactions. | System specs | High | Tech stack review |
+| **31** | `architecture/05-database/README.md` to `indexing-migrations-...md` | Database philosophy, 28 tables schema, indexing. | Backend specs | High | Schema review |
+| **32** | `architecture/06-api/README.md` to `authorization-errors-...md` | REST conventions, auth header, RBAC, error schema. | Backend & DB specs | High | REST review |
+| **33–83**| `architecture/07-modules/[17 modules]/[3 files each]` | Rich deep specifications for all 17 business modules. | Phases 1–3 complete | Critical | Module audit |
+| **84** | `architecture/08-admin/README.md` to `admin-cms-flags-and-audit.md` | Consolidated admin operational interfaces. | Module specs | High | Admin security |
+| **85** | `architecture/09-security/README.md` to `secrets-encryption-...md` | Threat model, RBAC matrix, encryption, security NFRs. | API & System specs | Critical | Security audit |
+| **86** | `architecture/10-observability/README.md` to `health-checks-and-...md` | Structured logging, metrics, health probes, alerting. | System & NFR specs | High | Alert review |
+| **87** | `architecture/11-devops/README.md` to `database-ops-and-disaster...md` | CI/CD pipelines, database migration ops, backups. | System & DB specs | High | Ops readiness |
+| **88** | `architecture/12-testing/README.md` to `testing-strategy-...md` | Unit, integration, and contract testing specifications. | Backend & DB specs | Medium | QA coverage |
+| **89** | `architecture/13-runbooks/README.md` to `payment-and-refund-...md` | Operational incident runbooks for failure scenarios. | All modules & system | High | Operational check |
+| **90** | `architecture/15-roadmap/README.md` to `multi-phase-evolution-...md` | 4-phase evolution roadmap (Multi-city, Riders, AI). | Platform vision | Medium | Roadmap review |
+| **91** | `architecture/diagrams/README.md` & `.mmd` files | Standalone Mermaid diagrams directory. | Complete specs | High | Render check |
+| **92** | `architecture/appendices/README.md` & reference files | Reference tables, error codes, HTTP status mapping. | Master specs | Medium | Appendix review |
 
 ---
 
@@ -394,7 +325,7 @@ graph TD
     F --> G["04-backend (FastAPI Layered Specs)"]
     F --> H["05-database (Shared Schema Specs)"]
     F --> I["06-api (REST & Auth Standards)"]
-    G --> J["07-modules (17 Business Domain Modules)"]
+    G --> J["07-modules (17 Business Domain Modules - 51 Rich Specs)"]
     H --> J
     I --> J
     J --> K["08-admin (Operational Interfaces)"]
@@ -408,7 +339,7 @@ graph TD
 ## Why Generation Order is Critical
 1. **Continuous State Transparency (`PROJECT_STATE.md`)**: Initializing state tracking at document #2 guarantees every subsequent document generation increments progress metrics accurately.
 2. **First-Class Non-Functional Governance**: Defining latency budgets, RTO/RPO, and SLAs in `03.5-non-functional/` prior to business domain design ensures performance and availability constraints directly inform domain invariants and technical execution.
-3. **Clean Module Boundary Isolation**: Eliminating generic "shared" and "admin" business modules forces domain modules in `07-modules/` to contain pure business logic. Operational workflows are specified downstream in `08-admin/`.
+3. **Consolidated High-Granularity Readability**: Grouping domain logic into 3 rich module specifications per module ensures full context is visible within single documents, avoiding context fragmentation and stale cross-links.
 
 ---
 
@@ -416,24 +347,24 @@ graph TD
 
 | Diagram Name | File Path | Diagram Type | System Location |
 | :--- | :--- | :--- | :--- |
-| **System Context Diagram** | `architecture/diagrams/system-context.mmd` | Flowchart | `03-system/high-level-architecture.md` |
-| **Component Architecture** | `architecture/diagrams/component-architecture.mmd` | Flowchart | `03-system/component-boundaries.md` |
-| **Database ER Diagram** | `architecture/diagrams/database-er.mmd` | ER Diagram | `05-database/schema-design.md` |
-| **Order State Machine** | `architecture/diagrams/order-state-machine.mmd` | State Machine | `07-modules/order/state-machines.md` |
-| **Payment State Machine** | `architecture/diagrams/payment-state-machine.mmd` | State Machine | `07-modules/payment/state-machines.md` |
-| **Merchant Onboarding State Machine** | `architecture/diagrams/merchant-state-machine.mmd` | State Machine | `07-modules/merchant/state-machines.md` |
-| **Customer Account State Machine** | `architecture/diagrams/customer-state-machine.mmd` | State Machine | `07-modules/customer/state-machines.md` |
-| **Cart & Checkout Sequence** | `architecture/diagrams/cart-checkout-sequence.mmd` | Sequence Diagram | `07-modules/checkout/sequence-diagrams.md` |
-| **Order Fulfillment Sequence** | `architecture/diagrams/order-fulfillment-sequence.mmd` | Sequence Diagram | `07-modules/order/sequence-diagrams.md` |
-| **Razorpay Payment Sequence** | `architecture/diagrams/payment-sequence.mmd` | Sequence Diagram | `07-modules/payment/sequence-diagrams.md` |
-| **Deployment & Infrastructure** | `architecture/diagrams/deployment-infrastructure.mmd` | Deployment Diagram| `11-devops/deployment-architecture.md` |
-| **Network & Security Boundaries** | `architecture/diagrams/network-security.mmd` | Network Diagram | `09-security/threat-model.md` |
+| **System Context Diagram** | `architecture/diagrams/system-context.mmd` | Flowchart | `03-system/system-architecture-and-boundaries.md` |
+| **Component Architecture** | `architecture/diagrams/component-architecture.mmd` | Flowchart | `03-system/system-architecture-and-boundaries.md` |
+| **Database ER Diagram** | `architecture/diagrams/database-er.mmd` | ER Diagram | `05-database/database-philosophy-and-schema.md` |
+| **Order State Machine** | `architecture/diagrams/order-state-machine.mmd` | State Machine | `07-modules/order/workflows-and-state-machines.md` |
+| **Payment State Machine** | `architecture/diagrams/payment-state-machine.mmd` | State Machine | `07-modules/payment/workflows-and-state-machines.md` |
+| **Merchant Onboarding State Machine** | `architecture/diagrams/merchant-state-machine.mmd` | State Machine | `07-modules/merchant/workflows-and-state-machines.md` |
+| **Customer Account State Machine** | `architecture/diagrams/customer-state-machine.mmd` | State Machine | `07-modules/customer/workflows-and-state-machines.md` |
+| **Cart & Checkout Sequence** | `architecture/diagrams/cart-checkout-sequence.mmd` | Sequence Diagram | `07-modules/checkout/workflows-and-state-machines.md` |
+| **Order Fulfillment Sequence** | `architecture/diagrams/order-fulfillment-sequence.mmd` | Sequence Diagram | `07-modules/order/workflows-and-state-machines.md` |
+| **Razorpay Payment Sequence** | `architecture/diagrams/payment-sequence.mmd` | Sequence Diagram | `07-modules/payment/workflows-and-state-machines.md` |
+| **Deployment & Infrastructure** | `architecture/diagrams/deployment-infrastructure.mmd` | Deployment Diagram| `11-devops/ci-cd-and-deployments.md` |
+| **Network & Security Boundaries** | `architecture/diagrams/network-security.mmd` | Network Diagram | `09-security/threat-model-and-rbac.md` |
 
 ---
 
 # Database Roadmap
 
-All database tables will be fully documented in `05-database/` and inside their respective owning module's `database.md` file. Each table specification MUST detail: purpose, business justification, owner module, foreign keys, B-Tree indexes, unique constraints, check constraints, soft delete rules, expected growth, query patterns, and migration plan.
+All database tables will be fully documented in `05-database/` and inside their respective owning module's `domain-database-and-api.md` file. Each table specification MUST detail: purpose, business justification, owner module, foreign keys, B-Tree indexes, unique constraints, check constraints, soft delete rules, expected growth, query patterns, and migration plan.
 
 ## Expected Database Schema Tables (28 Tables)
 
@@ -472,7 +403,7 @@ All database tables will be fully documented in `05-database/` and inside their 
 
 # API Roadmap
 
-Every API endpoint will be documented inside its owning business module's `api.md` file (or `08-admin/` for administrative endpoints). Specifications will cover route path, HTTP method, authentication, RBAC authorization, request body schema, parameter validation, business rules, transaction boundaries, idempotency, retry behavior, rate limits, and example requests/responses.
+Every API endpoint will be documented inside its owning business module's `domain-database-and-api.md` file (or `08-admin/` for administrative endpoints). Specifications will cover route path, HTTP method, authentication, RBAC authorization, request body schema, parameter validation, business rules, transaction boundaries, idempotency, retry behavior, rate limits, and example requests/responses.
 
 ## Endpoint Distribution Grouped by Module (~80 Endpoints)
 * **`auth`**: `/api/v1/auth/google`, `/api/v1/auth/otp/send`, `/api/v1/auth/otp/verify`, `/api/v1/auth/refresh`, `/api/v1/auth/logout`.
@@ -523,7 +454,7 @@ The repository will maintain formal Architecture Decision Records inside `14-adr
 * **Glossary Maintenance**: Whenever a new domain term or technical acronym is introduced, it MUST be immediately added to `GLOSSARY.md` with an authoritative definition.
 
 ## Preventing Architectural Drift
-1. **Single Source of Truth Enforcement**: If a concept changes (e.g., Order state machine), only `07-modules/order/state-machines.md` is updated. All other documents MUST cross-reference it rather than repeating logic.
+1. **Single Source of Truth Enforcement**: If a concept changes (e.g., Order state machine), only `07-modules/order/workflows-and-state-machines.md` is updated. All other documents MUST cross-reference it rather than repeating logic.
 2. **Zero Unexplained Contradictions**: If a new architectural requirement conflicts with an earlier specification, generation MUST stop. The earlier specification, affected ADRs, and dependent diagrams MUST be updated first.
 
 ---
@@ -533,7 +464,7 @@ The repository will maintain formal Architecture Decision Records inside `14-adr
 | Identified Risk | Impact Level | Mitigation Strategy |
 | :--- | :--- | :--- |
 | **Terminology Inconsistency** | High | Enforce strict usage of `GLOSSARY.md` terms (`Merchant`, `Brand`, `Branch`, `Kitchen`, `Customer`). Prohibit unauthorized synonyms. |
-| **Duplicate Ownership** | High | Maintain explicit Domain Ownership Matrix in `02-domain-model/aggregate-roots.md`. Reject any file claiming unauthorized ownership. |
+| **Duplicate Ownership** | High | Maintain explicit Domain Ownership Matrix in `02-domain-model/bounded-contexts-and-aggregates.md`. Reject any file claiming unauthorized ownership. |
 | **Circular Module Dependencies** | Critical | Enforce strict unidirectional dependency rule: `Presentation` $\rightarrow$ `API` $\rightarrow$ `Application` $\rightarrow$ `Domain` $\rightarrow$ `Persistence`. |
 | **Architectural Drift** | High | Conduct mandatory pass-gate review under `08_REVIEWER.md` at the end of every phase before advancing. |
 | **Boundary Erosion via "Shared" Catch-All** | High | Strictly enforce removal of `07-modules/shared/`. Common code must be modeled explicitly as Shared Kernel or Infrastructure. |
@@ -542,8 +473,11 @@ The repository will maintain formal Architecture Decision Records inside `14-adr
 
 # Progress Tracking
 
-- [ ] **Phase 1: Core Foundation, Repository Tracking & Master ADR Suite**
-  - [ ] Root Index & Navigation Files (`README.md`, `PROJECT_STATE.md`, `SUMMARY.md`, `GLOSSARY.md`, etc.)
+- [/] **Phase 1: Core Foundation, Repository Tracking & Master ADR Suite**
+  - [x] Master Execution Plan (`EXECUTION_PLAN.md`)
+  - [x] Master Repository Index (`README.md`)
+  - [x] Live Project State Tracking (`PROJECT_STATE.md`)
+  - [ ] Root Index & Navigation Files (`SUMMARY.md`, `GLOSSARY.md`, `ARCHITECTURE_PRINCIPLES.md`, etc.)
   - [ ] `00-foundation/` Specifications
   - [ ] `03.5-non-functional/` Dedicated NFR Specifications
   - [ ] `14-adrs/` Baseline Architectural ADR Suite (ADR-0001 through ADR-0012)
@@ -556,7 +490,7 @@ The repository will maintain formal Architecture Decision Records inside `14-adr
   - [ ] `05-database/` Shared Database Standards
   - [ ] `06-api/` REST, Auth & RBAC Standards
 - [ ] **Phase 4: Business Domain Module Specifications**
-  - [ ] 17 True Business Domain Modules in `07-modules/` (238 Files)
+  - [ ] 17 True Business Domain Modules in `07-modules/` (51 Consolidated Rich Files)
 - [ ] **Phase 5: Operational Administration, Security, Observability & DevOps**
   - [ ] `08-admin/` Consolidated Admin Operational Interfaces
   - [ ] `09-security/` Threat Model & RBAC Matrix
@@ -577,19 +511,19 @@ The following architectural decisions are intentionally left **UNRESOLVED** and 
 
 1. **Primary Key Strategy (`UUIDv7` vs `BIGINT`)**:
    * *Status*: Open.
-   * *Resolution Phase*: Phase 3 (`05-database/schema-design.md`).
+   * *Resolution Phase*: Phase 3 (`05-database/database-philosophy-and-schema.md`).
 2. **Real-time Order Event Propagation Mechanism**:
    * *Status*: Open (Evaluating PostgreSQL `LISTEN/NOTIFY` via `asyncpg` vs in-memory WebSocket channels to adhere to "No Redis/Broker" constraint).
-   * *Resolution Phase*: Phase 4 (`07-modules/order/architecture.md`).
+   * *Resolution Phase*: Phase 4 (`07-modules/order/overview-and-architecture.md`).
 3. **Inventory Deduction Concurrency Strategy**:
    * *Status*: Open (Evaluating Pessimistic `SELECT FOR UPDATE` vs Optimistic Version Locking under peak campus load).
-   * *Resolution Phase*: Phase 4 (`07-modules/inventory/architecture.md`).
+   * *Resolution Phase*: Phase 4 (`07-modules/inventory/overview-and-architecture.md`).
 4. **Transient Cart State Expiration & Purge Policy**:
    * *Status*: Open.
-   * *Resolution Phase*: Phase 4 (`07-modules/cart/database.md`).
+   * *Resolution Phase*: Phase 4 (`07-modules/cart/domain-database-and-api.md`).
 5. **Post-MVP Caching & Message Broker Threshold Metrics**:
    * *Status*: Open (Defining exact throughput triggers for introducing Redis or RabbitMQ).
-   * *Resolution Phase*: Phase 6 (`15-roadmap/phase-2-multi-city-expansion.md`).
+   * *Resolution Phase*: Phase 6 (`15-roadmap/multi-phase-evolution-roadmap.md`).
 
 ---
 
@@ -600,7 +534,7 @@ Before Version 1.0 of the Saturdays Architecture Repository is declared complete
 1. **Checklist Verification**: 100% of items in [11_ARCHITECT_CHECKLIST.md](file:///Users/adith/Documents/Dev/LMX/Saturdays/prompts/11_ARCHITECT_CHECKLIST.md) (governance-adjusted) verified and checked.
 2. **State Tracking Integrity**: `PROJECT_STATE.md` accurately reflects 100% completion across all files, terms, diagrams, and ADRs.
 3. **Reviewer Audit**: Complete audit executed against [08_REVIEWER.md](file:///Users/adith/Documents/Dev/LMX/Saturdays/prompts/08_REVIEWER.md), scoring **PASS** in Architecture, Documentation, Security, Maintainability, Operational Readiness, and Future Readiness categories.
-4. **Link Integrity Audit**: Zero broken markdown links or invalid cross-references across all 345+ specification files.
+4. **Link Integrity Audit**: Zero broken markdown links or invalid cross-references across all specification files.
 5. **Forbidden Keyword Audit**: Automated scan verifying zero occurrences of `TODO`, `TBD`, `coming later`, `scalable`, `enterprise-grade`, or `robust`.
 6. **Diagram Render Audit**: Validation that all Mermaid `.mmd` files parse correctly without syntax errors.
 
