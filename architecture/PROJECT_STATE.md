@@ -3,7 +3,7 @@
 Version: 1.0  
 Status: Active Live Ledger  
 Target: Saturdays Engineering Architecture Repository  
-Last Updated: 2026-07-30T19:44:00+05:30  
+Last Updated: 2026-07-30T19:44:30+05:30  
 
 ---
 
@@ -12,15 +12,15 @@ Last Updated: 2026-07-30T19:44:00+05:30
 | Metric | Value / Status |
 | :--- | :--- |
 | **Current Phase** | **Phase 4: Business Domain Module Specifications** |
-| **Current Active Module** | [architecture/07-modules/menu/](file:///Users/adith/Documents/Dev/LMX/Saturdays/architecture/07-modules/menu/overview-and-architecture.md) (Completed - 3 Consolidated Docs) |
-| **Completed Documents** | **66 / ~92 consolidated files** |
-| **Remaining Documents** | ~26 consolidated files |
+| **Current Active Module** | [architecture/07-modules/inventory/](file:///Users/adith/Documents/Dev/LMX/Saturdays/architecture/07-modules/inventory/overview-and-architecture.md) (Completed - 3 Consolidated Docs) |
+| **Completed Documents** | **69 / ~92 consolidated files** |
+| **Remaining Documents** | ~23 consolidated files |
 | **Current ADR Count** | 12 completed ADRs |
-| **Current Diagram Count** | 29 embedded flowcharts & sequence diagrams |
+| **Current Diagram Count** | 31 embedded flowcharts & sequence diagrams |
 | **Current Glossary Terms** | 21 canonical terms defined |
-| **Open Architectural Decisions** | **3 unresolved decisions** (Decision #3 resolved in `inventory` next) |
+| **Open Architectural Decisions** | **2 unresolved decisions** (Decisions #1 & #3 resolved) |
 | **Review Status** | **PASS** (100% compliant under `08_REVIEWER.md` & Rule 2 Governance) |
-| **Repository Completion Percentage** | **71.7%** |
+| **Repository Completion Percentage** | **75.0%** |
 
 ---
 
@@ -39,7 +39,8 @@ Last Updated: 2026-07-30T19:44:00+05:30
 | **58–60**| [architecture/07-modules/branch/](file:///Users/adith/Documents/Dev/LMX/Saturdays/architecture/07-modules/branch/overview-and-architecture.md) (3 files) | Phase 4 | **COMPLETED** | 2026-07-30 |
 | **61–63**| [architecture/07-modules/kitchen/](file:///Users/adith/Documents/Dev/LMX/Saturdays/architecture/07-modules/kitchen/overview-and-architecture.md) (3 files) | Phase 4 | **COMPLETED** | 2026-07-30 |
 | **64–66**| [architecture/07-modules/menu/](file:///Users/adith/Documents/Dev/LMX/Saturdays/architecture/07-modules/menu/overview-and-architecture.md) (3 files) | Phase 4 | **COMPLETED** | 2026-07-30 |
-| **67**| `architecture/07-modules/inventory/overview-and-architecture.md` | Phase 4 | Pending | - |
+| **67–69**| [architecture/07-modules/inventory/](file:///Users/adith/Documents/Dev/LMX/Saturdays/architecture/07-modules/inventory/overview-and-architecture.md) (3 files) | Phase 4 | **COMPLETED** | 2026-07-30 |
+| **70**| `architecture/07-modules/search/overview-and-architecture.md` | Phase 4 | Pending | - |
 
 ---
 
@@ -47,6 +48,6 @@ Last Updated: 2026-07-30T19:44:00+05:30
 
 1. **Primary Key Strategy (`UUIDv7` vs `BIGINT`)**: **RESOLVED** (`UUIDv7` adopted in `05-database/database-philosophy-and-schema.md`).
 2. **Real-time Order Event Propagation**: Open (Resolving in `07-modules/order/overview-and-architecture.md`).
-3. **Inventory Deduction Concurrency Control**: Open (Resolving in `07-modules/inventory/overview-and-architecture.md`).
+3. **Inventory Deduction Concurrency Control**: **RESOLVED** (Pessimistic row locking `SELECT FOR UPDATE` adopted in `07-modules/inventory/overview-and-architecture.md`).
 4. **Transient Cart State Purge Policy**: Open (Resolving in `07-modules/cart/domain-database-and-api.md`).
 5. **Post-MVP Caching & Message Broker Triggers**: Open (Resolving in `15-roadmap/multi-phase-evolution-roadmap.md`).
