@@ -498,7 +498,7 @@ The repository will maintain formal Architecture Decision Records inside `14-adr
   - [x] Version History Ledger (`CHANGELOG.md`)
   - [x] Canonical Terminology Glossary (`GLOSSARY.md`)
   - [x] Core Axioms (`ARCHITECTURE_PRINCIPLES.md`)
-  - [/] `00-foundation/` Specifications (`README.md` complete)
+  - [x] `00-foundation/` Specifications (`README.md`, `foundation-overview.md`, `architecture-and-quality-attributes.md`)
   - [ ] `03.5-non-functional/` Dedicated NFR Specifications
   - [ ] `14-adrs/` Baseline Architectural ADR Suite (ADR-0001 through ADR-0012)
 - [ ] **Phase 2: Business Domain Model & High-Level System Architecture**
