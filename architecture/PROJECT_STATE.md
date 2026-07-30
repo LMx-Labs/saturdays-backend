@@ -3,7 +3,7 @@
 Version: 1.0  
 Status: Active Live Ledger  
 Target: Saturdays Engineering Architecture Repository  
-Last Updated: 2026-07-30T19:06:30+05:30  
+Last Updated: 2026-07-30T19:07:00+05:30  
 
 ---
 
@@ -11,16 +11,16 @@ Last Updated: 2026-07-30T19:06:30+05:30
 
 | Metric | Value / Status |
 | :--- | :--- |
-| **Current Phase** | **Phase 1: Core Foundation, Repository Tracking & Master ADR Suite** |
-| **Current Active Document** | [architecture/14-adrs/README.md](file:///Users/adith/Documents/Dev/LMX/Saturdays/architecture/14-adrs/README.md) (Completed) |
-| **Completed Documents** | 14 / ~92 consolidated files |
-| **Remaining Documents** | ~78 consolidated files |
-| **Current ADR Count** | 0 completed (12 initial ADRs planned in Phase 1) |
+| **Current Phase** | **Phase 1 Complete (Transitioning to Phase 2)** |
+| **Current Active Document** | [architecture/14-adrs/ADR-0012-append-only-payment-ledger-and-refunds.md](file:///Users/adith/Documents/Dev/LMX/Saturdays/architecture/14-adrs/ADR-0012-append-only-payment-ledger-and-refunds.md) (Completed) |
+| **Completed Documents** | **26 / ~92 consolidated files** |
+| **Remaining Documents** | ~66 consolidated files |
+| **Current ADR Count** | **12 completed ADRs (ADR-0001 through ADR-0012)** |
 | **Current Diagram Count** | 5 embedded flowcharts |
 | **Current Glossary Terms** | 21 canonical terms defined |
 | **Open Architectural Decisions** | 5 unresolved decisions |
-| **Review Status** | **PASS** (100% compliant under `08_REVIEWER.md` & Rule 2 Governance) |
-| **Repository Completion Percentage** | **15.2%** |
+| **Review Status** | **PASS** (100% compliant under `08_REVIEWER.md` & Rule 2 Governance; Phase 1 Audit Passed) |
+| **Repository Completion Percentage** | **28.3%** |
 
 ---
 
@@ -43,7 +43,18 @@ Last Updated: 2026-07-30T19:06:30+05:30
 | **12**| [architecture/03.5-non-functional/performance-scalability-and-sla.md](file:///Users/adith/Documents/Dev/LMX/Saturdays/architecture/03.5-non-functional/performance-scalability-and-sla.md) | Phase 1 | **COMPLETED** | 2026-07-30 |
 | **13**| [architecture/03.5-non-functional/resilience-disaster-recovery-and-security-nfrs.md](file:///Users/adith/Documents/Dev/LMX/Saturdays/architecture/03.5-non-functional/resilience-disaster-recovery-and-security-nfrs.md) | Phase 1 | **COMPLETED** | 2026-07-30 |
 | **14**| [architecture/14-adrs/README.md](file:///Users/adith/Documents/Dev/LMX/Saturdays/architecture/14-adrs/README.md) | Phase 1 | **COMPLETED** | 2026-07-30 |
-| **15**| `architecture/14-adrs/ADR-0001-modular-monolith-architecture.md` | Phase 1 | Pending | - |
+| **15**| [architecture/14-adrs/ADR-0001-modular-monolith-architecture.md](file:///Users/adith/Documents/Dev/LMX/Saturdays/architecture/14-adrs/ADR-0001-modular-monolith-architecture.md) | Phase 1 | **COMPLETED** | 2026-07-30 |
+| **16**| [architecture/14-adrs/ADR-0002-shared-postgresql-database.md](file:///Users/adith/Documents/Dev/LMX/Saturdays/architecture/14-adrs/ADR-0002-shared-postgresql-database.md) | Phase 1 | **COMPLETED** | 2026-07-30 |
+| **17**| [architecture/14-adrs/ADR-0003-merchant-brand-branch-kitchen-hierarchy.md](file:///Users/adith/Documents/Dev/LMX/Saturdays/architecture/14-adrs/ADR-0003-merchant-brand-branch-kitchen-hierarchy.md) | Phase 1 | **COMPLETED** | 2026-07-30 |
+| **18**| [architecture/14-adrs/ADR-0004-multi-tenant-authentication-identity-strategy.md](file:///Users/adith/Documents/Dev/LMX/Saturdays/architecture/14-adrs/ADR-0004-multi-tenant-authentication-identity-strategy.md) | Phase 1 | **COMPLETED** | 2026-07-30 |
+| **19**| [architecture/14-adrs/ADR-0005-in-database-order-processing-model.md](file:///Users/adith/Documents/Dev/LMX/Saturdays/architecture/14-adrs/ADR-0005-in-database-order-processing-model.md) | Phase 1 | **COMPLETED** | 2026-07-30 |
+| **20**| [architecture/14-adrs/ADR-0006-inventory-ownership-write-rule.md](file:///Users/adith/Documents/Dev/LMX/Saturdays/architecture/14-adrs/ADR-0006-inventory-ownership-write-rule.md) | Phase 1 | **COMPLETED** | 2026-07-30 |
+| **21**| [architecture/14-adrs/ADR-0007-in-process-domain-event-propagation.md](file:///Users/adith/Documents/Dev/LMX/Saturdays/architecture/14-adrs/ADR-0007-in-process-domain-event-propagation.md) | Phase 1 | **COMPLETED** | 2026-07-30 |
+| **22**| [architecture/14-adrs/ADR-0008-api-versioning-and-backward-compatibility.md](file:///Users/adith/Documents/Dev/LMX/Saturdays/architecture/14-adrs/ADR-0008-api-versioning-and-backward-compatibility.md) | Phase 1 | **COMPLETED** | 2026-07-30 |
+| **23**| [architecture/14-adrs/ADR-0009-deferred-redis-and-message-brokers.md](file:///Users/adith/Documents/Dev/LMX/Saturdays/architecture/14-adrs/ADR-0009-deferred-redis-and-message-brokers.md) | Phase 1 | **COMPLETED** | 2026-07-30 |
+| **24**| [architecture/14-adrs/ADR-0010-real-time-websocket-architecture.md](file:///Users/adith/Documents/Dev/LMX/Saturdays/architecture/14-adrs/ADR-0010-real-time-websocket-architecture.md) | Phase 1 | **COMPLETED** | 2026-07-30 |
+| **25**| [architecture/14-adrs/ADR-0011-provider-agnostic-notification-architecture.md](file:///Users/adith/Documents/Dev/LMX/Saturdays/architecture/14-adrs/ADR-0011-provider-agnostic-notification-architecture.md) | Phase 1 | **COMPLETED** | 2026-07-30 |
+| **26**| [architecture/14-adrs/ADR-0012-append-only-payment-ledger-and-refunds.md](file:///Users/adith/Documents/Dev/LMX/Saturdays/architecture/14-adrs/ADR-0012-append-only-payment-ledger-and-refunds.md) | Phase 1 | **COMPLETED** | 2026-07-30 |
 
 ---
 
