@@ -505,9 +505,9 @@ The repository will maintain formal Architecture Decision Records inside `14-adr
   - [x] `01-business/` Specifications (`README.md`, `business-model-and-monetization.md`, `merchant-and-customer-journeys.md`)
   - [x] `02-domain-model/` Bounded Contexts & Aggregate Roots (`README.md`, `bounded-contexts-and-aggregates.md`, `domain-invariants-and-events.md`)
   - [x] `03-system/` High-Level Architecture & Boundaries (`README.md`, `system-architecture-and-boundaries.md`, `failure-and-isolation-boundaries.md`)
-- [ ] **Phase 3: Technical Platform Core**
-  - [ ] `04-backend/` FastAPI Layered Specifications
-  - [ ] `05-database/` Shared Database Standards
+- [/] **Phase 3: Technical Platform Core**
+  - [x] `04-backend/` FastAPI Layered Specifications (`README.md`, `fastapi-architecture-and-layering.md`, `concurrency-transactions-and-background-tasks.md`)
+  - [x] `05-database/` Shared Database Standards (`README.md`, `database-philosophy-and-schema.md`, `indexing-migrations-and-auditing.md`)
   - [ ] `06-api/` REST, Auth & RBAC Standards
 - [ ] **Phase 4: Business Domain Module Specifications**
   - [ ] 17 True Business Domain Modules in `07-modules/` (51 Consolidated Rich Files)
