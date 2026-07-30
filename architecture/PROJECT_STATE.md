@@ -3,7 +3,7 @@
 Version: 1.0  
 Status: Active Live Ledger  
 Target: Saturdays Engineering Architecture Repository  
-Last Updated: 2026-07-30T19:43:30+05:30  
+Last Updated: 2026-07-30T19:44:00+05:30  
 
 ---
 
@@ -12,15 +12,15 @@ Last Updated: 2026-07-30T19:43:30+05:30
 | Metric | Value / Status |
 | :--- | :--- |
 | **Current Phase** | **Phase 4: Business Domain Module Specifications** |
-| **Current Active Module** | [architecture/07-modules/kitchen/](file:///Users/adith/Documents/Dev/LMX/Saturdays/architecture/07-modules/kitchen/overview-and-architecture.md) (Completed - 3 Consolidated Docs) |
-| **Completed Documents** | **63 / ~92 consolidated files** |
-| **Remaining Documents** | ~29 consolidated files |
+| **Current Active Module** | [architecture/07-modules/menu/](file:///Users/adith/Documents/Dev/LMX/Saturdays/architecture/07-modules/menu/overview-and-architecture.md) (Completed - 3 Consolidated Docs) |
+| **Completed Documents** | **66 / ~92 consolidated files** |
+| **Remaining Documents** | ~26 consolidated files |
 | **Current ADR Count** | 12 completed ADRs |
-| **Current Diagram Count** | 27 embedded flowcharts & sequence diagrams |
+| **Current Diagram Count** | 29 embedded flowcharts & sequence diagrams |
 | **Current Glossary Terms** | 21 canonical terms defined |
-| **Open Architectural Decisions** | 4 unresolved decisions |
+| **Open Architectural Decisions** | **3 unresolved decisions** (Decision #3 resolved in `inventory` next) |
 | **Review Status** | **PASS** (100% compliant under `08_REVIEWER.md` & Rule 2 Governance) |
-| **Repository Completion Percentage** | **68.5%** |
+| **Repository Completion Percentage** | **71.7%** |
 
 ---
 
@@ -38,7 +38,8 @@ Last Updated: 2026-07-30T19:43:30+05:30
 | **55–57**| [architecture/07-modules/brand/](file:///Users/adith/Documents/Dev/LMX/Saturdays/architecture/07-modules/brand/overview-and-architecture.md) (3 files) | Phase 4 | **COMPLETED** | 2026-07-30 |
 | **58–60**| [architecture/07-modules/branch/](file:///Users/adith/Documents/Dev/LMX/Saturdays/architecture/07-modules/branch/overview-and-architecture.md) (3 files) | Phase 4 | **COMPLETED** | 2026-07-30 |
 | **61–63**| [architecture/07-modules/kitchen/](file:///Users/adith/Documents/Dev/LMX/Saturdays/architecture/07-modules/kitchen/overview-and-architecture.md) (3 files) | Phase 4 | **COMPLETED** | 2026-07-30 |
-| **64**| `architecture/07-modules/menu/overview-and-architecture.md` | Phase 4 | Pending | - |
+| **64–66**| [architecture/07-modules/menu/](file:///Users/adith/Documents/Dev/LMX/Saturdays/architecture/07-modules/menu/overview-and-architecture.md) (3 files) | Phase 4 | **COMPLETED** | 2026-07-30 |
+| **67**| `architecture/07-modules/inventory/overview-and-architecture.md` | Phase 4 | Pending | - |
 
 ---
 
