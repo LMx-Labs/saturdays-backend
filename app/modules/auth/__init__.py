@@ -1,1 +1,0 @@
-"""Auth domain module package."""
