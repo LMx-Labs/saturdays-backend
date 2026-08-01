@@ -1,15 +1,14 @@
 from contextlib import asynccontextmanager
-
 import structlog
-from fastapi import Depends, FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db_session
+from app.core.logging import setup_logging, CorrelationIdMiddleware
 from app.core.exceptions import register_exception_handlers
-from app.core.logging import CorrelationIdMiddleware, setup_logging
 
 logger = structlog.get_logger()
 
@@ -66,6 +65,6 @@ async def readiness_check(session: AsyncSession = Depends(get_db_session)):  # n
     try:
         await session.execute(text("SELECT 1"))
         return {"status": "ready", "database": "connected"}
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("Readiness check database connection failure", error=str(e))
         return {"status": "not_ready", "database": "disconnected"}
