@@ -13,6 +13,7 @@ from app.core.logging import CorrelationIdMiddleware, setup_logging
 
 logger = structlog.get_logger()
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
@@ -26,6 +27,7 @@ async def lifespan(app: FastAPI):
     assert settings.SECRET_KEY is not None, "SECRET_KEY must be configured"
     yield
     logger.info("Shutting down Saturdays Platform")
+
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -48,13 +50,16 @@ app.add_middleware(CorrelationIdMiddleware)
 
 register_exception_handlers(app)
 
+
 @app.get("/health", tags=["Health"])
 async def health_check():
     return {"status": "ok", "version": settings.VERSION}
 
+
 @app.get("/health/live", tags=["Health"])
 async def liveness_check():
     return {"status": "alive"}
+
 
 @app.get("/health/ready", tags=["Health"])
 async def readiness_check(session: AsyncSession = Depends(get_db_session)):  # noqa: B008

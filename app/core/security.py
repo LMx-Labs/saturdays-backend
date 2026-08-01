@@ -11,9 +11,11 @@ settings = get_settings()
 
 _ph = PasswordHasher()
 
+
 def hash_password(password: str) -> str:
     """Hash password using Argon2id algorithm (INV-AUTH-002)."""
     return _ph.hash(password)
+
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify password against Argon2id hash."""
@@ -23,6 +25,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return _ph.verify(hashed_password, plain_password)
     except (VerifyMismatchError, VerificationError, InvalidHashError):
         return False
+
 
 def create_access_token(
     subject: str,
@@ -49,6 +52,7 @@ def create_access_token(
 
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
+
 def create_refresh_token(
     subject: str,
     expires_delta: Optional[timedelta] = None,
@@ -68,14 +72,11 @@ def create_refresh_token(
     }
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
+
 def decode_token(token: str) -> Dict[str, Any]:
     """Decode and validate JWT token signature and expiration."""
     try:
-        payload = jwt.decode(
-            token,
-            settings.JWT_SECRET_KEY,
-            algorithms=[settings.JWT_ALGORITHM]
-        )
+        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
         return payload
     except jwt.PyJWTError as exc:
         raise ValueError(f"Invalid token: {str(exc)}") from exc

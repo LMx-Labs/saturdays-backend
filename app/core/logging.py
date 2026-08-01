@@ -30,10 +30,13 @@ def configure_logging() -> None:
         cache_logger_on_first_use=True,
     )
 
+
 setup_logging = configure_logging
+
 
 class CorrelationIdMiddleware(BaseHTTPMiddleware):
     """Middleware to inject correlation ID into request context and structlog."""
+
     async def dispatch(self, request: Request, call_next):
         correlation_id = request.headers.get("X-Correlation-ID", str(uuid.uuid4()))
         request.state.correlation_id = correlation_id
