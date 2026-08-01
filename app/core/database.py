@@ -1,4 +1,4 @@
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -31,7 +31,6 @@ AsyncSessionLocal = async_sessionmaker(
 class Base(DeclarativeBase):
     """Base SQLAlchemy 2.0 Declarative Model."""
 
-    pass
 
 
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:

@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
@@ -13,7 +13,7 @@ class AppException(Exception):
         message: str,
         error_code: str = "INTERNAL_SERVER_ERROR",
         status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR,
-        details: Optional[Dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
     ):
         super().__init__(message)
         self.message = message
@@ -32,7 +32,7 @@ class DomainInvariantError(AppException):
         self,
         message: str,
         error_code: str = "DOMAIN_INVARIANT_VIOLATION",
-        details: Optional[Dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
     ):
         super().__init__(
             message=message,
@@ -52,7 +52,7 @@ class EntityNotFoundError(AppException):
         self,
         message: str = "Resource not found",
         error_code: str = "ENTITY_NOT_FOUND",
-        details: Optional[Dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
     ):
         super().__init__(
             message=message,
@@ -69,7 +69,7 @@ class UnauthorizedError(AppException):
         self,
         message: str = "Authentication required",
         error_code: str = "UNAUTHORIZED",
-        details: Optional[Dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
     ):
         super().__init__(
             message=message,
@@ -86,7 +86,7 @@ class ForbiddenError(AppException):
         self,
         message: str = "Permission denied",
         error_code: str = "FORBIDDEN",
-        details: Optional[Dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
     ):
         super().__init__(
             message=message,
@@ -103,7 +103,7 @@ class ConflictError(AppException):
         self,
         message: str,
         error_code: str = "RESOURCE_CONFLICT",
-        details: Optional[Dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
     ):
         super().__init__(
             message=message,

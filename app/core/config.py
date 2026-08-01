@@ -1,5 +1,4 @@
 from functools import lru_cache
-from typing import List
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -35,10 +34,10 @@ class Settings(BaseSettings):
     MAX_CAMPUS_ORDERS_PER_HOUR: int = 1000
 
     # CORS
-    CORS_ORIGINS: List[str] = ["*"]
+    CORS_ORIGINS: list[str] = ["*"]
 
 
-@lru_cache()
+@lru_cache
 def get_settings() -> Settings:
     return Settings()
 
