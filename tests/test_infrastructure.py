@@ -13,6 +13,13 @@ async def test_health_check():
         assert response.json() == {"status": "ok", "version": settings.VERSION}
 
 @pytest.mark.asyncio
+async def test_liveness_check():
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/health/live")
+        assert response.status_code == 200
+        assert response.json() == {"status": "alive"}
+
+@pytest.mark.asyncio
 async def test_correlation_id_header():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get("/health")
