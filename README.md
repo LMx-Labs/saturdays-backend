@@ -1,31 +1,62 @@
-# Saturdays
+# Saturdays Monolithic Platform
 
-This repository contains the complete engineering architecture specification for Saturdays.
+This repository contains the backend implementation and canonical engineering architecture specification for Saturdays and DineGuru.
 
-The repository consists of two parts.
+---
 
-## prompts/
+## Repository Structure
 
-Contains the governing documents.
+- `app/` — FastAPI application backend source code (Core Infrastructure, Config, Database, Middleware, Logging)
+- `alembic/` & `alembic.ini` — PostgreSQL schema migrations
+- `architecture/` — Canonical 15-year engineering architecture specification (116 files)
+- `prompts/` — Governing prompt specifications and documentation rules
+- `.github/workflows/` — CI/CD automation pipeline
 
-These files define
+---
 
-- the role of the architect
-- project constraints
-- documentation standards
-- workflow
-- review process
-- output structure
-- generation rules
+## Local Setup & Quickstart
 
-They are immutable.
+### Prerequisites
+- Python 3.11+
+- PostgreSQL 16+ (or Docker)
 
-## architecture/
+### Environment Configuration
+Copy the sample environment file:
+```bash
+cp .env.example .env
+```
 
-This directory contains the generated engineering architecture.
+### Installation
+Install dependencies:
+```bash
+make install
+# Or: pip install -r requirements.txt && pip install -e .[dev]
+```
 
-Nothing inside this directory should violate the prompt documents.
+### Running Local Development Server
+Start the FastAPI server:
+```bash
+make run
+# Or: uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+API Documentation available at:
+- Swagger UI: `http://localhost:8000/docs`
+- ReDoc: `http://localhost:8000/redoc`
+- Health Checks: `http://localhost:8000/health`, `/health/ready`, `/health/live`
 
-The architecture should be generated incrementally.
+### Docker Setup
+Run the full stack via Docker Compose:
+```bash
+make docker-run
+# Or: docker-compose up --build
+```
 
-Every document should pass review before the next document begins.
+### Testing & Code Quality
+```bash
+# Run Pytest suite
+make test
+
+# Code formatting & linting
+make format
+make lint
+```
