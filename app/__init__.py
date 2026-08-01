@@ -1,1 +1,1 @@
-# Saturdays Platform Application Package
+"""Saturdays Backend Core Package."""

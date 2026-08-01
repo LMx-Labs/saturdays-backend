@@ -1,53 +1,89 @@
-from typing import Any, Optional, Dict
-from fastapi import Request, status
+from typing import Any, Dict, Optional
+from fastapi import FastAPI, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-class SaturdaysException(Exception):
+class AppException(Exception):
+    """Base Application Exception."""
     def __init__(
         self,
-        error_code: str,
         message: str,
-        status_code: int = status.HTTP_400_BAD_REQUEST,
-        details: Optional[Dict[str, Any]] = None
+        error_code: str = "INTERNAL_SERVER_ERROR",
+        status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR,
+        details: Optional[Dict[str, Any]] = None,
     ):
-        self.error_code = error_code
+        super().__init__(message)
         self.message = message
+        self.error_code = error_code
         self.status_code = status_code
         self.details = details or {}
-        super().__init__(message)
 
-class DomainInvariantViolationError(SaturdaysException):
+SaturdaysException = AppException
+
+class DomainInvariantError(AppException):
+    """Domain Invariant Violation Exception (HTTP 400)."""
     def __init__(self, message: str, error_code: str = "DOMAIN_INVARIANT_VIOLATION", details: Optional[Dict[str, Any]] = None):
-        super().__init__(error_code=error_code, message=message, status_code=status.HTTP_400_BAD_REQUEST, details=details)
+        super().__init__(message=message, error_code=error_code, status_code=status.HTTP_400_BAD_REQUEST, details=details)
 
-class EntityNotFoundError(SaturdaysException):
-    def __init__(self, message: str, error_code: str = "ENTITY_NOT_FOUND", details: Optional[Dict[str, Any]] = None):
-        super().__init__(error_code=error_code, message=message, status_code=status.HTTP_404_NOT_FOUND, details=details)
+DomainInvariantViolationError = DomainInvariantError
 
-class UnauthorizedError(SaturdaysException):
-    def __init__(self, message: str = "Invalid or missing authentication credentials", error_code: str = "UNAUTHORIZED"):
-        super().__init__(error_code=error_code, message=message, status_code=status.HTTP_401_UNAUTHORIZED)
+class EntityNotFoundError(AppException):
+    """Entity Not Found Exception (HTTP 404)."""
+    def __init__(self, message: str = "Resource not found", error_code: str = "ENTITY_NOT_FOUND", details: Optional[Dict[str, Any]] = None):
+        super().__init__(message=message, error_code=error_code, status_code=status.HTTP_404_NOT_FOUND, details=details)
 
-class ForbiddenError(SaturdaysException):
-    def __init__(self, message: str = "Permission denied for this resource", error_code: str = "FORBIDDEN"):
-        super().__init__(error_code=error_code, message=message, status_code=status.HTTP_403_FORBIDDEN)
+class UnauthorizedError(AppException):
+    """Unauthorized Access Exception (HTTP 401)."""
+    def __init__(self, message: str = "Authentication required", error_code: str = "UNAUTHORIZED", details: Optional[Dict[str, Any]] = None):
+        super().__init__(message=message, error_code=error_code, status_code=status.HTTP_401_UNAUTHORIZED, details=details)
 
-class ConflictError(SaturdaysException):
+class ForbiddenError(AppException):
+    """Forbidden Operation Exception (HTTP 403)."""
+    def __init__(self, message: str = "Permission denied", error_code: str = "FORBIDDEN", details: Optional[Dict[str, Any]] = None):
+        super().__init__(message=message, error_code=error_code, status_code=status.HTTP_403_FORBIDDEN, details=details)
+
+class ConflictError(AppException):
+    """Conflict Exception e.g. duplicate email (HTTP 409)."""
     def __init__(self, message: str, error_code: str = "RESOURCE_CONFLICT", details: Optional[Dict[str, Any]] = None):
-        super().__init__(error_code=error_code, message=message, status_code=status.HTTP_409_CONFLICT, details=details)
+        super().__init__(message=message, error_code=error_code, status_code=status.HTTP_409_CONFLICT, details=details)
 
-class InventoryOutOfStockError(SaturdaysException):
-    def __init__(self, message: str = "Item is out of stock", details: Optional[Dict[str, Any]] = None):
-        super().__init__(error_code="INVENTORY_OUT_OF_STOCK", message=message, status_code=status.HTTP_400_BAD_REQUEST, details=details)
-
-async def saturdays_exception_handler(request: Request, exc: SaturdaysException) -> JSONResponse:
-    correlation_id = getattr(request.state, "correlation_id", "unknown")
+async def saturdays_exception_handler(request: Request, exc: AppException) -> JSONResponse:
+    correlation_id = getattr(request.state, "correlation_id", None)
     return JSONResponse(
         status_code=exc.status_code,
         content={
             "error_code": exc.error_code,
             "message": exc.message,
             "details": exc.details,
-            "correlation_id": correlation_id
-        }
+            "correlation_id": correlation_id,
+        },
     )
+
+def register_exception_handlers(app: FastAPI) -> None:
+    app.add_exception_handler(AppException, saturdays_exception_handler)
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(request: Request, exc: RequestValidationError):
+        correlation_id = getattr(request.state, "correlation_id", None)
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content={
+                "error_code": "VALIDATION_ERROR",
+                "message": "Request validation failed",
+                "details": {"errors": exc.errors()},
+                "correlation_id": correlation_id,
+            },
+        )
+
+    @app.exception_handler(Exception)
+    async def generic_exception_handler(request: Request, exc: Exception):
+        correlation_id = getattr(request.state, "correlation_id", None)
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "error_code": "INTERNAL_SERVER_ERROR",
+                "message": "An unexpected server error occurred.",
+                "details": {},
+                "correlation_id": correlation_id,
+            },
+        )
