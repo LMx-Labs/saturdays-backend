@@ -1,8 +1,10 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
+
 import jwt
 from argon2 import PasswordHasher
-from argon2.exceptions import VerificationError, VerifyMismatchError, InvalidHashError
+from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
+
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -34,7 +36,7 @@ def create_access_token(
         expire = now + expires_delta
     else:
         expire = now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    
+
     payload: Dict[str, Any] = {
         "sub": str(subject),
         "role": role,
@@ -44,7 +46,7 @@ def create_access_token(
     }
     if extra_claims:
         payload.update(extra_claims)
-        
+
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 def create_refresh_token(
@@ -57,7 +59,7 @@ def create_refresh_token(
         expire = now + expires_delta
     else:
         expire = now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-        
+
     payload: Dict[str, Any] = {
         "sub": str(subject),
         "type": "refresh",

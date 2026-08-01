@@ -1,9 +1,11 @@
 import pytest
-from httpx import AsyncClient, ASGITransport
-from app.main import app
+from httpx import ASGITransport, AsyncClient
+
 from app.core.config import settings
-from app.core.uuidv7 import uuid7
 from app.core.exceptions import DomainInvariantError
+from app.core.uuidv7 import uuid7
+from app.main import app
+
 
 @pytest.mark.asyncio
 async def test_health_check():

@@ -1,10 +1,9 @@
-from datetime import datetime, timezone
-import uuid
+from datetime import datetime
 from typing import Optional
+
 from sqlalchemy import DateTime, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy.dialects.postgresql import UUID
-from app.core.uuidv7 import uuid7
+
 
 class Base(DeclarativeBase):
     pass
