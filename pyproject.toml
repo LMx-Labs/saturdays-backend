@@ -53,8 +53,8 @@ target-version = ['py311']
 
 [tool.mypy]
 python_version = "3.11"
-strict = False
-warn_return_any = True
-warn_unused_configs = True
-disallow_untyped_defs = False
-ignore_missing_imports = True
+strict = false
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
