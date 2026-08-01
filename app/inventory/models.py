@@ -1,9 +1,21 @@
 import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
-from sqlalchemy import String, Boolean, Integer, ForeignKey, CheckConstraint, UniqueConstraint, Index, DateTime, func
+
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from app.core.base_model import Base, TimestampMixin
 from app.core.uuidv7 import uuid7
 

@@ -1,12 +1,3 @@
-from typing import Annotated
-from fastapi import APIRouter, Depends, status
-from fastapi.security import OAuth2PasswordBearer
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.core.database import get_db_session
-from app.core.events import EventDispatcherInterface, get_event_dispatcher
-from app.core.exceptions import UnauthorizedError
-from app.core.security import decode_token
 from app.modules.auth.repository import UserRepository, UserRepositoryInterface
 from app.modules.auth.schemas import (
     TokenRefreshRequest,
@@ -17,6 +8,14 @@ from app.modules.auth.schemas import (
     UserResponse,
 )
 from app.modules.auth.service import AuthService, AuthServiceInterface
+from fastapi import APIRouter, Depends, status
+from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db_session
+from app.core.events import EventDispatcherInterface, get_event_dispatcher
+from app.core.exceptions import UnauthorizedError
+from app.core.security import decode_token
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 

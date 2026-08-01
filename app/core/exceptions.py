@@ -1,7 +1,9 @@
 from typing import Any, Dict, Optional
+
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+
 
 class AppException(Exception):
     """Base Application Exception."""

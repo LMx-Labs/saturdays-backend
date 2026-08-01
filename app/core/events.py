@@ -1,8 +1,11 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict
 from datetime import datetime, timezone
+from typing import Any
+
 from pydantic import BaseModel, Field
+
 from app.core.uuid import generate_uuidv7
+
 
 class DomainEvent(BaseModel):
     """Base Domain Event."""
@@ -15,7 +18,7 @@ class UserRegisteredEvent(DomainEvent):
     user_id: str
     email: str
     role: str
-    
+
     def __init__(self, **data: Any):
         super().__init__(event_name="UserRegisteredEvent", **data)
 

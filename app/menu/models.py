@@ -1,17 +1,31 @@
 import uuid
 from datetime import datetime
-from typing import Optional, TYPE_CHECKING
-from sqlalchemy import String, Text, Boolean, Numeric, Integer, ForeignKey, CheckConstraint, Index, DateTime, func
+from typing import TYPE_CHECKING, Optional
+
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    func,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from app.core.base_model import Base, TimestampMixin
 from app.core.uuidv7 import uuid7
 
 if TYPE_CHECKING:
     from app.branch.models import Branch
-    from app.inventory.models import InventoryItem
-    from app.cart.models import CartItem
     from app.order.models import OrderItem
+
+    from app.cart.models import CartItem
+    from app.inventory.models import InventoryItem
 
 
 class Menu(Base, TimestampMixin):
