@@ -48,7 +48,11 @@ app.add_middleware(
 
 app.add_middleware(CorrelationIdMiddleware)
 
+from app.auth.router import router as auth_router
+
 register_exception_handlers(app)
+
+app.include_router(auth_router, prefix=settings.API_V1_STR)
 
 
 @app.get("/health", tags=["Health"])
