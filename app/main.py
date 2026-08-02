@@ -13,6 +13,7 @@ from app.core.logging import CorrelationIdMiddleware, setup_logging
 
 logger = structlog.get_logger()
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
@@ -26,6 +27,7 @@ async def lifespan(app: FastAPI):
     assert settings.SECRET_KEY is not None, "SECRET_KEY must be configured"
     yield
     logger.info("Shutting down Saturdays Platform")
+
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -46,21 +48,28 @@ app.add_middleware(
 
 app.add_middleware(CorrelationIdMiddleware)
 
+from app.auth.router import router as auth_router
+
 register_exception_handlers(app)
+
+app.include_router(auth_router, prefix=settings.API_V1_STR)
+
 
 @app.get("/health", tags=["Health"])
 async def health_check():
     return {"status": "ok", "version": settings.VERSION}
 
+
 @app.get("/health/live", tags=["Health"])
 async def liveness_check():
     return {"status": "alive"}
+
 
 @app.get("/health/ready", tags=["Health"])
 async def readiness_check(session: AsyncSession = Depends(get_db_session)):  # noqa: B008
     try:
         await session.execute(text("SELECT 1"))
         return {"status": "ready", "database": "connected"}
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error("Readiness check database connection failure", error=str(e))
         return {"status": "not_ready", "database": "disconnected"}
