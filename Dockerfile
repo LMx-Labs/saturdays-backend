@@ -12,7 +12,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY pyproject.toml .
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir fastapi "uvicorn[standard]" "sqlalchemy[asyncio]" asyncpg alembic pydantic pydantic-settings argon2-cffi pyjwt structlog
+    pip install --no-cache-dir fastapi "uvicorn[standard]" "sqlalchemy[asyncio]" asyncpg alembic "pydantic[email]" pydantic-settings email-validator argon2-cffi pyjwt structlog
+
 
 COPY . .
 
