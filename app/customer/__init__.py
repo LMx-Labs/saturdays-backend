@@ -1,3 +1,3 @@
-from app.customer.models import CustomerProfile, CustomerAddress, CustomerFavorite
+from app.customer.models import CustomerAddress, CustomerFavorite, CustomerProfile
 
-__all__ = ["CustomerProfile", "CustomerAddress", "CustomerFavorite"]
+__all__ = ["CustomerAddress", "CustomerFavorite", "CustomerProfile"]

@@ -1,5 +1,5 @@
-from typing import AsyncGenerator
-import pytest
+from collections.abc import AsyncGenerator
+
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -25,6 +25,7 @@ TestingSessionLocal = async_sessionmaker(
     autoflush=False,
 )
 
+
 @pytest_asyncio.fixture
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
     async with engine.begin() as conn:
@@ -35,6 +36,7 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+
 
 @pytest_asyncio.fixture
 async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:

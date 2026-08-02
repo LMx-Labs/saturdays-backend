@@ -66,7 +66,7 @@ async def liveness_check():
 
 
 @app.get("/health/ready", tags=["Health"])
-async def readiness_check(session: AsyncSession = Depends(get_db_session)):  # noqa: B008
+async def readiness_check(session: AsyncSession = Depends(get_db_session)):
     try:
         await session.execute(text("SELECT 1"))
         return {"status": "ready", "database": "connected"}
