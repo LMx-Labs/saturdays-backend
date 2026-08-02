@@ -113,16 +113,24 @@ class ConflictError(AppException):
         )
 
 
-async def saturdays_exception_handler(
-    request: Request, exc: AppException
-) -> JSONResponse:
+async def saturdays_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     correlation_id = getattr(request.state, "correlation_id", None)
+    if isinstance(exc, AppException):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "error_code": exc.error_code,
+                "message": exc.message,
+                "details": exc.details,
+                "correlation_id": correlation_id,
+            },
+        )
     return JSONResponse(
-        status_code=exc.status_code,
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
-            "error_code": exc.error_code,
-            "message": exc.message,
-            "details": exc.details,
+            "error_code": "INTERNAL_SERVER_ERROR",
+            "message": "An unexpected server error occurred.",
+            "details": {},
             "correlation_id": correlation_id,
         },
     )

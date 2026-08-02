@@ -1,5 +1,5 @@
 import pytest
-from httpx import ASGITransport, AsyncClient
+from httpx import AsyncClient
 
 from app.core.security import (
     create_access_token,
@@ -8,7 +8,6 @@ from app.core.security import (
     hash_password,
     verify_password,
 )
-from app.main import app
 
 
 @pytest.mark.asyncio
