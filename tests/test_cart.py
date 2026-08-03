@@ -41,9 +41,7 @@ async def setup_cart_fixture(db_session: AsyncSession):
     await db_session.flush()
 
     # Create Branch A and Branch B
-    branch_a = Branch(
-        brand_id=brand.id, name="Branch Alpha", address_text="Alpha Street"
-    )
+    branch_a = Branch(brand_id=brand.id, name="Branch Alpha", address_text="Alpha Street")
     branch_b = Branch(brand_id=brand.id, name="Branch Beta", address_text="Beta Street")
     db_session.add_all([branch_a, branch_b])
     await db_session.flush()
@@ -77,15 +75,18 @@ async def setup_cart_fixture(db_session: AsyncSession):
     db_session.add(cat_b)
     await db_session.flush()
 
-    item_b = MenuItem(
-        category_id=cat_b.id, name="Beta Taco", base_price=100.00, is_available=True
-    )
+    item_b = MenuItem(category_id=cat_b.id, name="Beta Taco", base_price=100.00, is_available=True)
     db_session.add(item_b)
 
     await db_session.commit()
 
     return {
         "cust_user": cust_user,
+        "branch_a_id": str(branch_a.id),
+        "branch_b_id": str(branch_b.id),
+        "item_available_id": str(item_available.id),
+        "item_unavailable_id": str(item_unavailable.id),
+        "item_b_id": str(item_b.id),
         "branch_a": branch_a,
         "branch_b": branch_b,
         "item_available": item_available,
@@ -147,9 +148,7 @@ async def test_cart_add_and_update_items(client: AsyncClient, setup_cart_fixture
 
 
 @pytest.mark.asyncio
-async def test_cart_single_branch_constraint(
-    client: AsyncClient, setup_cart_fixture: dict
-):
+async def test_cart_single_branch_constraint(client: AsyncClient, setup_cart_fixture: dict):
     fixture = setup_cart_fixture
     headers = await get_headers(client, fixture["cust_user"].email)
     await client.get("/api/v1/customers/me", headers=headers)
@@ -238,8 +237,6 @@ async def test_cart_expiry_and_purge(
     await db_session.commit()
 
     # Call purge endpoint
-    purge_resp = await client.delete(
-        "/api/v1/cart/purge-expired", params={"max_age_days": 7}
-    )
+    purge_resp = await client.delete("/api/v1/cart/purge-expired", params={"max_age_days": 7})
     assert purge_resp.status_code == 200
     assert purge_resp.json()["purged_count"] >= 1

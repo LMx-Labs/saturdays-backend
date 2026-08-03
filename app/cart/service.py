@@ -27,9 +27,7 @@ class CartServiceInterface(ABC):
         pass
 
     @abstractmethod
-    async def add_item(
-        self, user_id: uuid.UUID, req: CartItemAddRequest
-    ) -> CartResponse:
+    async def add_item(self, user_id: uuid.UUID, req: CartItemAddRequest) -> CartResponse:
         pass
 
     @abstractmethod
@@ -95,9 +93,7 @@ class CartService(CartServiceInterface):
                     menu_item_id=item.menu_item_id,
                     quantity=item.quantity,
                     selected_modifiers=item.selected_modifiers,
-                    menu_item_name=(
-                        item.menu_item.name if item.menu_item else "Unknown Item"
-                    ),
+                    menu_item_name=(item.menu_item.name if item.menu_item else "Unknown Item"),
                     unit_price=unit_price,
                     subtotal=item_subtotal,
                     is_available=is_avail,
@@ -123,9 +119,7 @@ class CartService(CartServiceInterface):
         cart = await self.cart_repo.get_by_customer_id(profile_id)
 
         if not cart:
-            raise EntityNotFoundError(
-                message="Cart is empty.", error_code="CART_NOT_FOUND"
-            )
+            raise EntityNotFoundError(message="Cart is empty.", error_code="CART_NOT_FOUND")
 
         # Check cart expiry (7-day policy)
         if cart.is_expired:
@@ -138,9 +132,7 @@ class CartService(CartServiceInterface):
 
         return self._build_cart_response(cart)
 
-    async def add_item(
-        self, user_id: uuid.UUID, req: CartItemAddRequest
-    ) -> CartResponse:
+    async def add_item(self, user_id: uuid.UUID, req: CartItemAddRequest) -> CartResponse:
         profile_id = await self._get_customer_profile_id(user_id)
 
         # 1. Availability check: verify menu_item exists and is available
@@ -207,9 +199,10 @@ class CartService(CartServiceInterface):
             )
             await self.cart_repo.add_item(new_item)
 
+        cart_id = cart.id
         await self.session.commit()
         # Reload full cart with menu items
-        updated_cart = await self.cart_repo.get_by_id(cart.id)
+        updated_cart = await self.cart_repo.get_by_id(cart_id)
         assert updated_cart is not None
         return self._build_cart_response(updated_cart)
 
@@ -220,9 +213,7 @@ class CartService(CartServiceInterface):
         cart = await self.cart_repo.get_by_customer_id(profile_id)
 
         if not cart:
-            raise EntityNotFoundError(
-                message="Cart not found.", error_code="CART_NOT_FOUND"
-            )
+            raise EntityNotFoundError(message="Cart not found.", error_code="CART_NOT_FOUND")
 
         item = await self.cart_repo.get_item_by_id(item_id)
         if not item or item.cart_id != cart.id:
@@ -238,13 +229,13 @@ class CartService(CartServiceInterface):
                 item,
                 {
                     "quantity": req.quantity,
-                    "selected_modifiers": req.selected_modifiers
-                    or item.selected_modifiers,
+                    "selected_modifiers": req.selected_modifiers or item.selected_modifiers,
                 },
             )
 
+        cart_id = cart.id
         await self.session.commit()
-        updated_cart = await self.cart_repo.get_by_id(cart.id)
+        updated_cart = await self.cart_repo.get_by_id(cart_id)
         assert updated_cart is not None
         return self._build_cart_response(updated_cart)
 
@@ -253,9 +244,7 @@ class CartService(CartServiceInterface):
         cart = await self.cart_repo.get_by_customer_id(profile_id)
 
         if not cart:
-            raise EntityNotFoundError(
-                message="Cart not found.", error_code="CART_NOT_FOUND"
-            )
+            raise EntityNotFoundError(message="Cart not found.", error_code="CART_NOT_FOUND")
 
         item = await self.cart_repo.get_item_by_id(item_id)
         if not item or item.cart_id != cart.id:
@@ -263,10 +252,11 @@ class CartService(CartServiceInterface):
                 message="Cart item not found.", error_code="CART_ITEM_NOT_FOUND"
             )
 
+        cart_id = cart.id
         await self.cart_repo.delete_item(item_id)
         await self.session.commit()
 
-        updated_cart = await self.cart_repo.get_by_id(cart.id)
+        updated_cart = await self.cart_repo.get_by_id(cart_id)
         assert updated_cart is not None
         return self._build_cart_response(updated_cart)
 
@@ -284,9 +274,7 @@ class CartService(CartServiceInterface):
         if not cart:
             return CartValidationResponse(
                 is_valid=False,
-                issues=[
-                    CartValidationIssue(code="CART_EMPTY", message="Cart is empty.")
-                ],
+                issues=[CartValidationIssue(code="CART_EMPTY", message="Cart is empty.")],
                 subtotal=0.0,
                 total_items=0,
             )
