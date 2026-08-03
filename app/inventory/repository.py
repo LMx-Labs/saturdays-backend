@@ -21,9 +21,7 @@ class InventoryRepositoryInterface(ABC):
         pass
 
     @abstractmethod
-    async def get_branch_inventory(
-        self, branch_id: uuid.UUID
-    ) -> Sequence[InventoryItem]:
+    async def get_branch_inventory(self, branch_id: uuid.UUID) -> Sequence[InventoryItem]:
         pass
 
     @abstractmethod
@@ -72,9 +70,7 @@ class InventoryRepository(InventoryRepositoryInterface):
         result = await self.session.execute(stmt)
         return result.scalars().first()
 
-    async def get_branch_inventory(
-        self, branch_id: uuid.UUID
-    ) -> Sequence[InventoryItem]:
+    async def get_branch_inventory(self, branch_id: uuid.UUID) -> Sequence[InventoryItem]:
         stmt = select(InventoryItem).where(
             InventoryItem.branch_id == branch_id,
             InventoryItem.deleted_at.is_(None),

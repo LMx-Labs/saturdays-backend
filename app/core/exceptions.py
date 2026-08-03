@@ -43,6 +43,7 @@ class DomainInvariantError(AppException):
 
 
 DomainInvariantViolationError = DomainInvariantError
+UnprocessableEntityError = DomainInvariantError
 
 
 class EntityNotFoundError(AppException):
@@ -113,6 +114,23 @@ class ConflictError(AppException):
         )
 
 
+class UnprocessableEntityError(AppException):
+    """Unprocessable Entity Exception (HTTP 422)."""
+
+    def __init__(
+        self,
+        message: str,
+        error_code: str = "UNPROCESSABLE_ENTITY",
+        details: dict[str, Any] | None = None,
+    ):
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            details=details,
+        )
+
+
 async def saturdays_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     correlation_id = getattr(request.state, "correlation_id", None)
     if isinstance(exc, AppException):
@@ -143,9 +161,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(AppException, saturdays_exception_handler)
 
     @app.exception_handler(RequestValidationError)
-    async def validation_exception_handler(
-        request: Request, exc: RequestValidationError
-    ):
+    async def validation_exception_handler(request: Request, exc: RequestValidationError):
         correlation_id = getattr(request.state, "correlation_id", None)
         return JSONResponse(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

@@ -84,9 +84,7 @@ class MenuRepository(MenuRepositoryInterface):
         self.session.add(item)
         await self.session.flush()
         stmt = (
-            select(MenuItem)
-            .where(MenuItem.id == item.id)
-            .options(selectinload(MenuItem.modifiers))
+            select(MenuItem).where(MenuItem.id == item.id).options(selectinload(MenuItem.modifiers))
         )
         result = await self.session.execute(stmt)
         return result.scalar_one()

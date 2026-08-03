@@ -37,9 +37,7 @@ def get_merchant_service(
     description="Returns authenticated merchant owner's legal entity profile.",
 )
 async def get_my_merchant_profile(
-    current_user: UserClaims = Depends(
-        require_role(["MerchantOwner", "PlatformAdmin"])
-    ),
+    current_user: UserClaims = Depends(require_role(["MerchantOwner", "PlatformAdmin"])),
     merchant_service: MerchantServiceInterface = Depends(get_merchant_service),
 ) -> MerchantResponse:
     return await merchant_service.get_current_merchant_profile(current_user.sub)
@@ -54,14 +52,10 @@ async def get_my_merchant_profile(
 )
 async def onboard_merchant(
     req: MerchantOnboardRequest,
-    current_user: UserClaims = Depends(
-        require_role(["MerchantOwner", "PlatformAdmin"])
-    ),
+    current_user: UserClaims = Depends(require_role(["MerchantOwner", "PlatformAdmin"])),
     merchant_service: MerchantServiceInterface = Depends(get_merchant_service),
 ) -> MerchantResponse:
-    return await merchant_service.onboard_merchant(
-        owner_user_id=current_user.sub, req=req
-    )
+    return await merchant_service.onboard_merchant(owner_user_id=current_user.sub, req=req)
 
 
 @router.get(
@@ -89,9 +83,7 @@ async def get_merchant_by_id(
 async def update_merchant(
     merchant_id: str,
     req: MerchantUpdateRequest,
-    current_user: UserClaims = Depends(
-        require_role(["MerchantOwner", "PlatformAdmin"])
-    ),
+    current_user: UserClaims = Depends(require_role(["MerchantOwner", "PlatformAdmin"])),
     merchant_service: MerchantServiceInterface = Depends(get_merchant_service),
 ) -> MerchantResponse:
     is_admin = current_user.role == "PlatformAdmin"
@@ -116,6 +108,4 @@ async def update_merchant_status(
     current_user: UserClaims = Depends(require_role(["PlatformAdmin"])),
     merchant_service: MerchantServiceInterface = Depends(get_merchant_service),
 ) -> MerchantResponse:
-    return await merchant_service.update_merchant_status(
-        merchant_id=merchant_id, req=req
-    )
+    return await merchant_service.update_merchant_status(merchant_id=merchant_id, req=req)

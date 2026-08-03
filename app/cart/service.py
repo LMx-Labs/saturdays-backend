@@ -27,9 +27,7 @@ class CartServiceInterface(ABC):
         pass
 
     @abstractmethod
-    async def add_item(
-        self, user_id: uuid.UUID, req: CartItemAddRequest
-    ) -> CartResponse:
+    async def add_item(self, user_id: uuid.UUID, req: CartItemAddRequest) -> CartResponse:
         pass
 
     @abstractmethod
@@ -81,7 +79,7 @@ class CartService(CartServiceInterface):
         subtotal = 0.0
 
         for item in cart.items:
-            unit_price = float(item.menu_item.price) if item.menu_item else 0.0
+            unit_price = float(item.menu_item.base_price) if item.menu_item else 0.0
             item_subtotal = round(unit_price * item.quantity, 2)
             is_avail = item.menu_item.is_available if item.menu_item else False
 
@@ -95,9 +93,7 @@ class CartService(CartServiceInterface):
                     menu_item_id=item.menu_item_id,
                     quantity=item.quantity,
                     selected_modifiers=item.selected_modifiers,
-                    menu_item_name=(
-                        item.menu_item.name if item.menu_item else "Unknown Item"
-                    ),
+                    menu_item_name=(item.menu_item.name if item.menu_item else "Unknown Item"),
                     unit_price=unit_price,
                     subtotal=item_subtotal,
                     is_available=is_avail,
@@ -123,9 +119,7 @@ class CartService(CartServiceInterface):
         cart = await self.cart_repo.get_by_customer_id(profile_id)
 
         if not cart:
-            raise EntityNotFoundError(
-                message="Cart is empty.", error_code="CART_NOT_FOUND"
-            )
+            raise EntityNotFoundError(message="Cart is empty.", error_code="CART_NOT_FOUND")
 
         # Check cart expiry (7-day policy)
         if cart.is_expired:
@@ -138,9 +132,7 @@ class CartService(CartServiceInterface):
 
         return self._build_cart_response(cart)
 
-    async def add_item(
-        self, user_id: uuid.UUID, req: CartItemAddRequest
-    ) -> CartResponse:
+    async def add_item(self, user_id: uuid.UUID, req: CartItemAddRequest) -> CartResponse:
         profile_id = await self._get_customer_profile_id(user_id)
 
         # 1. Availability check: verify menu_item exists and is available
@@ -219,9 +211,7 @@ class CartService(CartServiceInterface):
         cart = await self.cart_repo.get_by_customer_id(profile_id)
 
         if not cart:
-            raise EntityNotFoundError(
-                message="Cart not found.", error_code="CART_NOT_FOUND"
-            )
+            raise EntityNotFoundError(message="Cart not found.", error_code="CART_NOT_FOUND")
 
         item = await self.cart_repo.get_item_by_id(item_id)
         if not item or item.cart_id != cart.id:
@@ -237,8 +227,7 @@ class CartService(CartServiceInterface):
                 item,
                 {
                     "quantity": req.quantity,
-                    "selected_modifiers": req.selected_modifiers
-                    or item.selected_modifiers,
+                    "selected_modifiers": req.selected_modifiers or item.selected_modifiers,
                 },
             )
 
@@ -251,9 +240,7 @@ class CartService(CartServiceInterface):
         cart = await self.cart_repo.get_by_customer_id(profile_id)
 
         if not cart:
-            raise EntityNotFoundError(
-                message="Cart not found.", error_code="CART_NOT_FOUND"
-            )
+            raise EntityNotFoundError(message="Cart not found.", error_code="CART_NOT_FOUND")
 
         item = await self.cart_repo.get_item_by_id(item_id)
         if not item or item.cart_id != cart.id:
@@ -281,9 +268,7 @@ class CartService(CartServiceInterface):
         if not cart:
             return CartValidationResponse(
                 is_valid=False,
-                issues=[
-                    CartValidationIssue(code="CART_EMPTY", message="Cart is empty.")
-                ],
+                issues=[CartValidationIssue(code="CART_EMPTY", message="Cart is empty.")],
                 subtotal=0.0,
                 total_items=0,
             )
@@ -322,7 +307,7 @@ class CartService(CartServiceInterface):
                     )
                 )
             else:
-                subtotal += float(item.menu_item.price) * item.quantity
+                subtotal += float(item.menu_item.base_price) * item.quantity
 
         is_valid = len(issues) == 0 and total_items > 0
 

@@ -33,9 +33,7 @@ async def setup_branch_and_manager(db_session: AsyncSession):
     db_session.add(merchant)
     await db_session.flush()
 
-    brand = Brand(
-        merchant_id=merchant.id, name="Test Brand", description="Test Description"
-    )
+    brand = Brand(merchant_id=merchant.id, name="Test Brand", description="Test Description")
     db_session.add(brand)
     await db_session.flush()
 
@@ -79,9 +77,7 @@ async def test_get_branch_menu_not_found(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_create_and_get_branch_menu(
-    client: AsyncClient, setup_branch_and_manager: dict
-):
+async def test_create_and_get_branch_menu(client: AsyncClient, setup_branch_and_manager: dict):
     ctx = setup_branch_and_manager
     branch_id = ctx["branch"].id
     category_id = ctx["category"].id
@@ -165,9 +161,7 @@ async def test_menu_item_invalid_category_hierarchy(
 
 
 @pytest.mark.asyncio
-async def test_menu_item_unauthorized(
-    client: AsyncClient, setup_branch_and_manager: dict
-):
+async def test_menu_item_unauthorized(client: AsyncClient, setup_branch_and_manager: dict):
     ctx = setup_branch_and_manager
     branch_id = ctx["branch"].id
     category_id = ctx["category"].id
