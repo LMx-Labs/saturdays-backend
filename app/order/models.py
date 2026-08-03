@@ -127,4 +127,4 @@ class OrderStatusLog(Base):
 
     # Relationships
     order: Mapped["Order"] = relationship("Order", back_populates="status_logs")
-    changed_by_user: Mapped["User"] = relationship("User", back_populates="order_status_logs")
+    changed_by_user: Mapped["User"] = relationship("User")

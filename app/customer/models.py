@@ -30,7 +30,7 @@ class CustomerProfile(Base, TimestampMixin):
     phone_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
     # Relationships
-    user: Mapped["User"] = relationship("User", back_populates="customer_profile")
+    user: Mapped["User"] = relationship("User")
     addresses: Mapped[list["CustomerAddress"]] = relationship(
         "CustomerAddress", back_populates="customer_profile"
     )
