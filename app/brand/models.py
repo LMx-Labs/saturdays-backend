@@ -1,7 +1,7 @@
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Index, String, Text
+from sqlalchemy import JSON, ForeignKey, Index, String, Text
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -24,7 +24,9 @@ class Brand(Base, TimestampMixin):
     logo_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     banner_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    cuisine_types: Mapped[list[str] | None] = mapped_column(ARRAY(String(255)), nullable=True)
+    cuisine_types: Mapped[list[str] | None] = mapped_column(
+        ARRAY(String(255)).with_variant(JSON(), "sqlite"), nullable=True
+    )
 
     # Relationships
     merchant: Mapped["Merchant"] = relationship("Merchant", back_populates="brands")

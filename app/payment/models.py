@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
+    JSON,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -66,7 +67,9 @@ class PaymentTransaction(Base):
     razorpay_signature: Mapped[str | None] = mapped_column(String(255), nullable=True)
     amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     status: Mapped[str] = mapped_column(String(50), nullable=False)
-    payload_snapshot: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
+    payload_snapshot: Mapped[Any | None] = mapped_column(
+        JSONB().with_variant(JSON, "sqlite"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
