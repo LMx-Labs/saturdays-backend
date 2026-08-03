@@ -36,7 +36,9 @@ def get_coupon_service(
     coupon_repo: CouponRepositoryInterface = Depends(get_coupon_repository),
     customer_repo: CustomerRepositoryInterface = Depends(get_customer_repository),
 ) -> CouponServiceInterface:
-    return CouponService(session=session, coupon_repo=coupon_repo, customer_repo=customer_repo)
+    return CouponService(
+        session=session, coupon_repo=coupon_repo, customer_repo=customer_repo
+    )
 
 
 @router.post(
@@ -50,7 +52,9 @@ async def validate_coupon(
     current_user: UserClaims = Depends(get_current_user),
     coupon_service: CouponServiceInterface = Depends(get_coupon_service),
 ) -> CouponValidateResponse:
-    return await coupon_service.validate_coupon(user_id=uuid.UUID(current_user.sub), req=req)
+    return await coupon_service.validate_coupon(
+        user_id=uuid.UUID(current_user.sub), req=req
+    )
 
 
 @router.post(

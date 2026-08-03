@@ -15,8 +15,12 @@ class MerchantOnboardRequest(BaseModel):
     )
     fssai_license_number: str = Field(..., description="14-digit FSSAI license number")
     gstin: str | None = Field(None, description="15-character GSTIN tax identifier")
-    bank_account_number: str | None = Field(None, max_length=50, description="Bank account number")
-    bank_ifsc_code: str | None = Field(None, max_length=20, description="Bank IFSC code")
+    bank_account_number: str | None = Field(
+        None, max_length=50, description="Bank account number"
+    )
+    bank_ifsc_code: str | None = Field(
+        None, max_length=20, description="Bank IFSC code"
+    )
 
     @field_validator("fssai_license_number")
     @classmethod
@@ -32,7 +36,9 @@ class MerchantOnboardRequest(BaseModel):
         if v is None:
             return None
         v = v.strip().upper()
-        if v and not re.match(r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$", v):
+        if v and not re.match(
+            r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$", v
+        ):
             raise ValueError("Invalid GSTIN format")
         return v
 
@@ -63,7 +69,9 @@ class MerchantUpdateRequest(BaseModel):
         if v is None:
             return None
         v = v.strip().upper()
-        if v and not re.match(r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$", v):
+        if v and not re.match(
+            r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$", v
+        ):
             raise ValueError("Invalid GSTIN format")
         return v
 
@@ -88,7 +96,9 @@ class MerchantStatusUpdateRequest(BaseModel):
         }
         v_upper = v.upper()
         if v_upper not in valid_statuses:
-            raise ValueError(f"Status must be one of: {', '.join(sorted(valid_statuses))}")
+            raise ValueError(
+                f"Status must be one of: {', '.join(sorted(valid_statuses))}"
+            )
         return v_upper
 
 

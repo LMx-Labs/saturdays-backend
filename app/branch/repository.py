@@ -74,7 +74,9 @@ class BranchRepository(BranchRepositoryInterface):
         return list(result.scalars().all())
 
     async def list_all(self, skip: int = 0, limit: int = 100) -> list[Branch]:
-        stmt = select(Branch).where(Branch.deleted_at.is_(None)).offset(skip).limit(limit)
+        stmt = (
+            select(Branch).where(Branch.deleted_at.is_(None)).offset(skip).limit(limit)
+        )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 

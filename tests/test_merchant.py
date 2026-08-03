@@ -24,7 +24,9 @@ async def test_merchant_onboarding_and_profile_flow(client: AsyncClient):
         "bank_account_number": "987654321012",
         "bank_ifsc_code": "SBIN0001234",
     }
-    res = await client.post("/api/v1/merchants/onboard", json=onboard_payload, headers=headers)
+    res = await client.post(
+        "/api/v1/merchants/onboard", json=onboard_payload, headers=headers
+    )
     assert res.status_code == 201
     data = res.json()
     assert data["business_name"] == "Taco Fiesta"
@@ -75,7 +77,9 @@ async def test_merchant_validation_and_duplicate_checks(client: AsyncClient):
         "fssai_license_number": "11112222333344",
         "gstin": "27AAAAA0000A1Z5",
     }
-    res_valid = await client.post("/api/v1/merchants/onboard", json=valid_payload, headers=headers)
+    res_valid = await client.post(
+        "/api/v1/merchants/onboard", json=valid_payload, headers=headers
+    )
     assert res_valid.status_code == 201
 
     # Duplicate merchant for same user
@@ -133,7 +137,9 @@ async def test_merchant_status_lifecycle_and_rbac(client: AsyncClient):
         "role": "Customer",
     }
     customer_res = await client.post("/api/v1/auth/register", json=customer_payload)
-    customer_headers = {"Authorization": f"Bearer {customer_res.json()['access_token']}"}
+    customer_headers = {
+        "Authorization": f"Bearer {customer_res.json()['access_token']}"
+    }
 
     # Customer cannot onboard merchant
     res_cust = await client.post(
