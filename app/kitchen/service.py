@@ -81,13 +81,14 @@ class KitchenService(KitchenServiceInterface):
         if role != "PlatformAdmin":
             brand = await self.brand_repo.get_by_id(branch.brand_id)
             merchant = await self.merchant_repo.get_by_id(brand.merchant_id) if brand else None
-            if not merchant or str(merchant.owner_user_id) != user_id:
-                # If BranchManager, allow if role is BranchManager
-                if role not in {"BranchManager", "MerchantOwner"}:
-                    raise ForbiddenError(
-                        message="You do not have permission to create a kitchen under this branch.",
-                        error_code="KITCHEN_CREATE_FORBIDDEN",
-                    )
+            if (not merchant or str(merchant.owner_user_id) != user_id) and role not in {
+                "BranchManager",
+                "MerchantOwner",
+            }:
+                raise ForbiddenError(
+                    message="You do not have permission to create a kitchen under this branch.",
+                    error_code="KITCHEN_CREATE_FORBIDDEN",
+                )
 
         kitchen = Kitchen(
             branch_id=branch.id,
