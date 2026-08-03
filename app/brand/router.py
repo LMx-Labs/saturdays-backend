@@ -49,7 +49,9 @@ async def list_brands(
     limit: int = Query(100, ge=1, le=100),
     brand_service: BrandServiceInterface = Depends(get_brand_service),
 ) -> list[BrandResponse]:
-    return await brand_service.list_brands(merchant_id=merchant_id, skip=skip, limit=limit)
+    return await brand_service.list_brands(
+        merchant_id=merchant_id, skip=skip, limit=limit
+    )
 
 
 @router.post(
@@ -61,11 +63,15 @@ async def list_brands(
 )
 async def create_brand(
     req: BrandCreateRequest,
-    current_user: UserClaims = Depends(require_role(["MerchantOwner", "PlatformAdmin"])),
+    current_user: UserClaims = Depends(
+        require_role(["MerchantOwner", "PlatformAdmin"])
+    ),
     brand_service: BrandServiceInterface = Depends(get_brand_service),
 ) -> BrandResponse:
     is_admin = current_user.role == "PlatformAdmin"
-    return await brand_service.create_brand(user_id=current_user.sub, is_admin=is_admin, req=req)
+    return await brand_service.create_brand(
+        user_id=current_user.sub, is_admin=is_admin, req=req
+    )
 
 
 @router.get(
@@ -92,7 +98,9 @@ async def get_brand_by_id(
 async def update_brand(
     brand_id: str,
     req: BrandUpdateRequest,
-    current_user: UserClaims = Depends(require_role(["MerchantOwner", "PlatformAdmin"])),
+    current_user: UserClaims = Depends(
+        require_role(["MerchantOwner", "PlatformAdmin"])
+    ),
     brand_service: BrandServiceInterface = Depends(get_brand_service),
 ) -> BrandResponse:
     is_admin = current_user.role == "PlatformAdmin"
@@ -109,8 +117,12 @@ async def update_brand(
 )
 async def delete_brand(
     brand_id: str,
-    current_user: UserClaims = Depends(require_role(["MerchantOwner", "PlatformAdmin"])),
+    current_user: UserClaims = Depends(
+        require_role(["MerchantOwner", "PlatformAdmin"])
+    ),
     brand_service: BrandServiceInterface = Depends(get_brand_service),
 ) -> None:
     is_admin = current_user.role == "PlatformAdmin"
-    await brand_service.delete_brand(brand_id=brand_id, user_id=current_user.sub, is_admin=is_admin)
+    await brand_service.delete_brand(
+        brand_id=brand_id, user_id=current_user.sub, is_admin=is_admin
+    )

@@ -59,7 +59,9 @@ async def update_my_profile(
     current_user: UserClaims = Depends(get_current_user),
     customer_service: CustomerServiceInterface = Depends(get_customer_service),
 ) -> CustomerProfileResponse:
-    return await customer_service.update_profile(user_id=uuid.UUID(current_user.sub), req=req)
+    return await customer_service.update_profile(
+        user_id=uuid.UUID(current_user.sub), req=req
+    )
 
 
 @router.get(
@@ -86,7 +88,9 @@ async def add_address(
     current_user: UserClaims = Depends(get_current_user),
     customer_service: CustomerServiceInterface = Depends(get_customer_service),
 ) -> CustomerAddressResponse:
-    return await customer_service.add_address(user_id=uuid.UUID(current_user.sub), req=req)
+    return await customer_service.add_address(
+        user_id=uuid.UUID(current_user.sub), req=req
+    )
 
 
 @router.put(
@@ -159,4 +163,6 @@ async def remove_favorite(
     current_user: UserClaims = Depends(get_current_user),
     customer_service: CustomerServiceInterface = Depends(get_customer_service),
 ) -> None:
-    await customer_service.remove_favorite(user_id=uuid.UUID(current_user.sub), branch_id=branch_id)
+    await customer_service.remove_favorite(
+        user_id=uuid.UUID(current_user.sub), branch_id=branch_id
+    )

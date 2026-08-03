@@ -24,7 +24,9 @@ class CartRepositoryInterface(ABC):
         pass
 
     @abstractmethod
-    async def get_item(self, cart_id: uuid.UUID, menu_item_id: uuid.UUID) -> CartItem | None:
+    async def get_item(
+        self, cart_id: uuid.UUID, menu_item_id: uuid.UUID
+    ) -> CartItem | None:
         pass
 
     @abstractmethod
@@ -88,7 +90,9 @@ class CartRepository(CartRepositoryInterface):
         await self.session.refresh(cart, attribute_names=["items"])
         return cart
 
-    async def get_item(self, cart_id: uuid.UUID, menu_item_id: uuid.UUID) -> CartItem | None:
+    async def get_item(
+        self, cart_id: uuid.UUID, menu_item_id: uuid.UUID
+    ) -> CartItem | None:
         stmt = (
             select(CartItem)
             .options(selectinload(CartItem.menu_item))
@@ -99,7 +103,9 @@ class CartRepository(CartRepositoryInterface):
 
     async def get_item_by_id(self, item_id: uuid.UUID) -> CartItem | None:
         stmt = (
-            select(CartItem).options(selectinload(CartItem.menu_item)).where(CartItem.id == item_id)
+            select(CartItem)
+            .options(selectinload(CartItem.menu_item))
+            .where(CartItem.id == item_id)
         )
         res = await self.session.execute(stmt)
         return res.scalar_one_or_none()
@@ -143,6 +149,8 @@ class CartRepository(CartRepositoryInterface):
         return len(expired_ids)
 
     async def get_menu_item(self, menu_item_id: uuid.UUID) -> MenuItem | None:
-        stmt = select(MenuItem).where(MenuItem.id == menu_item_id, MenuItem.deleted_at.is_(None))
+        stmt = select(MenuItem).where(
+            MenuItem.id == menu_item_id, MenuItem.deleted_at.is_(None)
+        )
         res = await self.session.execute(stmt)
         return res.scalar_one_or_none()

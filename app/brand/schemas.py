@@ -7,9 +7,12 @@ class BrandCreateRequest(BaseModel):
     """Schema for creating a new brand."""
 
     merchant_id: str | None = Field(
-        None, description="UUID of owning merchant (optional if user has registered merchant)"
+        None,
+        description="UUID of owning merchant (optional if user has registered merchant)",
     )
-    name: str = Field(..., min_length=2, max_length=100, description="Public brand name")
+    name: str = Field(
+        ..., min_length=2, max_length=100, description="Public brand name"
+    )
     logo_url: str | None = Field(None, max_length=255, description="Logo image URL")
     banner_url: str | None = Field(None, max_length=255, description="Banner image URL")
     description: str | None = Field(None, description="Brand story or description")

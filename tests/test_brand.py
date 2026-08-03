@@ -55,7 +55,10 @@ async def test_brand_crud_flow(client: AsyncClient):
     assert len(list_res.json()) >= 1
 
     # 6. Update brand
-    update_payload = {"name": "Pizza Corner Express", "description": "Fast Gourmet Pizza"}
+    update_payload = {
+        "name": "Pizza Corner Express",
+        "description": "Fast Gourmet Pizza",
+    }
     update_res = await client.patch(
         f"/api/v1/brands/{brand_id}", json=update_payload, headers=headers
     )

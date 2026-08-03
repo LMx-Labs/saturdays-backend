@@ -6,7 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.brand.models import Brand
 from app.brand.repository import BrandRepositoryInterface
 from app.brand.schemas import BrandCreateRequest, BrandResponse, BrandUpdateRequest
-from app.core.exceptions import DomainInvariantError, EntityNotFoundError, ForbiddenError
+from app.core.exceptions import (
+    DomainInvariantError,
+    EntityNotFoundError,
+    ForbiddenError,
+)
 from app.merchant.repository import MerchantRepositoryInterface
 
 

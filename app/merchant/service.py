@@ -29,7 +29,9 @@ class MerchantServiceInterface(ABC):
         """Register and onboard a new merchant entity (INV-MERCH-001)."""
 
     @abstractmethod
-    async def get_current_merchant_profile(self, owner_user_id: str) -> MerchantResponse:
+    async def get_current_merchant_profile(
+        self, owner_user_id: str
+    ) -> MerchantResponse:
         """Retrieve merchant profile for current user."""
 
     @abstractmethod
@@ -125,7 +127,9 @@ class MerchantService(MerchantServiceInterface):
             updated_at=saved.updated_at,
         )
 
-    async def get_current_merchant_profile(self, owner_user_id: str) -> MerchantResponse:
+    async def get_current_merchant_profile(
+        self, owner_user_id: str
+    ) -> MerchantResponse:
         owner_uuid = uuid.UUID(owner_user_id)
         merchant = await self.merchant_repo.get_by_owner_user_id(owner_uuid)
         if not merchant:
