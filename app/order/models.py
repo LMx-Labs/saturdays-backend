@@ -8,6 +8,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    JSON,
     Numeric,
     String,
     func,
@@ -41,7 +42,9 @@ class Order(Base):
     )
     total_amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="PLACED")
-    delivery_address_snapshot: Mapped[Any] = mapped_column(JSONB, nullable=False)
+    delivery_address_snapshot: Mapped[Any] = mapped_column(
+        JSONB().with_variant(JSON, "sqlite"), nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -92,7 +95,9 @@ class OrderItem(Base):
     item_name_snapshot: Mapped[str] = mapped_column(String(150), nullable=False)
     unit_price_snapshot: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
-    selected_modifiers_snapshot: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
+    selected_modifiers_snapshot: Mapped[Any | None] = mapped_column(
+        JSONB().with_variant(JSON, "sqlite"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
