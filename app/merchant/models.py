@@ -30,7 +30,7 @@ class Merchant(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="DRAFT")
 
     # Relationships
-    owner_user: Mapped["User"] = relationship("User", back_populates="merchants")
+    owner_user: Mapped["User"] = relationship("User")
     brands: Mapped[list["Brand"]] = relationship("Brand", back_populates="merchant")
     subscriptions: Mapped[list["MerchantSubscription"]] = relationship(
         "MerchantSubscription", back_populates="merchant"

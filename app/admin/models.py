@@ -32,6 +32,6 @@ class AdminAuditLog(Base):
     )
 
     # Relationships
-    admin_user: Mapped["User"] = relationship("User", back_populates="admin_audit_logs")
+    admin_user: Mapped["User"] = relationship("User")
 
     __table_args__ = (Index("idx_admin_audit_user", admin_user_id, created_at.desc()),)
