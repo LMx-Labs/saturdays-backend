@@ -32,9 +32,7 @@ if TYPE_CHECKING:
 class Order(Base):
     __tablename__ = "orders"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid7
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid7)
     customer_profile_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("customer_profiles.id"), nullable=False
     )
@@ -75,9 +73,7 @@ class Order(Base):
     )
 
     __table_args__ = (
-        CheckConstraint(
-            "total_amount >= 0", name="ck_orders_total_amount_non_negative"
-        ),
+        CheckConstraint("total_amount >= 0", name="ck_orders_total_amount_non_negative"),
         Index("idx_orders_branch_status", branch_id, status, created_at.desc()),
         Index("idx_orders_customer", customer_profile_id, created_at.desc()),
     )
@@ -86,9 +82,7 @@ class Order(Base):
 class OrderItem(Base):
     __tablename__ = "order_items"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid7
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid7)
     order_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("orders.id"), nullable=False
     )
@@ -98,30 +92,22 @@ class OrderItem(Base):
     item_name_snapshot: Mapped[str] = mapped_column(String(150), nullable=False)
     unit_price_snapshot: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
-    selected_modifiers_snapshot: Mapped[Any | None] = mapped_column(
-        JSONB, nullable=True
-    )
+    selected_modifiers_snapshot: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
     # Relationships
     order: Mapped["Order"] = relationship("Order", back_populates="items")
-    menu_item: Mapped["MenuItem"] = relationship(
-        "MenuItem", back_populates="order_items"
-    )
+    menu_item: Mapped["MenuItem"] = relationship("MenuItem", back_populates="order_items")
 
-    __table_args__ = (
-        CheckConstraint("quantity > 0", name="ck_order_items_quantity_positive"),
-    )
+    __table_args__ = (CheckConstraint("quantity > 0", name="ck_order_items_quantity_positive"),)
 
 
 class OrderStatusLog(Base):
     __tablename__ = "order_status_logs"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid7
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid7)
     order_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("orders.id"), nullable=False
     )
@@ -136,6 +122,4 @@ class OrderStatusLog(Base):
 
     # Relationships
     order: Mapped["Order"] = relationship("Order", back_populates="status_logs")
-    changed_by_user: Mapped["User"] = relationship(
-        "User", back_populates="order_status_logs"
-    )
+    changed_by_user: Mapped["User"] = relationship("User", back_populates="order_status_logs")

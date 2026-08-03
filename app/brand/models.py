@@ -16,9 +16,7 @@ if TYPE_CHECKING:
 class Brand(Base, TimestampMixin):
     __tablename__ = "brands"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid7
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid7)
     merchant_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("merchants.id"), nullable=False
     )
@@ -26,9 +24,7 @@ class Brand(Base, TimestampMixin):
     logo_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     banner_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    cuisine_types: Mapped[list[str] | None] = mapped_column(
-        ARRAY(String(255)), nullable=True
-    )
+    cuisine_types: Mapped[list[str] | None] = mapped_column(ARRAY(String(255)), nullable=True)
 
     # Relationships
     merchant: Mapped["Merchant"] = relationship("Merchant", back_populates="brands")

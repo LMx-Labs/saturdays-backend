@@ -73,8 +73,8 @@ async def domain_error_handler(request: Request, exc: DomainInvariantViolationEr
             "error_code": exc.error_code,
             "message": exc.message,
             "details": exc.details,
-            "correlation_id": request.state.correlation_id
-        }
+            "correlation_id": request.state.correlation_id,
+        },
     )
 ```
 

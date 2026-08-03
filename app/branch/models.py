@@ -24,9 +24,7 @@ if TYPE_CHECKING:
 class Branch(Base, TimestampMixin):
     __tablename__ = "branches"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid7
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid7)
     brand_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("brands.id"), nullable=False
     )
@@ -35,12 +33,8 @@ class Branch(Base, TimestampMixin):
     latitude: Mapped[float | None] = mapped_column(Numeric(10, 7), nullable=True)
     longitude: Mapped[float | None] = mapped_column(Numeric(10, 7), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    opening_time: Mapped[time] = mapped_column(
-        Time, nullable=False, default=time(8, 0, 0)
-    )
-    closing_time: Mapped[time] = mapped_column(
-        Time, nullable=False, default=time(23, 0, 0)
-    )
+    opening_time: Mapped[time] = mapped_column(Time, nullable=False, default=time(8, 0, 0))
+    closing_time: Mapped[time] = mapped_column(Time, nullable=False, default=time(23, 0, 0))
 
     # Relationships
     brand: Mapped["Brand"] = relationship("Brand", back_populates="branches")
