@@ -48,7 +48,9 @@ async def test_customer_address_primary_invariants(client: AsyncClient):
         "campus_zone": "Men's Hostel Phase 1",
         "is_primary": False,
     }
-    resp1 = await client.post("/api/v1/customers/me/addresses", headers=headers, json=addr1_payload)
+    resp1 = await client.post(
+        "/api/v1/customers/me/addresses", headers=headers, json=addr1_payload
+    )
     assert resp1.status_code == 201
     addr1 = resp1.json()
     assert addr1["is_primary"] is True  # INV-CUST-002: First address forced primary
@@ -60,7 +62,9 @@ async def test_customer_address_primary_invariants(client: AsyncClient):
         "campus_zone": "Men's Hostel Phase 2",
         "is_primary": False,
     }
-    resp2 = await client.post("/api/v1/customers/me/addresses", headers=headers, json=addr2_payload)
+    resp2 = await client.post(
+        "/api/v1/customers/me/addresses", headers=headers, json=addr2_payload
+    )
     assert resp2.status_code == 201
     addr2 = resp2.json()
     assert addr2["is_primary"] is False
@@ -80,7 +84,9 @@ async def test_customer_address_primary_invariants(client: AsyncClient):
     assert primary_count == 1  # INV-CUST-002: Exactly one primary address
 
     # Delete primary address (addr2), remaining address (addr1) should automatically become primary
-    del_resp = await client.delete(f"/api/v1/customers/me/addresses/{addr2['id']}", headers=headers)
+    del_resp = await client.delete(
+        f"/api/v1/customers/me/addresses/{addr2['id']}", headers=headers
+    )
     assert del_resp.status_code == 204
 
     list_resp2 = await client.get("/api/v1/customers/me/addresses", headers=headers)
@@ -116,7 +122,9 @@ async def test_customer_favorite_branch_invariants(client: AsyncClient):
     assert len(list_resp.json()) == 1
 
     # Remove favorite
-    del_resp = await client.delete(f"/api/v1/customers/me/favorites/{branch_id}", headers=headers)
+    del_resp = await client.delete(
+        f"/api/v1/customers/me/favorites/{branch_id}", headers=headers
+    )
     assert del_resp.status_code == 204
 
     # List favorites after removal

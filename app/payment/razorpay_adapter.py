@@ -11,8 +11,12 @@ settings = get_settings()
 class RazorpayAdapter:
     """Razorpay Payment Gateway Adapter."""
 
-    def __init__(self, key_secret: str | None = None, webhook_secret: str | None = None):
-        self.key_secret = key_secret or getattr(settings, "RAZORPAY_KEY_SECRET", "dummy_secret")
+    def __init__(
+        self, key_secret: str | None = None, webhook_secret: str | None = None
+    ):
+        self.key_secret = key_secret or getattr(
+            settings, "RAZORPAY_KEY_SECRET", "dummy_secret"
+        )
         self.webhook_secret = webhook_secret or getattr(
             settings, "RAZORPAY_WEBHOOK_SECRET", "dummy_webhook_secret"
         )
@@ -42,7 +46,9 @@ class RazorpayAdapter:
         """Verifies Razorpay payment signature HMAC SHA256."""
         key_secret = secret or self.key_secret or ""
         msg = f"{razorpay_order_id}|{razorpay_payment_id}".encode()
-        generated_signature = hmac.new(key_secret.encode("utf-8"), msg, hashlib.sha256).hexdigest()
+        generated_signature = hmac.new(
+            key_secret.encode("utf-8"), msg, hashlib.sha256
+        ).hexdigest()
         return hmac.compare_digest(generated_signature, razorpay_signature)
 
     def verify_webhook_signature(

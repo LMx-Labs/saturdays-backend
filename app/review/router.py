@@ -37,7 +37,9 @@ def get_review_service(
     review_repo: ReviewRepositoryInterface = Depends(get_review_repository),
     customer_repo: CustomerRepositoryInterface = Depends(get_customer_repository),
 ) -> ReviewServiceInterface:
-    return ReviewService(session=session, review_repo=review_repo, customer_repo=customer_repo)
+    return ReviewService(
+        session=session, review_repo=review_repo, customer_repo=customer_repo
+    )
 
 
 @router.post(
@@ -51,7 +53,9 @@ async def create_review(
     current_user: UserClaims = Depends(get_current_user),
     review_service: ReviewServiceInterface = Depends(get_review_service),
 ) -> ReviewResponse:
-    return await review_service.create_review(user_id=uuid.UUID(current_user.sub), req=req)
+    return await review_service.create_review(
+        user_id=uuid.UUID(current_user.sub), req=req
+    )
 
 
 @router.get(

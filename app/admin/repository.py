@@ -49,7 +49,9 @@ class AdminRepository(AdminRepositoryInterface):
         return audit_log
 
     async def get_audit_logs(self, limit: int = 50) -> Sequence[AdminAuditLog]:
-        stmt = select(AdminAuditLog).order_by(AdminAuditLog.created_at.desc()).limit(limit)
+        stmt = (
+            select(AdminAuditLog).order_by(AdminAuditLog.created_at.desc()).limit(limit)
+        )
         res = await self.session.execute(stmt)
         return res.scalars().all()
 
@@ -83,7 +85,9 @@ class AdminRepository(AdminRepositoryInterface):
 
         # Total orders & gross revenue
         res_o = await self.session.execute(
-            select(func.count(Order.id), func.coalesce(func.sum(Order.total_amount), 0.0))
+            select(
+                func.count(Order.id), func.coalesce(func.sum(Order.total_amount), 0.0)
+            )
         )
         row_o = res_o.one()
         total_orders = row_o[0] or 0
@@ -97,7 +101,9 @@ class AdminRepository(AdminRepositoryInterface):
 
         # Total customers
         res_cust = await self.session.execute(
-            select(func.count(CustomerProfile.id)).where(CustomerProfile.deleted_at.is_(None))
+            select(func.count(CustomerProfile.id)).where(
+                CustomerProfile.deleted_at.is_(None)
+            )
         )
         total_customers = res_cust.scalar() or 0
 

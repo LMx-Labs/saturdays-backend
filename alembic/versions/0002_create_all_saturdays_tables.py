@@ -93,7 +93,9 @@ def upgrade() -> None:
         sa.Column("fssai_license_number", sa.String(length=30), nullable=False),
         sa.Column("bank_account_number", sa.String(length=50), nullable=True),
         sa.Column("bank_ifsc_code", sa.String(length=20), nullable=True),
-        sa.Column("status", sa.String(length=50), server_default="DRAFT", nullable=False),
+        sa.Column(
+            "status", sa.String(length=50), server_default="DRAFT", nullable=False
+        ),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -124,7 +126,9 @@ def upgrade() -> None:
         sa.Column("logo_url", sa.String(length=255), nullable=True),
         sa.Column("banner_url", sa.String(length=255), nullable=True),
         sa.Column("description", sa.Text(), nullable=True),
-        sa.Column("cuisine_types", postgresql.ARRAY(sa.String(length=255)), nullable=True),
+        sa.Column(
+            "cuisine_types", postgresql.ARRAY(sa.String(length=255)), nullable=True
+        ),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -196,7 +200,9 @@ def upgrade() -> None:
             sa.ForeignKey("branches.id"),
             nullable=False,
         ),
-        sa.Column("name", sa.String(length=150), server_default="Main Kitchen", nullable=False),
+        sa.Column(
+            "name", sa.String(length=150), server_default="Main Kitchen", nullable=False
+        ),
         sa.Column("is_active", sa.Boolean(), server_default="true", nullable=False),
         sa.Column(
             "created_at",
@@ -258,7 +264,9 @@ def upgrade() -> None:
             sa.ForeignKey("branches.id"),
             nullable=False,
         ),
-        sa.Column("name", sa.String(length=100), server_default="Main Menu", nullable=False),
+        sa.Column(
+            "name", sa.String(length=100), server_default="Main Menu", nullable=False
+        ),
         sa.Column("is_active", sa.Boolean(), server_default="true", nullable=False),
         sa.Column(
             "created_at",
@@ -334,9 +342,13 @@ def upgrade() -> None:
         ),
         sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
         sa.PrimaryKeyConstraint("id"),
-        sa.CheckConstraint("base_price >= 0", name="ck_menu_items_base_price_non_negative"),
+        sa.CheckConstraint(
+            "base_price >= 0", name="ck_menu_items_base_price_non_negative"
+        ),
     )
-    op.create_index("idx_menu_items_category_avail", "menu_items", ["category_id", "is_available"])
+    op.create_index(
+        "idx_menu_items_category_avail", "menu_items", ["category_id", "is_available"]
+    )
 
     # 11. menu_modifiers
     op.create_table(
@@ -402,10 +414,16 @@ def upgrade() -> None:
         ),
         sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
         sa.PrimaryKeyConstraint("id"),
-        sa.CheckConstraint("quantity >= 0", name="ck_inventory_items_quantity_non_negative"),
-        sa.UniqueConstraint("branch_id", "menu_item_id", name="uix_inventory_branch_item"),
+        sa.CheckConstraint(
+            "quantity >= 0", name="ck_inventory_items_quantity_non_negative"
+        ),
+        sa.UniqueConstraint(
+            "branch_id", "menu_item_id", name="uix_inventory_branch_item"
+        ),
     )
-    op.create_index("idx_inventory_branch_item", "inventory_items", ["branch_id", "menu_item_id"])
+    op.create_index(
+        "idx_inventory_branch_item", "inventory_items", ["branch_id", "menu_item_id"]
+    )
 
     # 13. inventory_logs
     op.create_table(
@@ -512,7 +530,9 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("total_amount", sa.Numeric(precision=10, scale=2), nullable=False),
-        sa.Column("status", sa.String(length=50), server_default="PLACED", nullable=False),
+        sa.Column(
+            "status", sa.String(length=50), server_default="PLACED", nullable=False
+        ),
         sa.Column("delivery_address_snapshot", postgresql.JSONB(), nullable=False),
         sa.Column(
             "created_at",
@@ -527,7 +547,9 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.PrimaryKeyConstraint("id"),
-        sa.CheckConstraint("total_amount >= 0", name="ck_orders_total_amount_non_negative"),
+        sa.CheckConstraint(
+            "total_amount >= 0", name="ck_orders_total_amount_non_negative"
+        ),
     )
     op.create_index(
         "idx_orders_branch_status",
@@ -557,7 +579,9 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("item_name_snapshot", sa.String(length=150), nullable=False),
-        sa.Column("unit_price_snapshot", sa.Numeric(precision=10, scale=2), nullable=False),
+        sa.Column(
+            "unit_price_snapshot", sa.Numeric(precision=10, scale=2), nullable=False
+        ),
         sa.Column("quantity", sa.Integer(), nullable=False),
         sa.Column("selected_modifiers_snapshot", postgresql.JSONB(), nullable=True),
         sa.Column(
@@ -614,7 +638,9 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("amount", sa.Numeric(precision=10, scale=2), nullable=False),
-        sa.Column("currency", sa.String(length=10), server_default="INR", nullable=False),
+        sa.Column(
+            "currency", sa.String(length=10), server_default="INR", nullable=False
+        ),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -651,7 +677,9 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("idx_pay_tx_razorpay_id", "payment_transactions", ["razorpay_payment_id"])
+    op.create_index(
+        "idx_pay_tx_razorpay_id", "payment_transactions", ["razorpay_payment_id"]
+    )
 
     # 21. coupons
     op.create_table(
@@ -666,14 +694,18 @@ def upgrade() -> None:
         sa.Column("code", sa.String(length=50), nullable=False, unique=True),
         sa.Column("discount_type", sa.String(length=20), nullable=False),
         sa.Column("discount_value", sa.Numeric(precision=10, scale=2), nullable=False),
-        sa.Column("max_discount_amount", sa.Numeric(precision=10, scale=2), nullable=True),
+        sa.Column(
+            "max_discount_amount", sa.Numeric(precision=10, scale=2), nullable=True
+        ),
         sa.Column(
             "min_order_amount",
             sa.Numeric(precision=10, scale=2),
             server_default="0.00",
             nullable=False,
         ),
-        sa.Column("max_redemptions_per_user", sa.Integer(), server_default="1", nullable=False),
+        sa.Column(
+            "max_redemptions_per_user", sa.Integer(), server_default="1", nullable=False
+        ),
         sa.Column("valid_from", sa.DateTime(timezone=True), nullable=False),
         sa.Column("valid_until", sa.DateTime(timezone=True), nullable=False),
         sa.Column("is_active", sa.Boolean(), server_default="true", nullable=False),
@@ -715,7 +747,9 @@ def upgrade() -> None:
             sa.ForeignKey("orders.id"),
             nullable=False,
         ),
-        sa.Column("discount_amount_applied", sa.Numeric(precision=10, scale=2), nullable=False),
+        sa.Column(
+            "discount_amount_applied", sa.Numeric(precision=10, scale=2), nullable=False
+        ),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -765,7 +799,9 @@ def upgrade() -> None:
         ),
         sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
         sa.PrimaryKeyConstraint("id"),
-        sa.CheckConstraint("rating >= 1 AND rating <= 5", name="ck_reviews_rating_1_to_5"),
+        sa.CheckConstraint(
+            "rating >= 1 AND rating <= 5", name="ck_reviews_rating_1_to_5"
+        ),
     )
 
     # 24. merchant_subscriptions
@@ -778,14 +814,18 @@ def upgrade() -> None:
             sa.ForeignKey("merchants.id"),
             nullable=False,
         ),
-        sa.Column("plan_tier", sa.String(length=50), server_default="BASIC", nullable=False),
+        sa.Column(
+            "plan_tier", sa.String(length=50), server_default="BASIC", nullable=False
+        ),
         sa.Column(
             "billing_cycle",
             sa.String(length=20),
             server_default="MONTHLY",
             nullable=False,
         ),
-        sa.Column("status", sa.String(length=50), server_default="ACTIVE", nullable=False),
+        sa.Column(
+            "status", sa.String(length=50), server_default="ACTIVE", nullable=False
+        ),
         sa.Column(
             "commission_rate_percentage",
             sa.Numeric(precision=5, scale=2),
@@ -825,14 +865,20 @@ def upgrade() -> None:
             sa.ForeignKey("merchants.id"),
             nullable=False,
         ),
-        sa.Column("gross_order_amount", sa.Numeric(precision=10, scale=2), nullable=False),
+        sa.Column(
+            "gross_order_amount", sa.Numeric(precision=10, scale=2), nullable=False
+        ),
         sa.Column(
             "commission_rate_percentage",
             sa.Numeric(precision=5, scale=2),
             nullable=False,
         ),
-        sa.Column("commission_amount", sa.Numeric(precision=10, scale=2), nullable=False),
-        sa.Column("merchant_net_payout", sa.Numeric(precision=10, scale=2), nullable=False),
+        sa.Column(
+            "commission_amount", sa.Numeric(precision=10, scale=2), nullable=False
+        ),
+        sa.Column(
+            "merchant_net_payout", sa.Numeric(precision=10, scale=2), nullable=False
+        ),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -856,7 +902,9 @@ def upgrade() -> None:
         sa.Column("recipient", sa.String(length=255), nullable=False),
         sa.Column("subject", sa.String(length=255), nullable=True),
         sa.Column("body", sa.Text(), nullable=False),
-        sa.Column("status", sa.String(length=50), server_default="PENDING", nullable=False),
+        sa.Column(
+            "status", sa.String(length=50), server_default="PENDING", nullable=False
+        ),
         sa.Column("vendor_message_id", sa.String(length=100), nullable=True),
         sa.Column(
             "created_at",

@@ -70,7 +70,9 @@ async def list_branch_kitchens(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
     current_user: UserClaims = Depends(
-        require_role(["KitchenStaff", "BranchManager", "MerchantOwner", "PlatformAdmin"])
+        require_role(
+            ["KitchenStaff", "BranchManager", "MerchantOwner", "PlatformAdmin"]
+        )
     ),
     kitchen_service: KitchenServiceInterface = Depends(get_kitchen_service),
 ) -> list[KitchenResponse]:
@@ -112,7 +114,9 @@ async def create_kitchen(
 async def get_kitchen_by_id(
     kitchen_id: str,
     current_user: UserClaims = Depends(
-        require_role(["KitchenStaff", "BranchManager", "MerchantOwner", "PlatformAdmin"])
+        require_role(
+            ["KitchenStaff", "BranchManager", "MerchantOwner", "PlatformAdmin"]
+        )
     ),
     kitchen_service: KitchenServiceInterface = Depends(get_kitchen_service),
 ) -> KitchenResponse:

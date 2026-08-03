@@ -44,7 +44,9 @@ async def test_branch_crud_flow(client: AsyncClient):
         "opening_time": "09:00:00",
         "closing_time": "22:00:00",
     }
-    branch_res = await client.post("/api/v1/branches", json=branch_payload, headers=headers)
+    branch_res = await client.post(
+        "/api/v1/branches", json=branch_payload, headers=headers
+    )
     assert branch_res.status_code == 201
     branch_data = branch_res.json()
     assert branch_data["name"] == "Burger Shack VIT Main Campus"
