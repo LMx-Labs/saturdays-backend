@@ -44,6 +44,15 @@ class Cart(Base):
         "CartItem", back_populates="cart", cascade="all, delete-orphan"
     )
 
+    @property
+    def is_expired(self) -> bool:
+        from datetime import datetime, timezone, timedelta
+        if not self.updated_at:
+            return False
+        updated = self.updated_at if self.updated_at.tzinfo else self.updated_at.replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
+        return now - updated > timedelta(days=7)
+
 
 class CartItem(Base):
     __tablename__ = "cart_items"
