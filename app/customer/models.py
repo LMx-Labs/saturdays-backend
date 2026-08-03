@@ -22,9 +22,7 @@ if TYPE_CHECKING:
 class CustomerProfile(Base, TimestampMixin):
     __tablename__ = "customer_profiles"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid7
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid7)
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, unique=True
     )
@@ -32,36 +30,26 @@ class CustomerProfile(Base, TimestampMixin):
     phone_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
     # Relationships
-    user: Mapped["User"] = relationship("User", back_populates="customer_profile")
+    user: Mapped["User"] = relationship("User")
     addresses: Mapped[list["CustomerAddress"]] = relationship(
         "CustomerAddress", back_populates="customer_profile"
     )
     favorites: Mapped[list["CustomerFavorite"]] = relationship(
         "CustomerFavorite", back_populates="customer_profile"
     )
-    carts: Mapped[list["Cart"]] = relationship(
-        "Cart", back_populates="customer_profile"
-    )
-    orders: Mapped[list["Order"]] = relationship(
-        "Order", back_populates="customer_profile"
-    )
-    payments: Mapped[list["Payment"]] = relationship(
-        "Payment", back_populates="customer_profile"
-    )
+    carts: Mapped[list["Cart"]] = relationship("Cart", back_populates="customer_profile")
+    orders: Mapped[list["Order"]] = relationship("Order", back_populates="customer_profile")
+    payments: Mapped[list["Payment"]] = relationship("Payment", back_populates="customer_profile")
     coupon_redemptions: Mapped[list["CouponRedemption"]] = relationship(
         "CouponRedemption", back_populates="customer_profile"
     )
-    reviews: Mapped[list["Review"]] = relationship(
-        "Review", back_populates="customer_profile"
-    )
+    reviews: Mapped[list["Review"]] = relationship("Review", back_populates="customer_profile")
 
 
 class CustomerAddress(Base, TimestampMixin):
     __tablename__ = "customer_addresses"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid7
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid7)
     customer_profile_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("customer_profiles.id"), nullable=False
     )
@@ -79,9 +67,7 @@ class CustomerAddress(Base, TimestampMixin):
 class CustomerFavorite(Base):
     __tablename__ = "customer_favorites"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid7
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid7)
     customer_profile_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("customer_profiles.id"), nullable=False
     )
@@ -99,7 +85,5 @@ class CustomerFavorite(Base):
     branch: Mapped["Branch"] = relationship("Branch", back_populates="favorites")
 
     __table_args__ = (
-        UniqueConstraint(
-            "customer_profile_id", "branch_id", name="uix_customer_branch_favorite"
-        ),
+        UniqueConstraint("customer_profile_id", "branch_id", name="uix_customer_branch_favorite"),
     )

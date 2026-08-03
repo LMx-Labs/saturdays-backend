@@ -136,20 +136,21 @@ async def saturdays_exception_handler(request: Request, exc: Exception) -> JSONR
     )
 
 
+from fastapi.encoders import jsonable_encoder
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(AppException, saturdays_exception_handler)
 
     @app.exception_handler(RequestValidationError)
-    async def validation_exception_handler(
-        request: Request, exc: RequestValidationError
-    ):
+    async def validation_exception_handler(request: Request, exc: RequestValidationError):
         correlation_id = getattr(request.state, "correlation_id", None)
         return JSONResponse(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             content={
                 "error_code": "VALIDATION_ERROR",
                 "message": "Request validation failed",
-                "details": {"errors": exc.errors()},
+                "details": {"errors": jsonable_encoder(exc.errors())},
                 "correlation_id": correlation_id,
             },
         )

@@ -17,9 +17,7 @@ if TYPE_CHECKING:
 class Merchant(Base, TimestampMixin):
     __tablename__ = "merchants"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid7
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid7)
     owner_user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
     )
@@ -32,7 +30,7 @@ class Merchant(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="DRAFT")
 
     # Relationships
-    owner_user: Mapped["User"] = relationship("User", back_populates="merchants")
+    owner_user: Mapped["User"] = relationship("User")
     brands: Mapped[list["Brand"]] = relationship("Brand", back_populates="merchant")
     subscriptions: Mapped[list["MerchantSubscription"]] = relationship(
         "MerchantSubscription", back_populates="merchant"
