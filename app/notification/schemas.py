@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class NotificationSendRequest(BaseModel):

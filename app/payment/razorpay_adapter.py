@@ -21,7 +21,7 @@ class RazorpayAdapter:
         self, amount: float, currency: str = "INR", receipt: str | None = None
     ) -> dict[str, Any]:
         """Creates Razorpay Order ID."""
-        amount_in_paise = int(round(amount * 100))
+        amount_in_paise = int(amount * 100)
         razorpay_order_id = f"order_rzp_{uuid.uuid4().hex[:12]}"
         return {
             "id": razorpay_order_id,
@@ -61,7 +61,7 @@ class RazorpayAdapter:
 
     def create_refund(self, razorpay_payment_id: str, amount: float) -> dict[str, Any]:
         """Issues refund via Razorpay."""
-        amount_in_paise = int(round(amount * 100))
+        amount_in_paise = int(amount * 100)
         refund_id = f"rfnd_rzp_{uuid.uuid4().hex[:12]}"
         return {
             "id": refund_id,
