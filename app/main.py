@@ -55,6 +55,7 @@ from app.cart.router import router as cart_router
 from app.coupon.router import router as coupon_router
 from app.customer.router import router as customer_router
 from app.inventory.router import router as inventory_router
+from app.kitchen.router import router as kitchen_router
 from app.menu.router import router as menu_router
 from app.merchant.router import router as merchant_router
 
@@ -65,6 +66,7 @@ app.include_router(cart_router, prefix=settings.API_V1_STR)
 app.include_router(coupon_router, prefix=settings.API_V1_STR)
 app.include_router(customer_router, prefix=settings.API_V1_STR)
 app.include_router(inventory_router, prefix=settings.API_V1_STR)
+app.include_router(kitchen_router, prefix=settings.API_V1_STR)
 app.include_router(menu_router, prefix=settings.API_V1_STR)
 app.include_router(brand_router, prefix=settings.API_V1_STR)
 app.include_router(branch_router, prefix=settings.API_V1_STR)
