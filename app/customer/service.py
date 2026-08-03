@@ -153,7 +153,8 @@ class CustomerService(CustomerServiceInterface):
         address = await self.customer_repo.get_address_by_id(address_id)
         if not address or address.customer_profile_id != profile.id:
             raise EntityNotFoundError(
-                message="Address not found for this customer.", error_code="ADDRESS_NOT_FOUND"
+                message="Address not found for this customer.",
+                error_code="ADDRESS_NOT_FOUND",
             )
 
         await self.customer_repo.clear_primary_addresses(profile.id)
@@ -171,7 +172,8 @@ class CustomerService(CustomerServiceInterface):
         address = await self.customer_repo.get_address_by_id(address_id)
         if not address or address.customer_profile_id != profile.id:
             raise EntityNotFoundError(
-                message="Address not found for this customer.", error_code="ADDRESS_NOT_FOUND"
+                message="Address not found for this customer.",
+                error_code="ADDRESS_NOT_FOUND",
             )
 
         was_primary = address.is_primary
@@ -222,7 +224,8 @@ class CustomerService(CustomerServiceInterface):
         existing = await self.customer_repo.get_favorite(profile.id, branch_id)
         if not existing:
             raise EntityNotFoundError(
-                message="Favorite branch bookmark not found.", error_code="FAVORITE_NOT_FOUND"
+                message="Favorite branch bookmark not found.",
+                error_code="FAVORITE_NOT_FOUND",
             )
 
         await self.customer_repo.remove_favorite(profile.id, branch_id)

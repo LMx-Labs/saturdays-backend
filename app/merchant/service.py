@@ -27,17 +27,14 @@ class MerchantServiceInterface(ABC):
         self, owner_user_id: str, req: MerchantOnboardRequest
     ) -> MerchantResponse:
         """Register and onboard a new merchant entity (INV-MERCH-001)."""
-        pass
 
     @abstractmethod
     async def get_current_merchant_profile(self, owner_user_id: str) -> MerchantResponse:
         """Retrieve merchant profile for current user."""
-        pass
 
     @abstractmethod
     async def get_merchant_by_id(self, merchant_id: str) -> MerchantResponse:
         """Retrieve merchant profile by ID."""
-        pass
 
     @abstractmethod
     async def update_merchant(
@@ -48,20 +45,21 @@ class MerchantServiceInterface(ABC):
         is_admin: bool = False,
     ) -> MerchantResponse:
         """Update merchant details."""
-        pass
 
     @abstractmethod
     async def update_merchant_status(
         self, merchant_id: str, req: MerchantStatusUpdateRequest
     ) -> MerchantResponse:
         """Transition merchant lifecycle status (INV-MERCH-002)."""
-        pass
+
+
+from typing import ClassVar
 
 
 class MerchantService(MerchantServiceInterface):
     """Concrete implementation of MerchantServiceInterface."""
 
-    VALID_TRANSITIONS = {
+    VALID_TRANSITIONS: ClassVar[dict[str, set[str]]] = {
         "DRAFT": {"PENDING_VERIFICATION"},
         "PENDING_VERIFICATION": {"APPROVED", "REJECTED"},
         "REJECTED": {"DRAFT", "PENDING_VERIFICATION"},

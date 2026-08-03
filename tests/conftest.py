@@ -5,6 +5,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
+import app.models as _models  # noqa: F401
 from app.core.database import Base, get_db_session
 from app.main import app
 

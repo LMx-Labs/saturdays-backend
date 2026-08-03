@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.menu.models import Menu, MenuCategory, MenuItem, MenuModifier
+from app.menu.models import Menu, MenuCategory, MenuItem
 
 
 class MenuRepositoryInterface(ABC):
@@ -47,9 +47,11 @@ class MenuRepository(MenuRepositoryInterface):
     async def get_menu_by_branch_id(self, branch_id: uuid.UUID) -> Menu | None:
         stmt = (
             select(Menu)
-            .where(Menu.branch_id == branch_id, Menu.deleted_at == None)  # noqa: E711
+            .where(Menu.branch_id == branch_id, Menu.deleted_at.is_(None))
             .options(
-                selectinload(Menu.categories).selectinload(MenuCategory.items).selectinload(MenuItem.modifiers)
+                selectinload(Menu.categories)
+                .selectinload(MenuCategory.items)
+                .selectinload(MenuItem.modifiers)
             )
         )
         result = await self.session.execute(stmt)
@@ -64,8 +66,8 @@ class MenuRepository(MenuRepositoryInterface):
     async def get_category_by_id(self, category_id: uuid.UUID) -> MenuCategory | None:
         stmt = (
             select(MenuCategory)
-            where(MenuCategory.id == category_id, MenuCategory.deleted_at == None)  # noqa: E711
-            options(selectinload(MenuCategory.menu))
+            .where(MenuCategory.id == category_id, MenuCategory.deleted_at.is_(None))
+            .options(selectinload(MenuCategory.menu))
         )
         result = await self.session.execute(stmt)
         return result.scalars().first()
@@ -82,9 +84,7 @@ class MenuRepository(MenuRepositoryInterface):
         self.session.add(item)
         await self.session.flush()
         stmt = (
-            select(MenuItem)
-            where(MenuItem.id == item.id)
-            options(selectinload(MenuItem.modifiers))
+            select(MenuItem).where(MenuItem.id == item.id).options(selectinload(MenuItem.modifiers))
         )
         result = await self.session.execute(stmt)
         return result.scalar_one()
@@ -92,8 +92,8 @@ class MenuRepository(MenuRepositoryInterface):
     async def get_menu_item_by_id(self, item_id: uuid.UUID) -> MenuItem | None:
         stmt = (
             select(MenuItem)
-            where(MenuItem.id == item_id, MenuItem.deleted_at == None)  # noqa: E711
-            options(selectinload(MenuItem.modifiers), selectinload(MenuItem.category))
+            .where(MenuItem.id == item_id, MenuItem.deleted_at.is_(None))
+            .options(selectinload(MenuItem.modifiers), selectinload(MenuItem.category))
         )
         result = await self.session.execute(stmt)
         return result.scalars().first()

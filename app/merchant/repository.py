@@ -13,32 +13,26 @@ class MerchantRepositoryInterface(ABC):
     @abstractmethod
     async def create(self, merchant: Merchant) -> Merchant:
         """Persist a new merchant entity."""
-        pass
 
     @abstractmethod
     async def get_by_id(self, merchant_id: uuid.UUID) -> Merchant | None:
         """Fetch merchant by ID if not soft deleted."""
-        pass
 
     @abstractmethod
     async def get_by_owner_user_id(self, owner_user_id: uuid.UUID) -> Merchant | None:
         """Fetch active merchant owned by user ID."""
-        pass
 
     @abstractmethod
     async def get_by_gstin(self, gstin: str) -> Merchant | None:
         """Fetch merchant by unique GSTIN if not soft deleted."""
-        pass
 
     @abstractmethod
     async def get_by_fssai(self, fssai_license_number: str) -> Merchant | None:
         """Fetch merchant by FSSAI license number if not soft deleted."""
-        pass
 
     @abstractmethod
     async def update(self, merchant: Merchant) -> Merchant:
         """Update existing merchant entity."""
-        pass
 
 
 class MerchantRepository(MerchantRepositoryInterface):

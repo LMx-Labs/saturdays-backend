@@ -79,7 +79,13 @@ class MerchantStatusUpdateRequest(BaseModel):
     @field_validator("status")
     @classmethod
     def validate_status(cls, v: str) -> str:
-        valid_statuses = {"DRAFT", "PENDING_VERIFICATION", "APPROVED", "REJECTED", "SUSPENDED"}
+        valid_statuses = {
+            "DRAFT",
+            "PENDING_VERIFICATION",
+            "APPROVED",
+            "REJECTED",
+            "SUSPENDED",
+        }
         v_upper = v.upper()
         if v_upper not in valid_statuses:
             raise ValueError(f"Status must be one of: {', '.join(sorted(valid_statuses))}")
