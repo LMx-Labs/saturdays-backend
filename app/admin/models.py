@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import DateTime, ForeignKey, Index, JSON, String, func
+from sqlalchemy import JSON, DateTime, ForeignKey, Index, String, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -23,7 +23,9 @@ class AdminAuditLog(Base):
     action: Mapped[str] = mapped_column(String(100), nullable=False)
     target_entity: Mapped[str] = mapped_column(String(100), nullable=False)
     target_entity_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
-    changes_payload: Mapped[Any] = mapped_column(JSONB().with_variant(JSON, "sqlite"), nullable=False)
+    changes_payload: Mapped[Any] = mapped_column(
+        JSONB().with_variant(JSON, "sqlite"), nullable=False
+    )
     ip_address: Mapped[str] = mapped_column(String(45), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

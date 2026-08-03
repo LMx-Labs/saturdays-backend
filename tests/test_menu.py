@@ -44,7 +44,7 @@ async def setup_branch_and_manager(db_session: AsyncSession):
     db_session.add(category)
     await db_session.commit()
 
-    token = create_access_token(data={"sub": str(manager.id), "role": manager.role})
+    token = create_access_token(subject=str(manager.id), role=manager.role)
     headers = {"Authorization": f"Bearer {token}"}
 
     return {
@@ -125,7 +125,6 @@ async def test_menu_item_negative_price_invariant(
         json=item_payload,
         headers=headers,
     )
-    # Fastapi pydantic or domain exception validation
     assert response.status_code in (400, 422)
 
 

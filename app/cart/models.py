@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, func
+from sqlalchemy import JSON, CheckConstraint, DateTime, ForeignKey, Integer, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -56,7 +56,9 @@ class CartItem(Base):
         UUID(as_uuid=True), ForeignKey("menu_items.id"), nullable=False
     )
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
-    selected_modifiers: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
+    selected_modifiers: Mapped[Any | None] = mapped_column(
+        JSONB().with_variant(JSON, "sqlite"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

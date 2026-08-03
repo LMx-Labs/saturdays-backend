@@ -1,4 +1,5 @@
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -43,7 +44,7 @@ def get_menu_service(
 async def get_branch_menu(
     branch_id: uuid.UUID,
     menu_service: MenuServiceInterface = Depends(get_menu_service),
-) -> MenuResponse:
+) -> Any:
     return await menu_service.get_branch_menu(branch_id)
 
 
@@ -59,7 +60,7 @@ async def create_branch_menu(
     req: MenuCreate,
     _current_user=Depends(require_role(["BranchManager", "MerchantOwner", "Admin"])),
     menu_service: MenuServiceInterface = Depends(get_menu_service),
-) -> MenuResponse:
+) -> Any:
     return await menu_service.create_branch_menu(branch_id, req)
 
 
@@ -75,7 +76,7 @@ async def create_category(
     req: MenuCategoryCreate,
     _current_user=Depends(require_role(["BranchManager", "MerchantOwner", "Admin"])),
     menu_service: MenuServiceInterface = Depends(get_menu_service),
-) -> MenuCategoryResponse:
+) -> Any:
     return await menu_service.create_category(branch_id, req)
 
 
@@ -91,7 +92,7 @@ async def create_menu_item(
     req: MenuItemCreate,
     _current_user=Depends(require_role(["BranchManager", "MerchantOwner", "Admin"])),
     menu_service: MenuServiceInterface = Depends(get_menu_service),
-) -> MenuItemResponse:
+) -> Any:
     return await menu_service.create_menu_item(branch_id, req)
 
 
@@ -105,7 +106,7 @@ async def create_menu_item(
 async def get_menu_item(
     item_id: uuid.UUID,
     menu_service: MenuServiceInterface = Depends(get_menu_service),
-) -> MenuItemResponse:
+) -> Any:
     return await menu_service.get_menu_item(item_id)
 
 
@@ -121,5 +122,5 @@ async def update_menu_item(
     req: MenuItemUpdate,
     _current_user=Depends(require_role(["BranchManager", "MerchantOwner", "Admin"])),
     menu_service: MenuServiceInterface = Depends(get_menu_service),
-) -> MenuItemResponse:
+) -> Any:
     return await menu_service.update_menu_item(item_id, req)
