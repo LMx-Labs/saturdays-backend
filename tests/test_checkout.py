@@ -8,7 +8,7 @@ from app.auth.models import User
 from app.branch.models import Branch
 from app.brand.models import Brand
 from app.cart.models import Cart, CartItem
-from app.core.security import hash_password
+from app.core.security import create_access_token, hash_password
 from app.coupon.models import Coupon
 from app.customer.models import CustomerProfile
 from app.inventory.models import InventoryItem
