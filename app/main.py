@@ -49,6 +49,7 @@ app.add_middleware(
 app.add_middleware(CorrelationIdMiddleware)
 
 from app.auth.router import router as auth_router
+from app.branch.router import router as branch_router
 from app.brand.router import router as brand_router
 from app.cart.router import router as cart_router
 from app.coupon.router import router as coupon_router
@@ -66,6 +67,7 @@ app.include_router(customer_router, prefix=settings.API_V1_STR)
 app.include_router(inventory_router, prefix=settings.API_V1_STR)
 app.include_router(menu_router, prefix=settings.API_V1_STR)
 app.include_router(brand_router, prefix=settings.API_V1_STR)
+app.include_router(branch_router, prefix=settings.API_V1_STR)
 app.include_router(merchant_router, prefix=settings.API_V1_STR)
 
 

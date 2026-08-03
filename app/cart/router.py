@@ -36,9 +36,7 @@ def get_cart_service(
     cart_repo: CartRepositoryInterface = Depends(get_cart_repository),
     customer_repo: CustomerRepositoryInterface = Depends(get_customer_repository),
 ) -> CartServiceInterface:
-    return CartService(
-        session=session, cart_repo=cart_repo, customer_repo=customer_repo
-    )
+    return CartService(session=session, cart_repo=cart_repo, customer_repo=customer_repo)
 
 
 @router.get(
@@ -96,9 +94,7 @@ async def remove_item(
     current_user: UserClaims = Depends(get_current_user),
     cart_service: CartServiceInterface = Depends(get_cart_service),
 ) -> CartResponse:
-    return await cart_service.remove_item(
-        user_id=uuid.UUID(current_user.sub), item_id=item_id
-    )
+    return await cart_service.remove_item(user_id=uuid.UUID(current_user.sub), item_id=item_id)
 
 
 @router.delete(

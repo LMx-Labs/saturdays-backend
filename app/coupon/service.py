@@ -4,7 +4,11 @@ from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import ConflictError, EntityNotFoundError, UnprocessableEntityError
+from app.core.exceptions import (
+    ConflictError,
+    EntityNotFoundError,
+    UnprocessableEntityError,
+)
 from app.coupon.models import Coupon
 from app.coupon.repository import CouponRepositoryInterface
 from app.coupon.schemas import (
@@ -56,9 +60,11 @@ class CouponService(CouponServiceInterface):
             code=coupon.code,
             discount_type=coupon.discount_type,
             discount_value=float(coupon.discount_value),
-            max_discount_amount=float(coupon.max_discount_amount)
-            if coupon.max_discount_amount is not None
-            else None,
+            max_discount_amount=(
+                float(coupon.max_discount_amount)
+                if coupon.max_discount_amount is not None
+                else None
+            ),
             min_order_amount=float(coupon.min_order_amount),
             max_redemptions_per_user=coupon.max_redemptions_per_user,
             valid_from=coupon.valid_from,
@@ -114,15 +120,14 @@ class CouponService(CouponServiceInterface):
         # 1. Existence and Active status
         if not coupon or not coupon.is_active or coupon.deleted_at is not None:
             raise EntityNotFoundError(
-                message="Invalid or inactive coupon code.", error_code="COUPON_NOT_FOUND"
+                message="Invalid or inactive coupon code.",
+                error_code="COUPON_NOT_FOUND",
             )
 
         # Ensure timezone-aware datetime comparison
         now = datetime.now(UTC)
         valid_from = (
-            coupon.valid_from
-            if coupon.valid_from.tzinfo
-            else coupon.valid_from.replace(tzinfo=UTC)
+            coupon.valid_from if coupon.valid_from.tzinfo else coupon.valid_from.replace(tzinfo=UTC)
         )
         valid_until = (
             coupon.valid_until
@@ -159,9 +164,7 @@ class CouponService(CouponServiceInterface):
         # 5. User Redemption Limit Check (INV-CPN-001)
         profile = await self.customer_repo.get_by_user_id(user_id)
         if profile:
-            redemptions_count = await self.coupon_repo.count_user_redemptions(
-                coupon.id, profile.id
-            )
+            redemptions_count = await self.coupon_repo.count_user_redemptions(coupon.id, profile.id)
             if redemptions_count >= coupon.max_redemptions_per_user:
                 raise UnprocessableEntityError(
                     message=f"You have reached the maximum redemption limit ({coupon.max_redemptions_per_user}) for this coupon.",
@@ -204,7 +207,5 @@ class CouponService(CouponServiceInterface):
     async def get_coupon_by_id(self, coupon_id: uuid.UUID) -> CouponResponse:
         coupon = await self.coupon_repo.get_by_id(coupon_id)
         if not coupon:
-            raise EntityNotFoundError(
-                message="Coupon not found.", error_code="COUPON_NOT_FOUND"
-            )
+            raise EntityNotFoundError(message="Coupon not found.", error_code="COUPON_NOT_FOUND")
         return self._to_response(coupon)

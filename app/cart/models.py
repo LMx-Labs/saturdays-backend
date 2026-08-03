@@ -18,9 +18,7 @@ if TYPE_CHECKING:
 class Cart(Base):
     __tablename__ = "carts"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid7
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid7)
     customer_profile_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("customer_profiles.id"), nullable=False
     )
@@ -52,11 +50,7 @@ class Cart(Base):
 
         if not self.updated_at:
             return False
-        updated = (
-            self.updated_at
-            if self.updated_at.tzinfo
-            else self.updated_at.replace(tzinfo=UTC)
-        )
+        updated = self.updated_at if self.updated_at.tzinfo else self.updated_at.replace(tzinfo=UTC)
         now = datetime.now(UTC)
         return now - updated > timedelta(days=7)
 
@@ -64,9 +58,7 @@ class Cart(Base):
 class CartItem(Base):
     __tablename__ = "cart_items"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid7
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid7)
     cart_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("carts.id", ondelete="CASCADE"), nullable=False
     )
@@ -89,10 +81,6 @@ class CartItem(Base):
 
     # Relationships
     cart: Mapped["Cart"] = relationship("Cart", back_populates="items")
-    menu_item: Mapped["MenuItem"] = relationship(
-        "MenuItem", back_populates="cart_items"
-    )
+    menu_item: Mapped["MenuItem"] = relationship("MenuItem", back_populates="cart_items")
 
-    __table_args__ = (
-        CheckConstraint("quantity > 0", name="ck_cart_items_quantity_positive"),
-    )
+    __table_args__ = (CheckConstraint("quantity > 0", name="ck_cart_items_quantity_positive"),)

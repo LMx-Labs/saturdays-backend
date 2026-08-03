@@ -28,13 +28,7 @@ def uuid7() -> uuid.UUID:
 
     node = int.from_bytes(rand_bytes[4:], byteorder="big")
 
-    uuid_int = (
-        (time_high << 96)
-        | (time_low << 80)
-        | (ver_rand_a << 64)
-        | (var_rand_b << 48)
-        | node
-    )
+    uuid_int = (time_high << 96) | (time_low << 80) | (ver_rand_a << 64) | (var_rand_b << 48) | node
     return uuid.UUID(int=uuid_int)
 
 

@@ -22,7 +22,9 @@ class BranchCreateRequest(BaseModel):
 
     brand_id: str = Field(..., description="UUID of parent brand entity")
     name: str = Field(..., min_length=2, max_length=150, description="Branch display name")
-    address_text: str = Field(..., min_length=2, max_length=255, description="Full physical address")
+    address_text: str = Field(
+        ..., min_length=2, max_length=255, description="Full physical address"
+    )
     latitude: float | None = Field(None, ge=-90.0, le=90.0, description="Latitude coordinate")
     longitude: float | None = Field(None, ge=-180.0, le=180.0, description="Longitude coordinate")
     is_active: bool = Field(True, description="Initial active status toggle")
