@@ -81,9 +81,7 @@ async def create_branch(
     branch_service: BranchServiceInterface = Depends(get_branch_service),
 ) -> BranchResponse:
     is_admin = current_user.role == "PlatformAdmin"
-    return await branch_service.create_branch(
-        user_id=current_user.sub, is_admin=is_admin, req=req
-    )
+    return await branch_service.create_branch(user_id=current_user.sub, is_admin=is_admin, req=req)
 
 
 @router.get(
@@ -150,9 +148,7 @@ async def update_branch_status(
 )
 async def delete_branch(
     branch_id: str,
-    current_user: UserClaims = Depends(
-        require_role(["MerchantOwner", "PlatformAdmin"])
-    ),
+    current_user: UserClaims = Depends(require_role(["MerchantOwner", "PlatformAdmin"])),
     branch_service: BranchServiceInterface = Depends(get_branch_service),
 ) -> None:
     is_admin = current_user.role == "PlatformAdmin"

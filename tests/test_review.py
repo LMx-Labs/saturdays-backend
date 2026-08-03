@@ -1,4 +1,3 @@
-import uuid
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -50,8 +49,6 @@ async def setup_review_fixture(db_session: AsyncSession):
     completed_order = Order(
         customer_profile_id=profile.id,
         branch_id=branch.id,
-        order_number="ORD-REV-001",
-        subtotal=200.0,
         total_amount=200.0,
         status="COMPLETED",
         delivery_address_snapshot={"address": "Campus Hostel"},
@@ -61,8 +58,6 @@ async def setup_review_fixture(db_session: AsyncSession):
     pending_order = Order(
         customer_profile_id=profile.id,
         branch_id=branch.id,
-        order_number="ORD-REV-002",
-        subtotal=150.0,
         total_amount=150.0,
         status="PLACED",
         delivery_address_snapshot={"address": "Campus Hostel"},
@@ -169,9 +164,7 @@ async def test_review_reply_moderation_and_summary(client: AsyncClient, setup_re
     assert summary["rating_distribution"]["4"] == 1
 
     # Moderate review (Hide)
-    mod_resp = await client.put(
-        f"/api/v1/reviews/{review_id}/moderate", json={"is_hidden": True}
-    )
+    mod_resp = await client.put(f"/api/v1/reviews/{review_id}/moderate", json={"is_hidden": True})
     assert mod_resp.status_code == 200
     assert mod_resp.json()["is_hidden"] is True
 

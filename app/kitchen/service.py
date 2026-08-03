@@ -30,9 +30,7 @@ class KitchenServiceInterface(ABC):
         """Create a new kitchen prep unit (INV-KITCH-001)."""
 
     @abstractmethod
-    async def get_kitchen_by_id(
-        self, kitchen_id: str, user_id: str, role: str
-    ) -> KitchenResponse:
+    async def get_kitchen_by_id(self, kitchen_id: str, user_id: str, role: str) -> KitchenResponse:
         """Retrieve kitchen profile by ID."""
 
     @abstractmethod
@@ -90,12 +88,8 @@ class KitchenService(KitchenServiceInterface):
 
         if role != "PlatformAdmin":
             brand = await self.brand_repo.get_by_id(branch.brand_id)
-            merchant = (
-                await self.merchant_repo.get_by_id(brand.merchant_id) if brand else None
-            )
-            if (
-                not merchant or str(merchant.owner_user_id) != user_id
-            ) and role not in {
+            merchant = await self.merchant_repo.get_by_id(brand.merchant_id) if brand else None
+            if (not merchant or str(merchant.owner_user_id) != user_id) and role not in {
                 "BranchManager",
                 "MerchantOwner",
             }:
@@ -114,9 +108,7 @@ class KitchenService(KitchenServiceInterface):
         await self.session.commit()
         return self._to_response(saved)
 
-    async def get_kitchen_by_id(
-        self, kitchen_id: str, user_id: str, role: str
-    ) -> KitchenResponse:
+    async def get_kitchen_by_id(self, kitchen_id: str, user_id: str, role: str) -> KitchenResponse:
         try:
             kitchen_uuid = uuid.UUID(kitchen_id)
         except ValueError as exc:
@@ -151,9 +143,7 @@ class KitchenService(KitchenServiceInterface):
                 error_code="BRANCH_NOT_FOUND",
             )
 
-        kitchens = await self.kitchen_repo.list_by_branch_id(
-            branch_uuid, skip=skip, limit=limit
-        )
+        kitchens = await self.kitchen_repo.list_by_branch_id(branch_uuid, skip=skip, limit=limit)
         return [self._to_response(k) for k in kitchens]
 
     async def update_kitchen(

@@ -27,9 +27,7 @@ if TYPE_CHECKING:
 class InventoryItem(Base, TimestampMixin):
     __tablename__ = "inventory_items"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid7
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid7)
     branch_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("branches.id"), nullable=False
     )
@@ -41,17 +39,13 @@ class InventoryItem(Base, TimestampMixin):
 
     # Relationships
     branch: Mapped["Branch"] = relationship("Branch", back_populates="inventory_items")
-    menu_item: Mapped["MenuItem"] = relationship(
-        "MenuItem", back_populates="inventory_items"
-    )
+    menu_item: Mapped["MenuItem"] = relationship("MenuItem", back_populates="inventory_items")
     logs: Mapped[list["InventoryLog"]] = relationship(
         "InventoryLog", back_populates="inventory_item"
     )
 
     __table_args__ = (
-        CheckConstraint(
-            "quantity >= 0", name="ck_inventory_items_quantity_non_negative"
-        ),
+        CheckConstraint("quantity >= 0", name="ck_inventory_items_quantity_non_negative"),
         UniqueConstraint("branch_id", "menu_item_id", name="uix_inventory_branch_item"),
         Index("idx_inventory_branch_item", branch_id, menu_item_id),
     )
@@ -60,9 +54,7 @@ class InventoryItem(Base, TimestampMixin):
 class InventoryLog(Base):
     __tablename__ = "inventory_logs"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid7
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid7)
     inventory_item_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("inventory_items.id"), nullable=False
     )
@@ -75,6 +67,4 @@ class InventoryLog(Base):
     )
 
     # Relationships
-    inventory_item: Mapped["InventoryItem"] = relationship(
-        "InventoryItem", back_populates="logs"
-    )
+    inventory_item: Mapped["InventoryItem"] = relationship("InventoryItem", back_populates="logs")

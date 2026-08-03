@@ -112,9 +112,7 @@ async def test_refresh_token_flow(client: AsyncClient):
     reg_res = await client.post("/api/v1/auth/register", json=reg_payload)
     refresh_token = reg_res.json()["refresh_token"]
 
-    refresh_res = await client.post(
-        "/api/v1/auth/refresh", json={"refresh_token": refresh_token}
-    )
+    refresh_res = await client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_token})
     assert refresh_res.status_code == 200
     data = refresh_res.json()
     assert "access_token" in data

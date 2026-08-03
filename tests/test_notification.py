@@ -56,9 +56,7 @@ async def test_send_and_list_notifications(client: AsyncClient, setup_notif_user
         "channel": "EMAIL",
     }
 
-    send_resp = await client.post(
-        "/api/v1/notifications/send", headers=headers, json=send_payload
-    )
+    send_resp = await client.post("/api/v1/notifications/send", headers=headers, json=send_payload)
     assert send_resp.status_code == 202
     data = send_resp.json()
     assert data["status"] == "SENT"

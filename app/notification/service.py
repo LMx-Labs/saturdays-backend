@@ -45,9 +45,7 @@ class NotificationServiceInterface(ABC):
         pass
 
     @abstractmethod
-    async def get_user_notifications(
-        self, user_id: uuid.UUID
-    ) -> list[NotificationResponse]:
+    async def get_user_notifications(self, user_id: uuid.UUID) -> list[NotificationResponse]:
         pass
 
 
@@ -122,11 +120,11 @@ class NotificationService(NotificationServiceInterface):
         refund_amount: float,
     ) -> NotificationResponse:
         subject = f"Refund Processed for Order #{order_number}"
-        body = f"A refund of ₹{refund_amount:.2f} has been processed for your order #{order_number}."
+        body = (
+            f"A refund of ₹{refund_amount:.2f} has been processed for your order #{order_number}."
+        )
         return await self.send_email_notification(user_id, recipient, subject, body)
 
-    async def get_user_notifications(
-        self, user_id: uuid.UUID
-    ) -> list[NotificationResponse]:
+    async def get_user_notifications(self, user_id: uuid.UUID) -> list[NotificationResponse]:
         notifications = await self.notif_repo.get_by_user_id(user_id)
         return [NotificationResponse.model_validate(n) for n in notifications]

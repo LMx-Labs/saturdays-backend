@@ -27,9 +27,7 @@ class MockEmailProvider(NotificationProviderInterface):
 class SendGridEmailProvider(NotificationProviderInterface):
     """Production SendGrid Email Provider adapter implementation."""
 
-    def __init__(
-        self, api_key: str | None = None, from_email: str = "noreply@saturdays.com"
-    ):
+    def __init__(self, api_key: str | None = None, from_email: str = "noreply@saturdays.com"):
         self.api_key = api_key
         self.from_email = from_email
 
