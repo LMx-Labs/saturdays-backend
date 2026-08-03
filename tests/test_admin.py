@@ -53,7 +53,9 @@ async def get_admin_headers(client: AsyncClient, email: str) -> dict:
 
 
 @pytest.mark.asyncio
-async def test_admin_merchant_approval_and_audit(client: AsyncClient, setup_admin_fixture: dict):
+async def test_admin_merchant_approval_and_audit(
+    client: AsyncClient, setup_admin_fixture: dict
+):
     fixture = setup_admin_fixture
     headers = await get_admin_headers(client, fixture["admin_user"].email)
 
@@ -77,7 +79,9 @@ async def test_admin_merchant_approval_and_audit(client: AsyncClient, setup_admi
 
 
 @pytest.mark.asyncio
-async def test_admin_banner_cms_and_feature_flags(client: AsyncClient, setup_admin_fixture: dict):
+async def test_admin_banner_cms_and_feature_flags(
+    client: AsyncClient, setup_admin_fixture: dict
+):
     fixture = setup_admin_fixture
     headers = await get_admin_headers(client, fixture["admin_user"].email)
 
@@ -89,7 +93,9 @@ async def test_admin_banner_cms_and_feature_flags(client: AsyncClient, setup_adm
         "display_order": 1,
         "is_active": True,
     }
-    banner_resp = await client.post("/api/v1/admin/banners", headers=headers, json=banner_payload)
+    banner_resp = await client.post(
+        "/api/v1/admin/banners", headers=headers, json=banner_payload
+    )
     assert banner_resp.status_code == 201
     banner_id = banner_resp.json()["id"]
 
@@ -99,7 +105,9 @@ async def test_admin_banner_cms_and_feature_flags(client: AsyncClient, setup_adm
     assert len(list_resp.json()) >= 1
 
     # 3. Delete banner
-    del_resp = await client.delete(f"/api/v1/admin/banners/{banner_id}", headers=headers)
+    del_resp = await client.delete(
+        f"/api/v1/admin/banners/{banner_id}", headers=headers
+    )
     assert del_resp.status_code == 204
 
     # 4. Feature flags
@@ -118,7 +126,9 @@ async def test_admin_banner_cms_and_feature_flags(client: AsyncClient, setup_adm
 
 
 @pytest.mark.asyncio
-async def test_admin_refund_and_analytics(client: AsyncClient, setup_admin_fixture: dict):
+async def test_admin_refund_and_analytics(
+    client: AsyncClient, setup_admin_fixture: dict
+):
     fixture = setup_admin_fixture
     headers = await get_admin_headers(client, fixture["admin_user"].email)
 
@@ -135,7 +145,9 @@ async def test_admin_refund_and_analytics(client: AsyncClient, setup_admin_fixtu
     assert ref_resp.json()["status"] == "PROCESSED"
 
     # Analytics overview
-    analytics_resp = await client.get("/api/v1/admin/analytics/overview", headers=headers)
+    analytics_resp = await client.get(
+        "/api/v1/admin/analytics/overview", headers=headers
+    )
     assert analytics_resp.status_code == 200
     data = analytics_resp.json()
     assert "total_merchants" in data

@@ -21,7 +21,9 @@ def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
     dlon = math.radians(lon2 - lon1)
     a = (
         math.sin(dlat / 2.0) ** 2
-        + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2.0) ** 2
+        + math.cos(math.radians(lat1))
+        * math.cos(math.radians(lat2))
+        * math.sin(dlon / 2.0) ** 2
     )
     c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
     return round(r * c, 2)
@@ -50,7 +52,9 @@ class SearchServiceInterface(ABC):
         """Execute multi-entity search query with filters and sorting."""
 
     @abstractmethod
-    async def get_suggestions(self, q: str, limit: int = 10) -> SearchSuggestionsResponse:
+    async def get_suggestions(
+        self, q: str, limit: int = 10
+    ) -> SearchSuggestionsResponse:
         """Fetch typeahead query suggestions."""
 
 
@@ -204,12 +208,18 @@ class SearchService(SearchServiceInterface):
         if sort_by == "name":
             all_results.sort(key=lambda x: x.title.lower())
         elif sort_by == "price_asc":
-            all_results.sort(key=lambda x: x.price if x.price is not None else float("inf"))
+            all_results.sort(
+                key=lambda x: x.price if x.price is not None else float("inf")
+            )
         elif sort_by == "price_desc":
-            all_results.sort(key=lambda x: x.price if x.price is not None else -1.0, reverse=True)
+            all_results.sort(
+                key=lambda x: x.price if x.price is not None else -1.0, reverse=True
+            )
         elif sort_by == "distance":
             all_results.sort(
-                key=lambda x: x.distance_km if x.distance_km is not None else float("inf")
+                key=lambda x: (
+                    x.distance_km if x.distance_km is not None else float("inf")
+                )
             )
 
         paginated_results = all_results[skip : skip + limit]
@@ -223,7 +233,9 @@ class SearchService(SearchServiceInterface):
             results=paginated_results,
         )
 
-    async def get_suggestions(self, q: str, limit: int = 10) -> SearchSuggestionsResponse:
+    async def get_suggestions(
+        self, q: str, limit: int = 10
+    ) -> SearchSuggestionsResponse:
         query_str = q.strip()
         if not query_str:
             raise DomainInvariantError(

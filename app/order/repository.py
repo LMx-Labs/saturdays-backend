@@ -29,7 +29,9 @@ class OrderRepositoryInterface(ABC):
         pass
 
     @abstractmethod
-    async def get_customer_orders(self, customer_profile_id: uuid.UUID) -> Sequence[Order]:
+    async def get_customer_orders(
+        self, customer_profile_id: uuid.UUID
+    ) -> Sequence[Order]:
         pass
 
     @abstractmethod
@@ -108,7 +110,9 @@ class OrderRepository(OrderRepositoryInterface):
         res = await self.session.execute(stmt)
         return res.scalars().first()
 
-    async def get_customer_orders(self, customer_profile_id: uuid.UUID) -> Sequence[Order]:
+    async def get_customer_orders(
+        self, customer_profile_id: uuid.UUID
+    ) -> Sequence[Order]:
         stmt = (
             select(Order)
             .where(Order.customer_profile_id == customer_profile_id)

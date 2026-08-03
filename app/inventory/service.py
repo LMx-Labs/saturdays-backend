@@ -17,7 +17,9 @@ logger = structlog.get_logger()
 
 class InventoryServiceInterface(ABC):
     @abstractmethod
-    async def get_branch_inventory(self, branch_id: uuid.UUID) -> Sequence[InventoryItem]:
+    async def get_branch_inventory(
+        self, branch_id: uuid.UUID
+    ) -> Sequence[InventoryItem]:
         pass
 
     @abstractmethod
@@ -48,7 +50,9 @@ class InventoryService(InventoryServiceInterface):
         self.session = session
         self.inventory_repo = inventory_repo
 
-    async def get_branch_inventory(self, branch_id: uuid.UUID) -> Sequence[InventoryItem]:
+    async def get_branch_inventory(
+        self, branch_id: uuid.UUID
+    ) -> Sequence[InventoryItem]:
         return await self.inventory_repo.get_branch_inventory(branch_id)
 
     async def create_inventory_item(

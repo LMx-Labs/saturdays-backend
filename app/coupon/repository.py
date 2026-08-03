@@ -33,7 +33,9 @@ class CouponRepositoryInterface(ABC):
         pass
 
     @abstractmethod
-    async def list_active_coupons(self, branch_id: uuid.UUID | None = None) -> Sequence[Coupon]:
+    async def list_active_coupons(
+        self, branch_id: uuid.UUID | None = None
+    ) -> Sequence[Coupon]:
         pass
 
 
@@ -76,7 +78,9 @@ class CouponRepository(CouponRepositoryInterface):
         await self.session.refresh(redemption)
         return redemption
 
-    async def list_active_coupons(self, branch_id: uuid.UUID | None = None) -> Sequence[Coupon]:
+    async def list_active_coupons(
+        self, branch_id: uuid.UUID | None = None
+    ) -> Sequence[Coupon]:
         now = datetime.now(UTC)
         stmt = select(Coupon).where(
             Coupon.is_active.is_(True),
@@ -86,7 +90,9 @@ class CouponRepository(CouponRepositoryInterface):
         )
         if branch_id:
             # Include platform coupons (branch_id is null) or branch-specific coupons
-            stmt = stmt.where((Coupon.branch_id.is_(None)) | (Coupon.branch_id == branch_id))
+            stmt = stmt.where(
+                (Coupon.branch_id.is_(None)) | (Coupon.branch_id == branch_id)
+            )
 
         res = await self.session.execute(stmt)
         return res.scalars().all()

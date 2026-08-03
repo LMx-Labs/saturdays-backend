@@ -51,7 +51,9 @@ class OrderServiceInterface(ABC):
         pass
 
     @abstractmethod
-    async def get_customer_orders(self, customer_profile_id: uuid.UUID) -> Sequence[Order]:
+    async def get_customer_orders(
+        self, customer_profile_id: uuid.UUID
+    ) -> Sequence[Order]:
         pass
 
     @abstractmethod
@@ -92,7 +94,9 @@ class OrderService(OrderServiceInterface):
                     MenuItem.id == item_req.menu_item_id,
                     MenuItem.deleted_at.is_(None),
                 )
-                .options(selectinload(MenuItem.category).selectinload(MenuCategory.menu))
+                .options(
+                    selectinload(MenuItem.category).selectinload(MenuCategory.menu)
+                )
             )
             res = await self.session.execute(stmt)
             menu_item = res.scalars().first()
@@ -237,7 +241,9 @@ class OrderService(OrderServiceInterface):
             )
         return order
 
-    async def get_customer_orders(self, customer_profile_id: uuid.UUID) -> Sequence[Order]:
+    async def get_customer_orders(
+        self, customer_profile_id: uuid.UUID
+    ) -> Sequence[Order]:
         return await self.order_repo.get_customer_orders(customer_profile_id)
 
     async def get_branch_orders(

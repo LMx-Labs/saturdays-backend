@@ -38,7 +38,9 @@ async def setup_inventory_fixture(db_session: AsyncSession):
     db_session.add(brand)
     await db_session.flush()
 
-    branch = Branch(brand_id=brand.id, name="Campus Kitchen Branch", address_text="Block A")
+    branch = Branch(
+        brand_id=brand.id, name="Campus Kitchen Branch", address_text="Block A"
+    )
     db_session.add(branch)
     await db_session.flush()
 
@@ -50,7 +52,9 @@ async def setup_inventory_fixture(db_session: AsyncSession):
     db_session.add(category)
     await db_session.flush()
 
-    menu_item = MenuItem(category_id=category.id, name="Chicken Roll", base_price=120.00)
+    menu_item = MenuItem(
+        category_id=category.id, name="Chicken Roll", base_price=120.00
+    )
     db_session.add(menu_item)
     await db_session.flush()
 
@@ -93,7 +97,9 @@ async def test_get_branch_inventory(client: AsyncClient, setup_inventory_fixture
 
 
 @pytest.mark.asyncio
-async def test_update_stock_quantity(client: AsyncClient, setup_inventory_fixture: dict):
+async def test_update_stock_quantity(
+    client: AsyncClient, setup_inventory_fixture: dict
+):
     ctx = setup_inventory_fixture
     inv_id = ctx["inventory_item"].id
     headers = ctx["headers"]
@@ -144,7 +150,9 @@ async def test_pessimistic_lock_stock_reservation(
     repo = InventoryRepository(session=db_session)
 
     # Reserve 6 units out of 10
-    item = await repo.reserve_stock(branch_id=branch_id, menu_item_id=menu_item_id, quantity=6)
+    item = await repo.reserve_stock(
+        branch_id=branch_id, menu_item_id=menu_item_id, quantity=6
+    )
     assert item.quantity == 4
     assert item.is_in_stock is True
 
@@ -157,12 +165,16 @@ async def test_pessimistic_lock_stock_reservation(
 
     # Attempt to reserve 1 more unit (insufficient stock invariant failure)
     with pytest.raises(DomainInvariantError) as exc_info:
-        await repo.reserve_stock(branch_id=branch_id, menu_item_id=menu_item_id, quantity=1)
+        await repo.reserve_stock(
+            branch_id=branch_id, menu_item_id=menu_item_id, quantity=1
+        )
     assert exc_info.value.error_code == "INSUFFICIENT_STOCK"
 
 
 @pytest.mark.asyncio
-async def test_inventory_unauthorized(client: AsyncClient, setup_inventory_fixture: dict):
+async def test_inventory_unauthorized(
+    client: AsyncClient, setup_inventory_fixture: dict
+):
     ctx = setup_inventory_fixture
     inv_id = ctx["inventory_item"].id
 

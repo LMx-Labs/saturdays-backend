@@ -30,7 +30,9 @@ if TYPE_CHECKING:
 class Menu(Base, TimestampMixin):
     __tablename__ = "menus"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid7)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid7
+    )
     branch_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("branches.id"), nullable=False
     )
@@ -39,13 +41,17 @@ class Menu(Base, TimestampMixin):
 
     # Relationships
     branch: Mapped["Branch"] = relationship("Branch", back_populates="menus")
-    categories: Mapped[list["MenuCategory"]] = relationship("MenuCategory", back_populates="menu")
+    categories: Mapped[list["MenuCategory"]] = relationship(
+        "MenuCategory", back_populates="menu"
+    )
 
 
 class MenuCategory(Base, TimestampMixin):
     __tablename__ = "menu_categories"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid7)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid7
+    )
     menu_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("menus.id"), nullable=False
     )
@@ -54,13 +60,17 @@ class MenuCategory(Base, TimestampMixin):
 
     # Relationships
     menu: Mapped["Menu"] = relationship("Menu", back_populates="categories")
-    items: Mapped[list["MenuItem"]] = relationship("MenuItem", back_populates="category")
+    items: Mapped[list["MenuItem"]] = relationship(
+        "MenuItem", back_populates="category"
+    )
 
 
 class MenuItem(Base, TimestampMixin):
     __tablename__ = "menu_items"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid7)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid7
+    )
     category_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("menu_categories.id"), nullable=False
     )
@@ -72,18 +82,26 @@ class MenuItem(Base, TimestampMixin):
     is_veg: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     # Relationships
-    category: Mapped["MenuCategory"] = relationship("MenuCategory", back_populates="items")
+    category: Mapped["MenuCategory"] = relationship(
+        "MenuCategory", back_populates="items"
+    )
     modifiers: Mapped[list["MenuModifier"]] = relationship(
         "MenuModifier", back_populates="menu_item"
     )
     inventory_items: Mapped[list["InventoryItem"]] = relationship(
         "InventoryItem", back_populates="menu_item"
     )
-    cart_items: Mapped[list["CartItem"]] = relationship("CartItem", back_populates="menu_item")
-    order_items: Mapped[list["OrderItem"]] = relationship("OrderItem", back_populates="menu_item")
+    cart_items: Mapped[list["CartItem"]] = relationship(
+        "CartItem", back_populates="menu_item"
+    )
+    order_items: Mapped[list["OrderItem"]] = relationship(
+        "OrderItem", back_populates="menu_item"
+    )
 
     __table_args__ = (
-        CheckConstraint("base_price >= 0", name="ck_menu_items_base_price_non_negative"),
+        CheckConstraint(
+            "base_price >= 0", name="ck_menu_items_base_price_non_negative"
+        ),
         Index("idx_menu_items_category_avail", category_id, is_available),
     )
 
@@ -91,12 +109,16 @@ class MenuItem(Base, TimestampMixin):
 class MenuModifier(Base):
     __tablename__ = "menu_modifiers"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid7)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid7
+    )
     menu_item_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("menu_items.id"), nullable=False
     )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
-    price_delta: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0.00)
+    price_delta: Mapped[float] = mapped_column(
+        Numeric(10, 2), nullable=False, default=0.00
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

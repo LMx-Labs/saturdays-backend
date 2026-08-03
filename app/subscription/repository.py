@@ -12,7 +12,9 @@ from app.subscription.models import MerchantSubscription, PlatformCommission
 
 class SubscriptionRepositoryInterface(ABC):
     @abstractmethod
-    async def get_active_subscription(self, merchant_id: uuid.UUID) -> MerchantSubscription | None:
+    async def get_active_subscription(
+        self, merchant_id: uuid.UUID
+    ) -> MerchantSubscription | None:
         pass
 
     @abstractmethod
@@ -22,7 +24,9 @@ class SubscriptionRepositoryInterface(ABC):
         pass
 
     @abstractmethod
-    async def create_subscription(self, subscription: MerchantSubscription) -> MerchantSubscription:
+    async def create_subscription(
+        self, subscription: MerchantSubscription
+    ) -> MerchantSubscription:
         pass
 
     @abstractmethod
@@ -32,7 +36,9 @@ class SubscriptionRepositoryInterface(ABC):
         pass
 
     @abstractmethod
-    async def record_commission(self, commission: PlatformCommission) -> PlatformCommission:
+    async def record_commission(
+        self, commission: PlatformCommission
+    ) -> PlatformCommission:
         pass
 
     @abstractmethod
@@ -50,7 +56,9 @@ class SubscriptionRepository(SubscriptionRepositoryInterface):
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def get_active_subscription(self, merchant_id: uuid.UUID) -> MerchantSubscription | None:
+    async def get_active_subscription(
+        self, merchant_id: uuid.UUID
+    ) -> MerchantSubscription | None:
         stmt = (
             select(MerchantSubscription)
             .where(
@@ -73,7 +81,9 @@ class SubscriptionRepository(SubscriptionRepositoryInterface):
         res = await self.session.execute(stmt)
         return res.scalar_one_or_none()
 
-    async def create_subscription(self, subscription: MerchantSubscription) -> MerchantSubscription:
+    async def create_subscription(
+        self, subscription: MerchantSubscription
+    ) -> MerchantSubscription:
         self.session.add(subscription)
         await self.session.flush()
         await self.session.refresh(subscription)
@@ -89,7 +99,9 @@ class SubscriptionRepository(SubscriptionRepositoryInterface):
         await self.session.refresh(subscription)
         return subscription
 
-    async def record_commission(self, commission: PlatformCommission) -> PlatformCommission:
+    async def record_commission(
+        self, commission: PlatformCommission
+    ) -> PlatformCommission:
         self.session.add(commission)
         await self.session.flush()
         await self.session.refresh(commission)

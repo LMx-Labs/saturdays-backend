@@ -31,14 +31,22 @@ def get_search_service(
 )
 async def search(
     q: str | None = Query(None, description="Query string"),
-    type: str = Query("all", description="Entity filter ('all', 'restaurant', 'dish', 'category')"),
+    type: str = Query(
+        "all", description="Entity filter ('all', 'restaurant', 'dish', 'category')"
+    ),
     is_veg: bool | None = Query(None, description="Filter for vegetarian items"),
     cuisine: str | None = Query(None, description="Filter by cuisine tag"),
     min_price: float | None = Query(None, ge=0.0, description="Minimum dish price"),
     max_price: float | None = Query(None, ge=0.0, description="Maximum dish price"),
-    is_active_only: bool = Query(True, description="Filter active operating stores (INV-SRCH-001)"),
-    latitude: float | None = Query(None, ge=-90.0, le=90.0, description="Customer latitude"),
-    longitude: float | None = Query(None, ge=-180.0, le=180.0, description="Customer longitude"),
+    is_active_only: bool = Query(
+        True, description="Filter active operating stores (INV-SRCH-001)"
+    ),
+    latitude: float | None = Query(
+        None, ge=-90.0, le=90.0, description="Customer latitude"
+    ),
+    longitude: float | None = Query(
+        None, ge=-180.0, le=180.0, description="Customer longitude"
+    ),
     radius_km: float | None = Query(
         10.0, ge=0.1, le=100.0, description="Max delivery radius in KM"
     ),
