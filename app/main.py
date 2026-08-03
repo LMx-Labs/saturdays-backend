@@ -58,6 +58,7 @@ from app.inventory.router import router as inventory_router
 from app.kitchen.router import router as kitchen_router
 from app.menu.router import router as menu_router
 from app.merchant.router import router as merchant_router
+from app.search.router import router as search_router
 
 register_exception_handlers(app)
 
@@ -71,6 +72,7 @@ app.include_router(menu_router, prefix=settings.API_V1_STR)
 app.include_router(brand_router, prefix=settings.API_V1_STR)
 app.include_router(branch_router, prefix=settings.API_V1_STR)
 app.include_router(merchant_router, prefix=settings.API_V1_STR)
+app.include_router(search_router, prefix=settings.API_V1_STR)
 
 
 @app.get("/health", tags=["Health"])
