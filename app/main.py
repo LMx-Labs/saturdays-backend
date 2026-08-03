@@ -49,6 +49,7 @@ app.add_middleware(
 
 app.add_middleware(CorrelationIdMiddleware)
 
+from app.admin.router import router as admin_router
 from app.auth.router import router as auth_router
 from app.branch.router import router as branch_router
 from app.brand.router import router as brand_router
@@ -69,6 +70,7 @@ from app.subscription.router import router as subscription_router
 
 register_exception_handlers(app)
 
+app.include_router(admin_router, prefix=settings.API_V1_STR)
 app.include_router(auth_router, prefix=settings.API_V1_STR)
 app.include_router(cart_router, prefix=settings.API_V1_STR)
 app.include_router(checkout_router, prefix=settings.API_V1_STR)
