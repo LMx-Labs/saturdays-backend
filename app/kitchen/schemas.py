@@ -7,7 +7,9 @@ class KitchenCreateRequest(BaseModel):
     """Schema for creating a kitchen prep unit."""
 
     branch_id: str = Field(..., description="UUID of parent store branch entity")
-    name: str = Field("Main Kitchen", min_length=2, max_length=150, description="Kitchen station name")
+    name: str = Field(
+        "Main Kitchen", min_length=2, max_length=150, description="Kitchen station name"
+    )
     is_active: bool = Field(True, description="Initial active status")
 
 

@@ -65,11 +65,17 @@ async def list_branch_kitchens(
     branch_id: str,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
-    current_user: UserClaims = Depends(require_role(["KitchenStaff", "BranchManager", "MerchantOwner", "PlatformAdmin"])),
+    current_user: UserClaims = Depends(
+        require_role(["KitchenStaff", "BranchManager", "MerchantOwner", "PlatformAdmin"])
+    ),
     kitchen_service: KitchenServiceInterface = Depends(get_kitchen_service),
 ) -> list[KitchenResponse]:
     return await kitchen_service.list_branch_kitchens(
-        branch_id=branch_id, user_id=current_user.sub, role=current_user.role, skip=skip, limit=limit
+        branch_id=branch_id,
+        user_id=current_user.sub,
+        role=current_user.role,
+        skip=skip,
+        limit=limit,
     )
 
 
@@ -82,7 +88,9 @@ async def list_branch_kitchens(
 )
 async def create_kitchen(
     req: KitchenCreateRequest,
-    current_user: UserClaims = Depends(require_role(["BranchManager", "MerchantOwner", "PlatformAdmin"])),
+    current_user: UserClaims = Depends(
+        require_role(["BranchManager", "MerchantOwner", "PlatformAdmin"])
+    ),
     kitchen_service: KitchenServiceInterface = Depends(get_kitchen_service),
 ) -> KitchenResponse:
     return await kitchen_service.create_kitchen(
@@ -99,7 +107,9 @@ async def create_kitchen(
 )
 async def get_kitchen_by_id(
     kitchen_id: str,
-    current_user: UserClaims = Depends(require_role(["KitchenStaff", "BranchManager", "MerchantOwner", "PlatformAdmin"])),
+    current_user: UserClaims = Depends(
+        require_role(["KitchenStaff", "BranchManager", "MerchantOwner", "PlatformAdmin"])
+    ),
     kitchen_service: KitchenServiceInterface = Depends(get_kitchen_service),
 ) -> KitchenResponse:
     return await kitchen_service.get_kitchen_by_id(
@@ -117,7 +127,9 @@ async def get_kitchen_by_id(
 async def update_kitchen(
     kitchen_id: str,
     req: KitchenUpdateRequest,
-    current_user: UserClaims = Depends(require_role(["BranchManager", "MerchantOwner", "PlatformAdmin"])),
+    current_user: UserClaims = Depends(
+        require_role(["BranchManager", "MerchantOwner", "PlatformAdmin"])
+    ),
     kitchen_service: KitchenServiceInterface = Depends(get_kitchen_service),
 ) -> KitchenResponse:
     return await kitchen_service.update_kitchen(
@@ -133,7 +145,9 @@ async def update_kitchen(
 )
 async def delete_kitchen(
     kitchen_id: str,
-    current_user: UserClaims = Depends(require_role(["BranchManager", "MerchantOwner", "PlatformAdmin"])),
+    current_user: UserClaims = Depends(
+        require_role(["BranchManager", "MerchantOwner", "PlatformAdmin"])
+    ),
     kitchen_service: KitchenServiceInterface = Depends(get_kitchen_service),
 ) -> None:
     await kitchen_service.delete_kitchen(
