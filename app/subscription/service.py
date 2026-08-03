@@ -144,7 +144,9 @@ class SubscriptionService(SubscriptionServiceInterface):
 
         existing_sub = await self.sub_repo.get_active_subscription(merchant.id)
         if existing_sub:
-            await self.sub_repo.update_subscription(existing_sub, {"status": "SUPERSEDED"})
+            await self.sub_repo.update_subscription(
+                existing_sub, {"status": "SUPERSEDED"}
+            )
 
         sub = MerchantSubscription(
             merchant_id=merchant.id,

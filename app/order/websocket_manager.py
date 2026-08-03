@@ -7,7 +7,7 @@ from fastapi import WebSocket
 class OrderWebSocketManager:
     """In-process WebSocket Manager for branch kitchen terminals (ADR-0010)."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Maps branch_id -> list of active WebSockets
         self.active_connections: dict[uuid.UUID, list[WebSocket]] = {}
 
@@ -24,7 +24,9 @@ class OrderWebSocketManager:
             if not self.active_connections[branch_id]:
                 del self.active_connections[branch_id]
 
-    async def broadcast_to_branch(self, branch_id: uuid.UUID, message: dict[str, Any]) -> None:
+    async def broadcast_to_branch(
+        self, branch_id: uuid.UUID, message: dict[str, Any]
+    ) -> None:
         if branch_id in self.active_connections:
             for connection in list(self.active_connections[branch_id]):
                 try:

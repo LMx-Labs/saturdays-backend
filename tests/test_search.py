@@ -86,7 +86,9 @@ async def setup_search_fixture(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_search_restaurants_and_dishes(client: AsyncClient, setup_search_fixture: dict):
+async def test_search_restaurants_and_dishes(
+    client: AsyncClient, setup_search_fixture: dict
+):
     # Search for "Taco"
     res = await client.get("/api/v1/search?q=Taco")
     assert res.status_code == 200
@@ -102,9 +104,13 @@ async def test_search_restaurants_and_dishes(client: AsyncClient, setup_search_f
 
 
 @pytest.mark.asyncio
-async def test_search_location_and_sorting(client: AsyncClient, setup_search_fixture: dict):
+async def test_search_location_and_sorting(
+    client: AsyncClient, setup_search_fixture: dict
+):
     # Location-aware search near Bangalore coordinates (12.9716, 77.5946)
-    res_loc = await client.get("/api/v1/search?latitude=12.9716&longitude=77.5946&radius_km=5.0")
+    res_loc = await client.get(
+        "/api/v1/search?latitude=12.9716&longitude=77.5946&radius_km=5.0"
+    )
     assert res_loc.status_code == 200
     assert len(res_loc.json()["restaurants"]) >= 1
     assert res_loc.json()["restaurants"][0]["distance_km"] is not None
@@ -118,7 +124,9 @@ async def test_search_location_and_sorting(client: AsyncClient, setup_search_fix
 
 
 @pytest.mark.asyncio
-async def test_search_typeahead_suggestions(client: AsyncClient, setup_search_fixture: dict):
+async def test_search_typeahead_suggestions(
+    client: AsyncClient, setup_search_fixture: dict
+):
     res = await client.get("/api/v1/search/suggestions?q=Tac")
     assert res.status_code == 200
     data = res.json()
