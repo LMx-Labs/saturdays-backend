@@ -139,8 +139,7 @@ class CartRepository(CartRepositoryInterface):
         if not expired_ids:
             return 0
 
-        # Delete expired carts (cascade will delete items)
-        stmt_del = delete(Cart).where(Cart.id.in_(expired_ids))
+        await self.session.execute(delete(Cart).where(Cart.id.in_(expired_ids)))
         return len(expired_ids)
 
     async def get_menu_item(self, menu_item_id: uuid.UUID) -> MenuItem | None:
