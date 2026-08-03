@@ -72,16 +72,12 @@ class CheckoutService(CheckoutServiceInterface):
         try:
             cart_uuid = uuid.UUID(req.cart_id)
         except ValueError:
-            issues.append(
-                CheckoutIssue(code="INVALID_UUID", message="Invalid cart UUID format.")
-            )
+            issues.append(CheckoutIssue(code="INVALID_UUID", message="Invalid cart UUID format."))
             return self._build_empty_response(req.cart_id, issues)
 
         cart = await self.checkout_repo.get_cart_with_items(cart_uuid)
         if not cart or not cart.items:
-            issues.append(
-                CheckoutIssue(code="CART_EMPTY", message="Cart is empty or not found.")
-            )
+            issues.append(CheckoutIssue(code="CART_EMPTY", message="Cart is empty or not found."))
             return self._build_empty_response(req.cart_id, issues, cust_id)
 
         branch_uuid = cart.branch_id
@@ -200,18 +196,14 @@ class CheckoutService(CheckoutServiceInterface):
                 issues.append(
                     CheckoutIssue(
                         code="INVALID_COUPON",
-                        message=getattr(
-                            exc, "message", "Coupon code is invalid or expired."
-                        ),
+                        message=getattr(exc, "message", "Coupon code is invalid or expired."),
                     )
                 )
 
         # 7. Financial Calculations (Tax, Delivery Fee, Final Payable)
         tax_amount = round(subtotal * 0.05, 2)  # 5% GST tax
         delivery_fee = 30.00  # Flat standard delivery fee
-        final_payable = round(
-            max(0.0, subtotal + tax_amount + delivery_fee - discount_amount), 2
-        )
+        final_payable = round(max(0.0, subtotal + tax_amount + delivery_fee - discount_amount), 2)
 
         is_valid = len(issues) == 0
 

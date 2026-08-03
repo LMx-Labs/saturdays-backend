@@ -27,9 +27,7 @@ def get_coupon_service(
 ) -> CouponServiceInterface:
     coupon_repo: CouponRepositoryInterface = CouponRepository(session=session)
     customer_repo = CustomerRepository(session=session)
-    return CouponService(
-        session=session, coupon_repo=coupon_repo, customer_repo=customer_repo
-    )
+    return CouponService(session=session, coupon_repo=coupon_repo, customer_repo=customer_repo)
 
 
 def get_checkout_service(

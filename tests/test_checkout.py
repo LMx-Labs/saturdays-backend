@@ -132,9 +132,7 @@ async def setup_checkout_fixture(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_checkout_validation_success(
-    client: AsyncClient, setup_checkout_fixture: dict
-):
+async def test_checkout_validation_success(client: AsyncClient, setup_checkout_fixture: dict):
     ctx = setup_checkout_fixture
     headers = ctx["headers"]
 
@@ -155,9 +153,7 @@ async def test_checkout_validation_success(
 
 
 @pytest.mark.asyncio
-async def test_checkout_summary_endpoint(
-    client: AsyncClient, setup_checkout_fixture: dict
-):
+async def test_checkout_summary_endpoint(client: AsyncClient, setup_checkout_fixture: dict):
     ctx = setup_checkout_fixture
     headers = ctx["headers"]
 
