@@ -53,6 +53,7 @@ from app.auth.router import router as auth_router
 from app.branch.router import router as branch_router
 from app.brand.router import router as brand_router
 from app.cart.router import router as cart_router
+from app.checkout.router import router as checkout_router
 from app.coupon.router import router as coupon_router
 from app.customer.router import router as customer_router
 from app.inventory.router import router as inventory_router
@@ -60,20 +61,25 @@ from app.kitchen.router import router as kitchen_router
 from app.menu.router import router as menu_router
 from app.merchant.router import router as merchant_router
 from app.notification.router import router as notification_router
+from app.order.router import router as order_router
 from app.payment.router import router as payment_router
 from app.review.router import router as review_router
 from app.search.router import router as search_router
+from app.subscription.router import router as subscription_router
 
 register_exception_handlers(app)
 
 app.include_router(auth_router, prefix=settings.API_V1_STR)
 app.include_router(cart_router, prefix=settings.API_V1_STR)
+app.include_router(checkout_router, prefix=settings.API_V1_STR)
 app.include_router(coupon_router, prefix=settings.API_V1_STR)
 app.include_router(customer_router, prefix=settings.API_V1_STR)
 app.include_router(inventory_router, prefix=settings.API_V1_STR)
 app.include_router(kitchen_router, prefix=settings.API_V1_STR)
 app.include_router(notification_router, prefix=settings.API_V1_STR)
+app.include_router(order_router, prefix=settings.API_V1_STR)
 app.include_router(review_router, prefix=settings.API_V1_STR)
+app.include_router(subscription_router, prefix=settings.API_V1_STR)
 app.include_router(menu_router, prefix=settings.API_V1_STR)
 app.include_router(brand_router, prefix=settings.API_V1_STR)
 app.include_router(branch_router, prefix=settings.API_V1_STR)
