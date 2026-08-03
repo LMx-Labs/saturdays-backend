@@ -1,7 +1,6 @@
 import uuid
 from abc import ABC, abstractmethod
-from datetime import datetime, timedelta, timezone
-from typing import Sequence
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -138,7 +137,7 @@ class CartRepository(CartRepositoryInterface):
         await self.session.execute(stmt)
 
     async def delete_expired_carts(self, max_age_days: int = 7) -> int:
-        cutoff = datetime.now(timezone.utc) - timedelta(days=max_age_days)
+        cutoff = datetime.now(UTC) - timedelta(days=max_age_days)
         # Select expired cart IDs
         stmt_find = select(Cart.id).where(Cart.updated_at < cutoff)
         res = await self.session.execute(stmt_find)

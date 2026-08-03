@@ -44,7 +44,9 @@ def get_inventory_service(
 )
 async def get_branch_inventory(
     branch_id: uuid.UUID,
-    _current_user=Depends(require_role(["KitchenStaff", "BranchManager", "MerchantOwner", "Admin"])),
+    _current_user=Depends(
+        require_role(["KitchenStaff", "BranchManager", "MerchantOwner", "Admin"])
+    ),
     inventory_service: InventoryServiceInterface = Depends(get_inventory_service),
 ) -> list[InventoryItemResponse]:
     items = await inventory_service.get_branch_inventory(branch_id)
@@ -61,7 +63,9 @@ async def get_branch_inventory(
 async def create_inventory_item(
     branch_id: uuid.UUID,
     req: InventoryItemCreateRequest,
-    _current_user=Depends(require_role(["KitchenStaff", "BranchManager", "MerchantOwner", "Admin"])),
+    _current_user=Depends(
+        require_role(["KitchenStaff", "BranchManager", "MerchantOwner", "Admin"])
+    ),
     inventory_service: InventoryServiceInterface = Depends(get_inventory_service),
 ) -> InventoryItemResponse:
     item = await inventory_service.create_inventory_item(branch_id, req)
@@ -78,7 +82,9 @@ async def create_inventory_item(
 async def update_stock(
     id: uuid.UUID,
     req: StockUpdateRequest,
-    _current_user=Depends(require_role(["KitchenStaff", "BranchManager", "MerchantOwner", "Admin"])),
+    _current_user=Depends(
+        require_role(["KitchenStaff", "BranchManager", "MerchantOwner", "Admin"])
+    ),
     inventory_service: InventoryServiceInterface = Depends(get_inventory_service),
 ) -> InventoryItemResponse:
     item = await inventory_service.update_stock(id, req)

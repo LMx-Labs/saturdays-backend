@@ -13,7 +13,11 @@ from app.cart.schemas import (
     CartValidationIssue,
     CartValidationResponse,
 )
-from app.core.exceptions import ConflictError, EntityNotFoundError, UnprocessableEntityError
+from app.core.exceptions import (
+    ConflictError,
+    EntityNotFoundError,
+    UnprocessableEntityError,
+)
 from app.customer.repository import CustomerRepositoryInterface
 
 
@@ -91,7 +95,9 @@ class CartService(CartServiceInterface):
                     menu_item_id=item.menu_item_id,
                     quantity=item.quantity,
                     selected_modifiers=item.selected_modifiers,
-                    menu_item_name=item.menu_item.name if item.menu_item else "Unknown Item",
+                    menu_item_name=(
+                        item.menu_item.name if item.menu_item else "Unknown Item"
+                    ),
                     unit_price=unit_price,
                     subtotal=item_subtotal,
                     is_available=is_avail,
@@ -126,7 +132,8 @@ class CartService(CartServiceInterface):
             await self.cart_repo.clear_cart(cart.id)
             await self.session.commit()
             raise UnprocessableEntityError(
-                message="Cart session expired due to inactivity.", error_code="CART_EXPIRED"
+                message="Cart session expired due to inactivity.",
+                error_code="CART_EXPIRED",
             )
 
         return self._build_cart_response(cart)
@@ -152,7 +159,8 @@ class CartService(CartServiceInterface):
         # 2. INV-CART-002: Positive quantity check
         if req.quantity <= 0:
             raise UnprocessableEntityError(
-                message="Quantity must be greater than 0.", error_code="INVALID_QUANTITY"
+                message="Quantity must be greater than 0.",
+                error_code="INVALID_QUANTITY",
             )
 
         cart = await self.cart_repo.get_by_customer_id(profile_id)
@@ -229,7 +237,8 @@ class CartService(CartServiceInterface):
                 item,
                 {
                     "quantity": req.quantity,
-                    "selected_modifiers": req.selected_modifiers or item.selected_modifiers,
+                    "selected_modifiers": req.selected_modifiers
+                    or item.selected_modifiers,
                 },
             )
 
@@ -273,9 +282,7 @@ class CartService(CartServiceInterface):
             return CartValidationResponse(
                 is_valid=False,
                 issues=[
-                    CartValidationIssue(
-                        code="CART_EMPTY", message="Cart is empty."
-                    )
+                    CartValidationIssue(code="CART_EMPTY", message="Cart is empty.")
                 ],
                 subtotal=0.0,
                 total_items=0,
