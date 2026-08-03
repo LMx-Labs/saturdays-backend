@@ -15,15 +15,11 @@ if TYPE_CHECKING:
 class Kitchen(Base, TimestampMixin):
     __tablename__ = "kitchens"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid7
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid7)
     branch_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("branches.id"), nullable=False
     )
-    name: Mapped[str] = mapped_column(
-        String(150), nullable=False, default="Main Kitchen"
-    )
+    name: Mapped[str] = mapped_column(String(150), nullable=False, default="Main Kitchen")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     # Relationships

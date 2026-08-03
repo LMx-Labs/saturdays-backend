@@ -22,15 +22,11 @@ class CustomerRepositoryInterface(ABC):
         pass
 
     @abstractmethod
-    async def update_profile(
-        self, profile: CustomerProfile, update_data: dict
-    ) -> CustomerProfile:
+    async def update_profile(self, profile: CustomerProfile, update_data: dict) -> CustomerProfile:
         pass
 
     @abstractmethod
-    async def get_addresses(
-        self, customer_profile_id: uuid.UUID
-    ) -> Sequence[CustomerAddress]:
+    async def get_addresses(self, customer_profile_id: uuid.UUID) -> Sequence[CustomerAddress]:
         pass
 
     @abstractmethod
@@ -42,9 +38,7 @@ class CustomerRepositoryInterface(ABC):
         pass
 
     @abstractmethod
-    async def update_address(
-        self, address: CustomerAddress, update_data: dict
-    ) -> CustomerAddress:
+    async def update_address(self, address: CustomerAddress, update_data: dict) -> CustomerAddress:
         pass
 
     @abstractmethod
@@ -56,9 +50,7 @@ class CustomerRepositoryInterface(ABC):
         pass
 
     @abstractmethod
-    async def get_favorites(
-        self, customer_profile_id: uuid.UUID
-    ) -> Sequence[CustomerFavorite]:
+    async def get_favorites(self, customer_profile_id: uuid.UUID) -> Sequence[CustomerFavorite]:
         pass
 
     @abstractmethod
@@ -72,9 +64,7 @@ class CustomerRepositoryInterface(ABC):
         pass
 
     @abstractmethod
-    async def remove_favorite(
-        self, customer_profile_id: uuid.UUID, branch_id: uuid.UUID
-    ) -> None:
+    async def remove_favorite(self, customer_profile_id: uuid.UUID, branch_id: uuid.UUID) -> None:
         pass
 
 
@@ -102,9 +92,7 @@ class CustomerRepository(CustomerRepositoryInterface):
         await self.session.refresh(profile)
         return profile
 
-    async def update_profile(
-        self, profile: CustomerProfile, update_data: dict
-    ) -> CustomerProfile:
+    async def update_profile(self, profile: CustomerProfile, update_data: dict) -> CustomerProfile:
         for key, val in update_data.items():
             if hasattr(profile, key) and val is not None:
                 setattr(profile, key, val)
@@ -112,18 +100,14 @@ class CustomerRepository(CustomerRepositoryInterface):
         await self.session.refresh(profile)
         return profile
 
-    async def get_addresses(
-        self, customer_profile_id: uuid.UUID
-    ) -> Sequence[CustomerAddress]:
+    async def get_addresses(self, customer_profile_id: uuid.UUID) -> Sequence[CustomerAddress]:
         stmt = (
             select(CustomerAddress)
             .where(
                 CustomerAddress.customer_profile_id == customer_profile_id,
                 CustomerAddress.deleted_at.is_(None),
             )
-            .order_by(
-                CustomerAddress.is_primary.desc(), CustomerAddress.created_at.desc()
-            )
+            .order_by(CustomerAddress.is_primary.desc(), CustomerAddress.created_at.desc())
         )
         res = await self.session.execute(stmt)
         return res.scalars().all()
@@ -141,9 +125,7 @@ class CustomerRepository(CustomerRepositoryInterface):
         await self.session.refresh(address)
         return address
 
-    async def update_address(
-        self, address: CustomerAddress, update_data: dict
-    ) -> CustomerAddress:
+    async def update_address(self, address: CustomerAddress, update_data: dict) -> CustomerAddress:
         for key, val in update_data.items():
             if hasattr(address, key) and val is not None:
                 setattr(address, key, val)
@@ -166,9 +148,7 @@ class CustomerRepository(CustomerRepositoryInterface):
         stmt = delete(CustomerAddress).where(CustomerAddress.id == address_id)
         await self.session.execute(stmt)
 
-    async def get_favorites(
-        self, customer_profile_id: uuid.UUID
-    ) -> Sequence[CustomerFavorite]:
+    async def get_favorites(self, customer_profile_id: uuid.UUID) -> Sequence[CustomerFavorite]:
         stmt = (
             select(CustomerFavorite)
             .where(CustomerFavorite.customer_profile_id == customer_profile_id)
@@ -193,9 +173,7 @@ class CustomerRepository(CustomerRepositoryInterface):
         await self.session.refresh(favorite)
         return favorite
 
-    async def remove_favorite(
-        self, customer_profile_id: uuid.UUID, branch_id: uuid.UUID
-    ) -> None:
+    async def remove_favorite(self, customer_profile_id: uuid.UUID, branch_id: uuid.UUID) -> None:
         stmt = delete(CustomerFavorite).where(
             CustomerFavorite.customer_profile_id == customer_profile_id,
             CustomerFavorite.branch_id == branch_id,

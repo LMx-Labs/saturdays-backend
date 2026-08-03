@@ -71,9 +71,7 @@ async def setup_payment_fixture(db_session: AsyncSession):
     await db_session.commit()
 
     cust_token = create_access_token(subject=str(cust_user.id), role=cust_user.role)
-    mgr_token = create_access_token(
-        subject=str(manager_user.id), role=manager_user.role
-    )
+    mgr_token = create_access_token(subject=str(manager_user.id), role=manager_user.role)
 
     return {
         "cust_user": cust_user,
@@ -87,9 +85,7 @@ async def setup_payment_fixture(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_payment_intent_creation(
-    client: AsyncClient, setup_payment_fixture: dict
-):
+async def test_payment_intent_creation(client: AsyncClient, setup_payment_fixture: dict):
     ctx = setup_payment_fixture
     order_id = ctx["order"].id
     headers = ctx["cust_headers"]
@@ -99,9 +95,7 @@ async def test_payment_intent_creation(
         "amount": 500.00,
         "currency": "INR",
     }
-    response = await client.post(
-        "/api/v1/payments/intent", json=payload, headers=headers
-    )
+    response = await client.post("/api/v1/payments/intent", json=payload, headers=headers)
     assert response.status_code == 201
     data = response.json()
     assert data["order_id"] == str(order_id)
@@ -216,9 +210,7 @@ async def test_webhook_verification_and_duplicate_idempotency(
 
 
 @pytest.mark.asyncio
-async def test_refund_flow_and_cap_invariant(
-    client: AsyncClient, setup_payment_fixture: dict
-):
+async def test_refund_flow_and_cap_invariant(client: AsyncClient, setup_payment_fixture: dict):
     ctx = setup_payment_fixture
     order_id = ctx["order"].id
     headers = ctx["cust_headers"]

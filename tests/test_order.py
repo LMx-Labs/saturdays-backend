@@ -50,12 +50,8 @@ async def setup_order_fixture(db_session: AsyncSession):
     db_session.add(brand)
     await db_session.flush()
 
-    branch = Branch(
-        brand_id=brand.id, name="Order Branch", address_text="Campus Gate 1"
-    )
-    branch_other = Branch(
-        brand_id=brand.id, name="Other Branch", address_text="Campus Gate 2"
-    )
+    branch = Branch(brand_id=brand.id, name="Order Branch", address_text="Campus Gate 1")
+    branch_other = Branch(brand_id=brand.id, name="Other Branch", address_text="Campus Gate 2")
     db_session.add_all([branch, branch_other])
     await db_session.flush()
 
@@ -71,9 +67,7 @@ async def setup_order_fixture(db_session: AsyncSession):
 
     item_1 = MenuItem(category_id=category.id, name="Cold Coffee", base_price=80.00)
     item_2 = MenuItem(category_id=category.id, name="Hot Tea", base_price=30.00)
-    item_other = MenuItem(
-        category_id=category_other.id, name="Foreign Cookie", base_price=50.00
-    )
+    item_other = MenuItem(category_id=category_other.id, name="Foreign Cookie", base_price=50.00)
     db_session.add_all([item_1, item_2, item_other])
     await db_session.commit()
 
@@ -121,9 +115,7 @@ async def test_order_creation_flow(client: AsyncClient, setup_order_fixture: dic
 
 
 @pytest.mark.asyncio
-async def test_order_single_branch_constraint(
-    client: AsyncClient, setup_order_fixture: dict
-):
+async def test_order_single_branch_constraint(client: AsyncClient, setup_order_fixture: dict):
     ctx = setup_order_fixture
     branch_id = ctx["branch"].id
     headers = ctx["cust_headers"]

@@ -154,9 +154,7 @@ class BranchService(BranchServiceInterface):
                     message="Invalid brand UUID format.",
                     error_code="INVALID_UUID",
                 ) from exc
-            branches = await self.branch_repo.list_by_brand_id(
-                brand_uuid, skip=skip, limit=limit
-            )
+            branches = await self.branch_repo.list_by_brand_id(brand_uuid, skip=skip, limit=limit)
         else:
             branches = await self.branch_repo.list_all(skip=skip, limit=limit)
 
@@ -175,9 +173,7 @@ class BranchService(BranchServiceInterface):
 
         if not is_admin:
             brand = await self.brand_repo.get_by_id(branch.brand_id)
-            merchant = (
-                await self.merchant_repo.get_by_id(brand.merchant_id) if brand else None
-            )
+            merchant = await self.merchant_repo.get_by_id(brand.merchant_id) if brand else None
             if not merchant or str(merchant.owner_user_id) != user_id:
                 raise ForbiddenError(
                     message="You do not have permission to update this branch.",
@@ -220,9 +216,7 @@ class BranchService(BranchServiceInterface):
 
         if not is_admin:
             brand = await self.brand_repo.get_by_id(branch.brand_id)
-            merchant = (
-                await self.merchant_repo.get_by_id(brand.merchant_id) if brand else None
-            )
+            merchant = await self.merchant_repo.get_by_id(brand.merchant_id) if brand else None
             if not merchant or str(merchant.owner_user_id) != user_id:
                 raise ForbiddenError(
                     message="You do not have permission to update status for this branch.",
@@ -245,9 +239,7 @@ class BranchService(BranchServiceInterface):
 
         if not is_admin:
             brand = await self.brand_repo.get_by_id(branch.brand_id)
-            merchant = (
-                await self.merchant_repo.get_by_id(brand.merchant_id) if brand else None
-            )
+            merchant = await self.merchant_repo.get_by_id(brand.merchant_id) if brand else None
             if not merchant or str(merchant.owner_user_id) != user_id:
                 raise ForbiddenError(
                     message="You do not have permission to delete this branch.",

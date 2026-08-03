@@ -5,17 +5,13 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class SubscriptionCreateRequest(BaseModel):
-    plan_tier: str = Field(
-        "BASIC", description="'BASIC', 'PROFESSIONAL', or 'ENTERPRISE'"
-    )
+    plan_tier: str = Field("BASIC", description="'BASIC', 'PROFESSIONAL', or 'ENTERPRISE'")
     billing_cycle: str = Field("MONTHLY", description="'MONTHLY' or 'ANNUAL'")
 
 
 class SubscriptionRenewalRequest(BaseModel):
     plan_tier: str | None = Field(None, description="Optional tier change upon renewal")
-    duration_months: int = Field(
-        1, ge=1, le=24, description="Renewal duration in months"
-    )
+    duration_months: int = Field(1, ge=1, le=24, description="Renewal duration in months")
 
 
 class MerchantSubscriptionResponse(BaseModel):

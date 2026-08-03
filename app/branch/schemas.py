@@ -21,18 +21,12 @@ class BranchCreateRequest(BaseModel):
     """Schema for creating a physical branch location."""
 
     brand_id: str = Field(..., description="UUID of parent brand entity")
-    name: str = Field(
-        ..., min_length=2, max_length=150, description="Branch display name"
-    )
+    name: str = Field(..., min_length=2, max_length=150, description="Branch display name")
     address_text: str = Field(
         ..., min_length=2, max_length=255, description="Full physical address"
     )
-    latitude: float | None = Field(
-        None, ge=-90.0, le=90.0, description="Latitude coordinate"
-    )
-    longitude: float | None = Field(
-        None, ge=-180.0, le=180.0, description="Longitude coordinate"
-    )
+    latitude: float | None = Field(None, ge=-90.0, le=90.0, description="Latitude coordinate")
+    longitude: float | None = Field(None, ge=-180.0, le=180.0, description="Longitude coordinate")
     is_active: bool = Field(True, description="Initial active status toggle")
     opening_time: str = Field("08:00:00", description="Daily opening time (HH:MM:SS)")
     closing_time: str = Field("23:00:00", description="Daily closing time (HH:MM:SS)")
@@ -67,9 +61,7 @@ class BranchUpdateRequest(BaseModel):
 class BranchStatusUpdateRequest(BaseModel):
     """Schema for toggling branch active status."""
 
-    is_active: bool = Field(
-        ..., description="Target active status (True=ONLINE, False=OFFLINE)"
-    )
+    is_active: bool = Field(..., description="Target active status (True=ONLINE, False=OFFLINE)")
 
 
 class BranchResponse(BaseModel):

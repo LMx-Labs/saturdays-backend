@@ -50,9 +50,7 @@ async def test_kitchen_crud_flow(client: AsyncClient):
         "name": "Hot Kitchen Station 1",
         "is_active": True,
     }
-    kitchen_res = await client.post(
-        "/api/v1/kitchens", json=kitchen_payload, headers=owner_headers
-    )
+    kitchen_res = await client.post("/api/v1/kitchens", json=kitchen_payload, headers=owner_headers)
     assert kitchen_res.status_code == 201
     k_data = kitchen_res.json()
     assert k_data["name"] == "Hot Kitchen Station 1"
@@ -66,9 +64,7 @@ async def test_kitchen_crud_flow(client: AsyncClient):
     assert get_res.json()["name"] == "Hot Kitchen Station 1"
 
     # 5. List branch kitchens
-    list_res = await client.get(
-        f"/api/v1/branches/{branch_id}/kitchens", headers=owner_headers
-    )
+    list_res = await client.get(f"/api/v1/branches/{branch_id}/kitchens", headers=owner_headers)
     assert list_res.status_code == 200
     assert len(list_res.json()) >= 1
 
@@ -82,9 +78,7 @@ async def test_kitchen_crud_flow(client: AsyncClient):
     assert update_res.json()["name"] == "Hot Kitchen Main Line"
 
     # 7. Soft delete kitchen
-    del_res = await client.delete(
-        f"/api/v1/kitchens/{kitchen_id}", headers=owner_headers
-    )
+    del_res = await client.delete(f"/api/v1/kitchens/{kitchen_id}", headers=owner_headers)
     assert del_res.status_code == 204
 
     # 8. Fetch deleted kitchen returns 404

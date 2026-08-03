@@ -40,9 +40,7 @@ def get_subscription_service(
     sub_repo: SubscriptionRepositoryInterface = Depends(get_subscription_repository),
     merchant_repo: MerchantRepositoryInterface = Depends(get_merchant_repository),
 ) -> SubscriptionServiceInterface:
-    return SubscriptionService(
-        session=session, sub_repo=sub_repo, merchant_repo=merchant_repo
-    )
+    return SubscriptionService(session=session, sub_repo=sub_repo, merchant_repo=merchant_repo)
 
 
 @router.get(
@@ -55,9 +53,7 @@ async def get_my_subscription(
     current_user: UserClaims = Depends(get_current_user),
     sub_service: SubscriptionServiceInterface = Depends(get_subscription_service),
 ) -> MerchantSubscriptionResponse:
-    return await sub_service.get_active_subscription(
-        user_id=uuid.UUID(current_user.sub)
-    )
+    return await sub_service.get_active_subscription(user_id=uuid.UUID(current_user.sub))
 
 
 @router.post(
@@ -71,9 +67,7 @@ async def create_subscription(
     current_user: UserClaims = Depends(get_current_user),
     sub_service: SubscriptionServiceInterface = Depends(get_subscription_service),
 ) -> MerchantSubscriptionResponse:
-    return await sub_service.create_subscription(
-        user_id=uuid.UUID(current_user.sub), req=req
-    )
+    return await sub_service.create_subscription(user_id=uuid.UUID(current_user.sub), req=req)
 
 
 @router.post(
@@ -87,9 +81,7 @@ async def renew_subscription(
     current_user: UserClaims = Depends(get_current_user),
     sub_service: SubscriptionServiceInterface = Depends(get_subscription_service),
 ) -> MerchantSubscriptionResponse:
-    return await sub_service.renew_subscription(
-        user_id=uuid.UUID(current_user.sub), req=req
-    )
+    return await sub_service.renew_subscription(user_id=uuid.UUID(current_user.sub), req=req)
 
 
 @router.get(
@@ -102,9 +94,7 @@ async def get_my_commissions(
     current_user: UserClaims = Depends(get_current_user),
     sub_service: SubscriptionServiceInterface = Depends(get_subscription_service),
 ) -> list[PlatformCommissionResponse]:
-    return await sub_service.get_merchant_commissions(
-        user_id=uuid.UUID(current_user.sub)
-    )
+    return await sub_service.get_merchant_commissions(user_id=uuid.UUID(current_user.sub))
 
 
 @router.get(

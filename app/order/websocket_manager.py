@@ -24,9 +24,7 @@ class OrderWebSocketManager:
             if not self.active_connections[branch_id]:
                 del self.active_connections[branch_id]
 
-    async def broadcast_to_branch(
-        self, branch_id: uuid.UUID, message: dict[str, Any]
-    ) -> None:
+    async def broadcast_to_branch(self, branch_id: uuid.UUID, message: dict[str, Any]) -> None:
         if branch_id in self.active_connections:
             for connection in list(self.active_connections[branch_id]):
                 try:

@@ -37,9 +37,7 @@ class PaymentServiceInterface(ABC):
         pass
 
     @abstractmethod
-    async def process_webhook(
-        self, raw_body: str | bytes, signature: str
-    ) -> dict[str, Any]:
+    async def process_webhook(self, raw_body: str | bytes, signature: str) -> dict[str, Any]:
         pass
 
     @abstractmethod
@@ -165,9 +163,7 @@ class PaymentService(PaymentServiceInterface):
             status="CAPTURED",
         )
 
-    async def process_webhook(
-        self, raw_body: str | bytes, signature: str
-    ) -> dict[str, Any]:
+    async def process_webhook(self, raw_body: str | bytes, signature: str) -> dict[str, Any]:
         # Validate webhook signature
         is_valid = self.razorpay_adapter.verify_webhook_signature(raw_body, signature)
         if not is_valid:
@@ -176,34 +172,24 @@ class PaymentService(PaymentServiceInterface):
                 error_code="INVALID_WEBHOOK_SIGNATURE",
             )
 
-        payload_str = (
-            raw_body if isinstance(raw_body, str) else raw_body.decode("utf-8")
-        )
+        payload_str = raw_body if isinstance(raw_body, str) else raw_body.decode("utf-8")
         event_payload = json.loads(payload_str)
         event_type = event_payload.get("event")
-        payload_entity = (
-            event_payload.get("payload", {}).get("payment", {}).get("entity", {})
-        )
+        payload_entity = event_payload.get("payload", {}).get("payment", {}).get("entity", {})
 
         razorpay_payment_id = payload_entity.get("id")
         razorpay_order_id = payload_entity.get("order_id")
         amount = (
-            float(payload_entity.get("amount", 0)) / 100.0
-            if payload_entity.get("amount")
-            else 0.0
+            float(payload_entity.get("amount", 0)) / 100.0 if payload_entity.get("amount") else 0.0
         )
 
         if razorpay_payment_id:
             # Idempotency check: duplicate webhook
-            existing_tx = (
-                await self.payment_repo.get_transaction_by_razorpay_payment_id(
-                    razorpay_payment_id, transaction_type="CAPTURED"
-                )
+            existing_tx = await self.payment_repo.get_transaction_by_razorpay_payment_id(
+                razorpay_payment_id, transaction_type="CAPTURED"
             )
             if existing_tx:
-                logger.info(
-                    "Duplicate webhook skipped", razorpay_payment_id=razorpay_payment_id
-                )
+                logger.info("Duplicate webhook skipped", razorpay_payment_id=razorpay_payment_id)
                 return {"status": "ignored", "reason": "DUPLICATE_WEBHOOK"}
 
         # Find payment by razorpay_order_id or payment_id if present
@@ -232,9 +218,7 @@ class PaymentService(PaymentServiceInterface):
                 payload_snapshot=event_payload,
             )
             await self.session.commit()
-            logger.info(
-                "PaymentVerifiedEvent", payment_id=str(payment.id), status="CAPTURED"
-            )
+            logger.info("PaymentVerifiedEvent", payment_id=str(payment.id), status="CAPTURED")
 
         elif event_type == "payment.failed":
             await self.payment_repo.append_transaction(

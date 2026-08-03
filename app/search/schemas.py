@@ -6,9 +6,7 @@ class SearchResultItem(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    entity_type: str = Field(
-        ..., description="Type of entity ('restaurant', 'dish', 'category')"
-    )
+    entity_type: str = Field(..., description="Type of entity ('restaurant', 'dish', 'category')")
     id: str = Field(..., description="Entity unique identifier")
     title: str = Field(..., description="Entity title/name")
     description: str | None = None
@@ -38,9 +36,7 @@ class SuggestionItem(BaseModel):
     """Schema for individual search suggestion."""
 
     text: str = Field(..., description="Suggested query text")
-    type: str = Field(
-        ..., description="Suggestion type ('restaurant', 'dish', 'cuisine')"
-    )
+    type: str = Field(..., description="Suggestion type ('restaurant', 'dish', 'cuisine')")
     entity_id: str | None = None
 
 
