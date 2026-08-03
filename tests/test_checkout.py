@@ -116,6 +116,7 @@ async def setup_checkout_fixture(db_session: AsyncSession):
     db_session.add(coupon)
     await db_session.commit()
 
+    token = create_access_token(subject=str(cust_user.id), role=cust_user.role)
     return {
         "cust_user": cust_user,
         "profile": profile,
@@ -126,6 +127,7 @@ async def setup_checkout_fixture(db_session: AsyncSession):
         "cart": cart,
         "cart_id": str(cart.id),
         "coupon_code": "SAVE50",
+        "headers": {"Authorization": f"Bearer {token}"},
     }
 
 
@@ -134,12 +136,7 @@ async def test_checkout_validation_success(
     client: AsyncClient, setup_checkout_fixture: dict
 ):
     ctx = setup_checkout_fixture
-    # Login customer
-    user_res = await client.post(
-        "/api/v1/auth/login",
-        json={"email": ctx["cust_user"].email, "password": "Password123!"},
-    )
-    headers = {"Authorization": f"Bearer {user_res.json()['access_token']}"}
+    headers = ctx["headers"]
 
     payload = {
         "cart_id": ctx["cart_id"],
@@ -162,11 +159,7 @@ async def test_checkout_summary_endpoint(
     client: AsyncClient, setup_checkout_fixture: dict
 ):
     ctx = setup_checkout_fixture
-    user_res = await client.post(
-        "/api/v1/auth/login",
-        json={"email": ctx["cust_user"].email, "password": "Password123!"},
-    )
-    headers = {"Authorization": f"Bearer {user_res.json()['access_token']}"}
+    headers = ctx["headers"]
 
     payload = {"cart_id": ctx["cart_id"]}
     res = await client.post("/api/v1/checkout/summary", json=payload, headers=headers)
@@ -188,11 +181,7 @@ async def test_checkout_branch_closed_invariant(
     branch.is_active = False
     await db_session.commit()
 
-    user_res = await client.post(
-        "/api/v1/auth/login",
-        json={"email": ctx["cust_user"].email, "password": "Password123!"},
-    )
-    headers = {"Authorization": f"Bearer {user_res.json()['access_token']}"}
+    headers = ctx["headers"]
 
     payload = {"cart_id": ctx["cart_id"]}
     res = await client.post("/api/v1/checkout/validate", json=payload, headers=headers)
