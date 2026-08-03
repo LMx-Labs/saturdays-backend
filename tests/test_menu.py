@@ -17,7 +17,6 @@ async def setup_branch_and_manager(db_session: AsyncSession):
     manager = User(
         email="manager@saturdays.com",
         password_hash=hash_password("Password123!"),
-        full_name="Branch Manager",
         role="BranchManager",
         is_active=True,
     )
