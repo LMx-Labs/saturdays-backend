@@ -67,6 +67,7 @@ class CartRepository(CartRepositoryInterface):
         self.session = session
 
     async def get_by_customer_id(self, customer_profile_id: uuid.UUID) -> Cart | None:
+        self.session.expire_all()
         stmt = (
             select(Cart)
             .options(selectinload(Cart.items).selectinload(CartItem.menu_item))
@@ -76,6 +77,7 @@ class CartRepository(CartRepositoryInterface):
         return res.scalar_one_or_none()
 
     async def get_by_id(self, cart_id: uuid.UUID) -> Cart | None:
+        self.session.expire_all()
         stmt = (
             select(Cart)
             .options(selectinload(Cart.items).selectinload(CartItem.menu_item))

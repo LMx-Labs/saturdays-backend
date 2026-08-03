@@ -64,6 +64,7 @@ class InventoryService(InventoryServiceInterface):
             initial_quantity=req.initial_quantity,
         )
         await self.session.commit()
+        await self.session.refresh(item)
         return item
 
     async def update_stock(
@@ -77,6 +78,7 @@ class InventoryService(InventoryServiceInterface):
             is_in_stock=req.is_in_stock,
         )
         await self.session.commit()
+        await self.session.refresh(item)
 
         if item.quantity == 0 or not item.is_in_stock:
             logger.info(
@@ -98,6 +100,7 @@ class InventoryService(InventoryServiceInterface):
             quantity=quantity,
         )
         await self.session.commit()
+        await self.session.refresh(item)
 
         if item.quantity == 0 or not item.is_in_stock:
             logger.info(

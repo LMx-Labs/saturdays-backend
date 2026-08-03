@@ -58,12 +58,12 @@ async def setup_cart_fixture(db_session: AsyncSession):
     await db_session.flush()
 
     item_available = MenuItem(
-        category_id=cat_a.id, name="Burger", price=150.00, is_available=True
+        category_id=cat_a.id, name="Burger", base_price=150.00, is_available=True
     )
     item_unavailable = MenuItem(
         category_id=cat_a.id,
         name="Out of Stock Pizza",
-        price=250.00,
+        base_price=250.00,
         is_available=False,
     )
     db_session.add_all([item_available, item_unavailable])
@@ -78,7 +78,7 @@ async def setup_cart_fixture(db_session: AsyncSession):
     await db_session.flush()
 
     item_b = MenuItem(
-        category_id=cat_b.id, name="Beta Taco", price=100.00, is_available=True
+        category_id=cat_b.id, name="Beta Taco", base_price=100.00, is_available=True
     )
     db_session.add(item_b)
 
