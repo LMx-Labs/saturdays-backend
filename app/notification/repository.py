@@ -23,7 +23,10 @@ class NotificationRepositoryInterface(ABC):
 
     @abstractmethod
     async def update_status(
-        self, notification_id: uuid.UUID, status: str, vendor_message_id: str | None = None
+        self,
+        notification_id: uuid.UUID,
+        status: str,
+        vendor_message_id: str | None = None,
     ) -> Notification | None:
         pass
 
@@ -53,7 +56,10 @@ class NotificationRepository(NotificationRepositoryInterface):
         return res.scalar_one_or_none()
 
     async def update_status(
-        self, notification_id: uuid.UUID, status: str, vendor_message_id: str | None = None
+        self,
+        notification_id: uuid.UUID,
+        status: str,
+        vendor_message_id: str | None = None,
     ) -> Notification | None:
         notification = await self.get_by_id(notification_id)
         if notification:

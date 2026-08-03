@@ -7,7 +7,11 @@ from app.branch.repository import BranchRepository, BranchRepositoryInterface
 from app.brand.repository import BrandRepository, BrandRepositoryInterface
 from app.core.database import get_db_session
 from app.kitchen.repository import KitchenRepository, KitchenRepositoryInterface
-from app.kitchen.schemas import KitchenCreateRequest, KitchenResponse, KitchenUpdateRequest
+from app.kitchen.schemas import (
+    KitchenCreateRequest,
+    KitchenResponse,
+    KitchenUpdateRequest,
+)
 from app.kitchen.service import KitchenService, KitchenServiceInterface
 from app.merchant.repository import MerchantRepository, MerchantRepositoryInterface
 
@@ -66,7 +70,9 @@ async def list_branch_kitchens(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
     current_user: UserClaims = Depends(
-        require_role(["KitchenStaff", "BranchManager", "MerchantOwner", "PlatformAdmin"])
+        require_role(
+            ["KitchenStaff", "BranchManager", "MerchantOwner", "PlatformAdmin"]
+        )
     ),
     kitchen_service: KitchenServiceInterface = Depends(get_kitchen_service),
 ) -> list[KitchenResponse]:
@@ -108,7 +114,9 @@ async def create_kitchen(
 async def get_kitchen_by_id(
     kitchen_id: str,
     current_user: UserClaims = Depends(
-        require_role(["KitchenStaff", "BranchManager", "MerchantOwner", "PlatformAdmin"])
+        require_role(
+            ["KitchenStaff", "BranchManager", "MerchantOwner", "PlatformAdmin"]
+        )
     ),
     kitchen_service: KitchenServiceInterface = Depends(get_kitchen_service),
 ) -> KitchenResponse:

@@ -108,7 +108,9 @@ async def test_platform_coupon_validation_and_max_cap(
         "code": "WELCOME50",
         "order_amount": 500.0,
     }
-    resp = await client.post("/api/v1/coupons/validate", headers=headers, json=val_payload)
+    resp = await client.post(
+        "/api/v1/coupons/validate", headers=headers, json=val_payload
+    )
     assert resp.status_code == 200
     data = resp.json()
     assert data["is_valid"] is True
@@ -117,7 +119,9 @@ async def test_platform_coupon_validation_and_max_cap(
 
     # Validate platform coupon on order amount 150 (below min_order_amount 200)
     low_payload = {"code": "WELCOME50", "order_amount": 150.0}
-    low_resp = await client.post("/api/v1/coupons/validate", headers=headers, json=low_payload)
+    low_resp = await client.post(
+        "/api/v1/coupons/validate", headers=headers, json=low_payload
+    )
     assert low_resp.status_code == 422
     assert low_resp.json()["error_code"] == "MINIMUM_ORDER_AMOUNT_NOT_MET"
 
@@ -135,7 +139,9 @@ async def test_restaurant_coupon_branch_scope_validation(
         "order_amount": 400.0,
         "branch_id": str(fixture["branch_id"]),
     }
-    resp = await client.post("/api/v1/coupons/validate", headers=headers, json=valid_payload)
+    resp = await client.post(
+        "/api/v1/coupons/validate", headers=headers, json=valid_payload
+    )
     assert resp.status_code == 200
     data = resp.json()
     assert data["is_valid"] is True
@@ -156,12 +162,16 @@ async def test_restaurant_coupon_branch_scope_validation(
 
 
 @pytest.mark.asyncio
-async def test_expired_coupon_validation(client: AsyncClient, setup_coupon_fixture: dict):
+async def test_expired_coupon_validation(
+    client: AsyncClient, setup_coupon_fixture: dict
+):
     fixture = setup_coupon_fixture
     headers = await get_headers(client, fixture["user"].email)
 
     exp_payload = {"code": "EXPIRED20", "order_amount": 100.0}
-    resp = await client.post("/api/v1/coupons/validate", headers=headers, json=exp_payload)
+    resp = await client.post(
+        "/api/v1/coupons/validate", headers=headers, json=exp_payload
+    )
     assert resp.status_code == 422
     assert resp.json()["error_code"] == "COUPON_EXPIRED"
 
@@ -192,7 +202,9 @@ async def test_coupon_user_redemption_limit(
         "order_amount": 400.0,
         "branch_id": str(fixture["branch_id"]),
     }
-    resp = await client.post("/api/v1/coupons/validate", headers=headers, json=val_payload)
+    resp = await client.post(
+        "/api/v1/coupons/validate", headers=headers, json=val_payload
+    )
     assert resp.status_code == 422
     assert resp.json()["error_code"] == "COUPON_USAGE_LIMIT_REACHED"
 

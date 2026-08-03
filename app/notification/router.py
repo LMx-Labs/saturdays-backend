@@ -7,7 +7,10 @@ from app.auth.router import get_current_user
 from app.auth.schemas import UserClaims
 from app.core.database import get_db_session
 from app.notification.providers import MockEmailProvider, NotificationProviderInterface
-from app.notification.repository import NotificationRepository, NotificationRepositoryInterface
+from app.notification.repository import (
+    NotificationRepository,
+    NotificationRepositoryInterface,
+)
 from app.notification.schemas import NotificationResponse, NotificationSendRequest
 from app.notification.service import NotificationService, NotificationServiceInterface
 
@@ -29,7 +32,9 @@ def get_notification_service(
     notif_repo: NotificationRepositoryInterface = Depends(get_notification_repository),
     provider: NotificationProviderInterface = Depends(get_notification_provider),
 ) -> NotificationServiceInterface:
-    return NotificationService(session=session, notif_repo=notif_repo, provider=provider)
+    return NotificationService(
+        session=session, notif_repo=notif_repo, provider=provider
+    )
 
 
 @router.get(
@@ -42,7 +47,9 @@ async def get_my_notifications(
     current_user: UserClaims = Depends(get_current_user),
     notif_service: NotificationServiceInterface = Depends(get_notification_service),
 ) -> list[NotificationResponse]:
-    return await notif_service.get_user_notifications(user_id=uuid.UUID(current_user.sub))
+    return await notif_service.get_user_notifications(
+        user_id=uuid.UUID(current_user.sub)
+    )
 
 
 @router.post(

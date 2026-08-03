@@ -27,11 +27,15 @@ class MenuServiceInterface(ABC):
         pass
 
     @abstractmethod
-    async def create_category(self, branch_id: uuid.UUID, req: MenuCategoryCreate) -> MenuCategory:
+    async def create_category(
+        self, branch_id: uuid.UUID, req: MenuCategoryCreate
+    ) -> MenuCategory:
         pass
 
     @abstractmethod
-    async def create_menu_item(self, branch_id: uuid.UUID, req: MenuItemCreate) -> MenuItem:
+    async def create_menu_item(
+        self, branch_id: uuid.UUID, req: MenuItemCreate
+    ) -> MenuItem:
         pass
 
     @abstractmethod
@@ -39,7 +43,9 @@ class MenuServiceInterface(ABC):
         pass
 
     @abstractmethod
-    async def update_menu_item(self, item_id: uuid.UUID, req: MenuItemUpdate) -> MenuItem:
+    async def update_menu_item(
+        self, item_id: uuid.UUID, req: MenuItemUpdate
+    ) -> MenuItem:
         pass
 
 
@@ -66,7 +72,9 @@ class MenuService(MenuServiceInterface):
         await self.session.commit()
         return menu
 
-    async def create_category(self, branch_id: uuid.UUID, req: MenuCategoryCreate) -> MenuCategory:
+    async def create_category(
+        self, branch_id: uuid.UUID, req: MenuCategoryCreate
+    ) -> MenuCategory:
         menu = await self.menu_repo.get_menu_by_branch_id(branch_id)
         if not menu:
             menu = await self.menu_repo.create_menu(branch_id=branch_id)
@@ -77,7 +85,9 @@ class MenuService(MenuServiceInterface):
         await self.session.commit()
         return category
 
-    async def create_menu_item(self, branch_id: uuid.UUID, req: MenuItemCreate) -> MenuItem:
+    async def create_menu_item(
+        self, branch_id: uuid.UUID, req: MenuItemCreate
+    ) -> MenuItem:
         # INV-MENU-001: Non-Negative Base Price
         if req.base_price < 0.0:
             raise DomainInvariantError(
@@ -130,7 +140,9 @@ class MenuService(MenuServiceInterface):
             )
         return item
 
-    async def update_menu_item(self, item_id: uuid.UUID, req: MenuItemUpdate) -> MenuItem:
+    async def update_menu_item(
+        self, item_id: uuid.UUID, req: MenuItemUpdate
+    ) -> MenuItem:
         item = await self.get_menu_item(item_id)
 
         if req.base_price is not None:

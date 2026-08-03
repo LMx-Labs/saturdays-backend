@@ -158,7 +158,9 @@ class CustomerService(CustomerServiceInterface):
             )
 
         await self.customer_repo.clear_primary_addresses(profile.id)
-        updated_address = await self.customer_repo.update_address(address, {"is_primary": True})
+        updated_address = await self.customer_repo.update_address(
+            address, {"is_primary": True}
+        )
         await self.session.commit()
         return CustomerAddressResponse.model_validate(updated_address)
 
@@ -183,7 +185,9 @@ class CustomerService(CustomerServiceInterface):
         if was_primary:
             remaining = await self.customer_repo.get_addresses(profile.id)
             if remaining:
-                await self.customer_repo.update_address(remaining[0], {"is_primary": True})
+                await self.customer_repo.update_address(
+                    remaining[0], {"is_primary": True}
+                )
 
         await self.session.commit()
 
