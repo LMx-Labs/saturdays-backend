@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import JSON, CheckConstraint, DateTime, ForeignKey, Integer, func
@@ -43,6 +43,16 @@ class Cart(Base):
     items: Mapped[list["CartItem"]] = relationship(
         "CartItem", back_populates="cart", cascade="all, delete-orphan"
     )
+
+    @property
+    def is_expired(self) -> bool:
+        from datetime import datetime, timedelta
+
+        if not self.updated_at:
+            return False
+        updated = self.updated_at if self.updated_at.tzinfo else self.updated_at.replace(tzinfo=UTC)
+        now = datetime.now(UTC)
+        return now - updated > timedelta(days=7)
 
 
 class CartItem(Base):
