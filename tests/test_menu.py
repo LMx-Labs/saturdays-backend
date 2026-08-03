@@ -9,11 +9,12 @@ from app.branch.models import Branch
 from app.brand.models import Brand
 from app.core.security import create_access_token, hash_password
 from app.menu.models import Menu, MenuCategory
+from app.merchant.models import Merchant
 
 
 @pytest.fixture
 async def setup_branch_and_manager(db_session: AsyncSession):
-    """Helper fixture to create a brand, branch, menu, category, and manager token."""
+    """Helper fixture to create a merchant, brand, branch, menu, category, and manager token."""
     manager = User(
         email="manager@saturdays.com",
         password_hash=hash_password("Password123!"),
@@ -23,7 +24,16 @@ async def setup_branch_and_manager(db_session: AsyncSession):
     db_session.add(manager)
     await db_session.flush()
 
-    brand = Brand(name="Test Brand", description="Test Description")
+    merchant = Merchant(
+        owner_user_id=manager.id,
+        business_name="Test Merchant",
+        legal_entity_name="Test Merchant LLC",
+        fssai_license_number="12345678901234",
+    )
+    db_session.add(merchant)
+    await db_session.flush()
+
+    brand = Brand(merchant_id=merchant.id, name="Test Brand", description="Test Description")
     db_session.add(brand)
     await db_session.flush()
 
@@ -48,6 +58,7 @@ async def setup_branch_and_manager(db_session: AsyncSession):
 
     return {
         "manager": manager,
+        "merchant": merchant,
         "brand": brand,
         "branch": branch,
         "menu": menu,
