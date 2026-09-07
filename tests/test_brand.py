@@ -3,17 +3,8 @@ from httpx import AsyncClient
 
 
 @pytest.mark.asyncio
-async def test_brand_crud_flow(client: AsyncClient):
-    # 1. Register merchant owner
-    user_payload = {
-        "email": "brandowner@saturdays.com",
-        "password": "Password123!",
-        "role": "MerchantOwner",
-    }
-    user_res = await client.post("/api/v1/auth/register", json=user_payload)
-    assert user_res.status_code == 201
-    access_token = user_res.json()["access_token"]
-    headers = {"Authorization": f"Bearer {access_token}"}
+async def test_brand_crud_flow(client: AsyncClient, provision_headers):
+    headers = await provision_headers("brandowner@saturdays.com", "MerchantOwner")
 
     # 2. Onboard merchant
     merchant_payload = {
@@ -75,7 +66,7 @@ async def test_brand_crud_flow(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_brand_invariants_and_rbac(client: AsyncClient):
+async def test_brand_invariants_and_rbac(client: AsyncClient, provision_headers):
     # Customer tries to create brand -> 403 Forbidden
     cust_payload = {
         "email": "custbrand@saturdays.com",
@@ -93,13 +84,9 @@ async def test_brand_invariants_and_rbac(client: AsyncClient):
     assert res_cust.status_code == 403
 
     # MerchantOwner tries to create brand with non-existent merchant_id (INV-BRAND-001)
-    owner_payload = {
-        "email": "invalidparent@saturdays.com",
-        "password": "Password123!",
-        "role": "MerchantOwner",
-    }
-    owner_res = await client.post("/api/v1/auth/register", json=owner_payload)
-    owner_headers = {"Authorization": f"Bearer {owner_res.json()['access_token']}"}
+    owner_headers = await provision_headers(
+        "invalidparent@saturdays.com", "MerchantOwner"
+    )
 
     res_invalid_parent = await client.post(
         "/api/v1/brands",

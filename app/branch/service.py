@@ -2,6 +2,7 @@ import uuid
 from abc import ABC, abstractmethod
 from datetime import time
 
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.branch.models import Branch
@@ -19,6 +20,8 @@ from app.core.exceptions import (
     ForbiddenError,
 )
 from app.merchant.repository import MerchantRepositoryInterface
+from app.subscription.models import MerchantSubscription
+from app.subscription.service import PLAN_DETAILS
 
 
 def _parse_time_str(val: str) -> time:
@@ -107,6 +110,39 @@ class BranchService(BranchServiceInterface):
                     message="You do not have permission to create a branch under this brand.",
                     error_code="BRANCH_CREATE_FORBIDDEN",
                 )
+            subscription = await self.session.scalar(
+                select(MerchantSubscription)
+                .where(
+                    MerchantSubscription.merchant_id == merchant.id,
+                    MerchantSubscription.status == "ACTIVE",
+                    MerchantSubscription.deleted_at.is_(None),
+                )
+                .order_by(MerchantSubscription.created_at.desc())
+                .limit(1)
+            )
+            tier = subscription.plan_tier if subscription else "BASIC"
+            maximum = PLAN_DETAILS.get(tier, PLAN_DETAILS["BASIC"])["max_branches"]
+            if maximum != -1:
+                from app.brand.models import Brand
+
+                current = (
+                    await self.session.scalar(
+                        select(func.count(Branch.id))
+                        .join(Brand, Brand.id == Branch.brand_id)
+                        .where(
+                            Brand.merchant_id == merchant.id,
+                            Branch.deleted_at.is_(None),
+                        )
+                    )
+                    or 0
+                )
+                if current >= maximum:
+                    from app.core.exceptions import UnprocessableEntityError
+
+                    raise UnprocessableEntityError(
+                        f"Branch limit reached for {tier} plan.",
+                        "SUBSCRIPTION_BRANCH_LIMIT_EXCEEDED",
+                    )
 
         opening_t = _parse_time_str(req.opening_time)
         closing_t = _parse_time_str(req.closing_time)
@@ -154,9 +190,7 @@ class BranchService(BranchServiceInterface):
                     message="Invalid brand UUID format.",
                     error_code="INVALID_UUID",
                 ) from exc
-            branches = await self.branch_repo.list_by_brand_id(
-                brand_uuid, skip=skip, limit=limit
-            )
+            branches = await self.branch_repo.list_by_brand_id(brand_uuid, skip=skip, limit=limit)
         else:
             branches = await self.branch_repo.list_all(skip=skip, limit=limit)
 
@@ -175,9 +209,7 @@ class BranchService(BranchServiceInterface):
 
         if not is_admin:
             brand = await self.brand_repo.get_by_id(branch.brand_id)
-            merchant = (
-                await self.merchant_repo.get_by_id(brand.merchant_id) if brand else None
-            )
+            merchant = await self.merchant_repo.get_by_id(brand.merchant_id) if brand else None
             if not merchant or str(merchant.owner_user_id) != user_id:
                 raise ForbiddenError(
                     message="You do not have permission to update this branch.",
@@ -220,9 +252,7 @@ class BranchService(BranchServiceInterface):
 
         if not is_admin:
             brand = await self.brand_repo.get_by_id(branch.brand_id)
-            merchant = (
-                await self.merchant_repo.get_by_id(brand.merchant_id) if brand else None
-            )
+            merchant = await self.merchant_repo.get_by_id(brand.merchant_id) if brand else None
             if not merchant or str(merchant.owner_user_id) != user_id:
                 raise ForbiddenError(
                     message="You do not have permission to update status for this branch.",
@@ -245,9 +275,7 @@ class BranchService(BranchServiceInterface):
 
         if not is_admin:
             brand = await self.brand_repo.get_by_id(branch.brand_id)
-            merchant = (
-                await self.merchant_repo.get_by_id(brand.merchant_id) if brand else None
-            )
+            merchant = await self.merchant_repo.get_by_id(brand.merchant_id) if brand else None
             if not merchant or str(merchant.owner_user_id) != user_id:
                 raise ForbiddenError(
                     message="You do not have permission to delete this branch.",

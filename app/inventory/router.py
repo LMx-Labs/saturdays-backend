@@ -1,23 +1,33 @@
 import uuid
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.auth.router import require_role
+from app.auth.schemas import UserClaims
+from app.core.authorization import require_branch_access
 from app.core.database import get_db_session
+from app.core.exceptions import EntityNotFoundError
+from app.inventory.models import InventoryItem, InventoryLog
 from app.inventory.repository import (
     InventoryRepository,
     InventoryRepositoryInterface,
 )
 from app.inventory.schemas import (
     InventoryItemCreateRequest,
+    InventoryItemDetailResponse,
     InventoryItemResponse,
+    InventoryLogPage,
+    InventoryLogResponse,
     StockUpdateRequest,
 )
 from app.inventory.service import (
     InventoryService,
     InventoryServiceInterface,
 )
+from app.menu.models import MenuItem
 
 router = APIRouter(prefix="", tags=["Inventory"])
 
@@ -44,13 +54,101 @@ def get_inventory_service(
 )
 async def get_branch_inventory(
     branch_id: uuid.UUID,
-    _current_user=Depends(
-        require_role(["KitchenStaff", "BranchManager", "MerchantOwner", "Admin"])
+    current_user: UserClaims = Depends(
+        require_role(["KitchenStaff", "BranchManager", "MerchantOwner", "PlatformAdmin"])
     ),
+    session: AsyncSession = Depends(get_db_session),
     inventory_service: InventoryServiceInterface = Depends(get_inventory_service),
 ) -> list[InventoryItemResponse]:
+    await require_branch_access(session, current_user.sub, current_user.role, branch_id)
     items = await inventory_service.get_branch_inventory(branch_id)
     return [InventoryItemResponse.model_validate(item) for item in items]
+
+
+@router.get(
+    "/branches/{branch_id}/inventory/details",
+    response_model=list[InventoryItemDetailResponse],
+)
+async def get_branch_inventory_details(
+    branch_id: uuid.UUID,
+    current_user: UserClaims = Depends(
+        require_role(["KitchenStaff", "BranchManager", "MerchantOwner", "PlatformAdmin"])
+    ),
+    session: AsyncSession = Depends(get_db_session),
+) -> list[InventoryItemDetailResponse]:
+    await require_branch_access(session, current_user.sub, current_user.role, branch_id)
+    result = await session.execute(
+        select(InventoryItem)
+        .where(InventoryItem.branch_id == branch_id, InventoryItem.deleted_at.is_(None))
+        .options(
+            selectinload(InventoryItem.menu_item).selectinload(MenuItem.modifiers)
+        )
+        .order_by(InventoryItem.created_at.desc())
+    )
+    return [InventoryItemDetailResponse.model_validate(item) for item in result.scalars()]
+
+
+@router.get("/inventory/{id}", response_model=InventoryItemDetailResponse)
+async def get_inventory_item(
+    id: uuid.UUID,
+    current_user: UserClaims = Depends(
+        require_role(["KitchenStaff", "BranchManager", "MerchantOwner", "PlatformAdmin"])
+    ),
+    session: AsyncSession = Depends(get_db_session),
+) -> InventoryItemDetailResponse:
+    item = await session.scalar(
+        select(InventoryItem)
+        .where(InventoryItem.id == id, InventoryItem.deleted_at.is_(None))
+        .options(
+            selectinload(InventoryItem.menu_item).selectinload(MenuItem.modifiers)
+        )
+    )
+    if not item:
+        raise EntityNotFoundError("Inventory item not found.", "INVENTORY_ITEM_NOT_FOUND")
+    await require_branch_access(session, current_user.sub, current_user.role, item.branch_id)
+    return InventoryItemDetailResponse.model_validate(item)
+
+
+@router.get("/inventory/{id}/logs", response_model=InventoryLogPage)
+async def get_inventory_logs(
+    id: uuid.UUID,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    current_user: UserClaims = Depends(
+        require_role(["KitchenStaff", "BranchManager", "MerchantOwner", "PlatformAdmin"])
+    ),
+    session: AsyncSession = Depends(get_db_session),
+) -> InventoryLogPage:
+    item = await session.get(InventoryItem, id)
+    if not item or item.deleted_at is not None:
+        raise EntityNotFoundError("Inventory item not found.", "INVENTORY_ITEM_NOT_FOUND")
+    await require_branch_access(session, current_user.sub, current_user.role, item.branch_id)
+    total = (
+        await session.scalar(
+            select(func.count(InventoryLog.id)).where(InventoryLog.inventory_item_id == id)
+        )
+        or 0
+    )
+    logs = (
+        (
+            await session.execute(
+                select(InventoryLog)
+                .where(InventoryLog.inventory_item_id == id)
+                .order_by(InventoryLog.created_at.desc())
+                .offset((page - 1) * page_size)
+                .limit(page_size)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return InventoryLogPage(
+        items=[InventoryLogResponse.model_validate(log) for log in logs],
+        page=page,
+        page_size=page_size,
+        total=total,
+        pages=(total + page_size - 1) // page_size,
+    )
 
 
 @router.post(
@@ -63,11 +161,13 @@ async def get_branch_inventory(
 async def create_inventory_item(
     branch_id: uuid.UUID,
     req: InventoryItemCreateRequest,
-    _current_user=Depends(
-        require_role(["KitchenStaff", "BranchManager", "MerchantOwner", "Admin"])
+    current_user: UserClaims = Depends(
+        require_role(["KitchenStaff", "BranchManager", "MerchantOwner", "PlatformAdmin"])
     ),
+    session: AsyncSession = Depends(get_db_session),
     inventory_service: InventoryServiceInterface = Depends(get_inventory_service),
 ) -> InventoryItemResponse:
+    await require_branch_access(session, current_user.sub, current_user.role, branch_id)
     item = await inventory_service.create_inventory_item(branch_id, req)
     return InventoryItemResponse.model_validate(item)
 
@@ -82,10 +182,19 @@ async def create_inventory_item(
 async def update_stock(
     id: uuid.UUID,
     req: StockUpdateRequest,
-    _current_user=Depends(
-        require_role(["KitchenStaff", "BranchManager", "MerchantOwner", "Admin"])
+    current_user: UserClaims = Depends(
+        require_role(["KitchenStaff", "BranchManager", "MerchantOwner", "PlatformAdmin"])
     ),
+    session: AsyncSession = Depends(get_db_session),
     inventory_service: InventoryServiceInterface = Depends(get_inventory_service),
 ) -> InventoryItemResponse:
+    inventory_item = await session.get(InventoryItem, id)
+    if not inventory_item or inventory_item.deleted_at is not None:
+        raise EntityNotFoundError(
+            message="Inventory item not found.", error_code="INVENTORY_ITEM_NOT_FOUND"
+        )
+    await require_branch_access(
+        session, current_user.sub, current_user.role, inventory_item.branch_id
+    )
     item = await inventory_service.update_stock(id, req)
     return InventoryItemResponse.model_validate(item)

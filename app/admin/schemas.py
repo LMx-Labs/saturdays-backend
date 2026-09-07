@@ -10,12 +10,39 @@ class MerchantApprovalRequest(BaseModel):
     reason: str | None = Field(None, max_length=500)
 
 
+class MerchantAdminSummary(BaseModel):
+    id: uuid.UUID
+    business_name: str
+    legal_entity_name: str
+    status: str
+    gstin_masked: str | None = None
+    fssai_license_masked: str
+    bank_account_masked: str | None = None
+    created_at: datetime
+
+
+class MerchantAdminPage(BaseModel):
+    items: list[MerchantAdminSummary]
+    page: int
+    page_size: int
+    total: int
+    pages: int
+
+
 class BannerCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=150)
     image_url: str = Field(..., min_length=1, max_length=255)
     target_url: str | None = Field(None, max_length=255)
     display_order: int = Field(0, ge=0)
     is_active: bool = True
+
+
+class BannerUpdate(BaseModel):
+    title: str | None = Field(None, min_length=1, max_length=150)
+    image_url: str | None = Field(None, min_length=1, max_length=255)
+    target_url: str | None = Field(None, max_length=255)
+    display_order: int | None = Field(None, ge=0)
+    is_active: bool | None = None
 
 
 class BannerResponse(BaseModel):

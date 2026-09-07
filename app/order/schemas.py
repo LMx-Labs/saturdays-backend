@@ -42,6 +42,13 @@ class OrderResponse(BaseModel):
     customer_profile_id: uuid.UUID
     branch_id: uuid.UUID
     total_amount: float
+    subtotal: float
+    discount_amount: float
+    tax_amount: float
+    delivery_fee: float
+    currency: str
+    checkout_quote_id: uuid.UUID | None = None
+    cancellation_reason: str | None = None
     status: str
     delivery_address_snapshot: Any
     created_at: datetime
@@ -51,9 +58,10 @@ class OrderResponse(BaseModel):
 
 
 class OrderCreateRequest(BaseModel):
-    branch_id: uuid.UUID
-    items: list[OrderItemCreate] = Field(..., min_length=1)
-    delivery_address_snapshot: dict[str, Any]
+    quote_id: uuid.UUID | None = None
+    branch_id: uuid.UUID | None = None
+    items: list[OrderItemCreate] = []
+    delivery_address_snapshot: dict[str, Any] = {}
 
 
 class OrderStatusUpdateRequest(BaseModel):

@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.admin.models import AdminAuditLog, Banner
+from app.admin.models import AdminAuditLog, Banner, FeatureFlag
 from app.customer.models import CustomerProfile
 from app.merchant.models import Merchant
 from app.order.models import Order
@@ -37,6 +37,14 @@ class AdminRepositoryInterface(ABC):
     async def get_analytics_overview(self) -> dict:
         pass
 
+    @abstractmethod
+    async def get_feature_flags(self) -> Sequence[FeatureFlag]:
+        pass
+
+    @abstractmethod
+    async def upsert_feature_flag(self, flag: FeatureFlag) -> FeatureFlag:
+        pass
+
 
 class AdminRepository(AdminRepositoryInterface):
     def __init__(self, session: AsyncSession):
@@ -49,9 +57,7 @@ class AdminRepository(AdminRepositoryInterface):
         return audit_log
 
     async def get_audit_logs(self, limit: int = 50) -> Sequence[AdminAuditLog]:
-        stmt = (
-            select(AdminAuditLog).order_by(AdminAuditLog.created_at.desc()).limit(limit)
-        )
+        stmt = select(AdminAuditLog).order_by(AdminAuditLog.created_at.desc()).limit(limit)
         res = await self.session.execute(stmt)
         return res.scalars().all()
 
@@ -73,6 +79,16 @@ class AdminRepository(AdminRepositoryInterface):
         stmt = delete(Banner).where(Banner.id == banner_id)
         await self.session.execute(stmt)
 
+    async def get_feature_flags(self) -> Sequence[FeatureFlag]:
+        result = await self.session.execute(select(FeatureFlag).order_by(FeatureFlag.key))
+        return result.scalars().all()
+
+    async def upsert_feature_flag(self, flag: FeatureFlag) -> FeatureFlag:
+        self.session.add(flag)
+        await self.session.flush()
+        await self.session.refresh(flag)
+        return flag
+
     async def get_analytics_overview(self) -> dict:
         # Total and active merchants
         res_m = await self.session.execute(select(func.count(Merchant.id)))
@@ -85,9 +101,7 @@ class AdminRepository(AdminRepositoryInterface):
 
         # Total orders & gross revenue
         res_o = await self.session.execute(
-            select(
-                func.count(Order.id), func.coalesce(func.sum(Order.total_amount), 0.0)
-            )
+            select(func.count(Order.id), func.coalesce(func.sum(Order.total_amount), 0.0))
         )
         row_o = res_o.one()
         total_orders = row_o[0] or 0
@@ -101,9 +115,7 @@ class AdminRepository(AdminRepositoryInterface):
 
         # Total customers
         res_cust = await self.session.execute(
-            select(func.count(CustomerProfile.id)).where(
-                CustomerProfile.deleted_at.is_(None)
-            )
+            select(func.count(CustomerProfile.id)).where(CustomerProfile.deleted_at.is_(None))
         )
         total_customers = res_cust.scalar() or 0
 

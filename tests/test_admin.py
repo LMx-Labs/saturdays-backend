@@ -2,11 +2,17 @@ import uuid
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
+from app.branch.models import Branch
+from app.brand.models import Brand
 from app.core.security import hash_password
+from app.customer.models import CustomerProfile
 from app.merchant.models import Merchant
+from app.order.models import Order
+from app.payment.models import Payment, PaymentTransaction
 
 
 @pytest.fixture
@@ -26,8 +32,14 @@ async def setup_admin_fixture(db_session: AsyncSession):
         role="MerchantOwner",
         is_active=True,
     )
+    customer_user = User(
+        email="admin_refund_customer@saturdays.com",
+        password_hash=hash_password("Password123!"),
+        role="Customer",
+        is_active=True,
+    )
 
-    db_session.add_all([admin_user, merchant_user])
+    db_session.add_all([admin_user, merchant_user, customer_user])
     await db_session.flush()
 
     merchant = Merchant(
@@ -38,9 +50,47 @@ async def setup_admin_fixture(db_session: AsyncSession):
         status="PENDING",
     )
     db_session.add(merchant)
+    await db_session.flush()
+    brand = Brand(merchant_id=merchant.id, name="Refund Brand")
+    profile = CustomerProfile(user_id=customer_user.id, full_name="Refund Customer")
+    db_session.add_all([brand, profile])
+    await db_session.flush()
+    branch = Branch(brand_id=brand.id, name="Refund Branch", address_text="Campus")
+    db_session.add(branch)
+    await db_session.flush()
+    order = Order(
+        customer_profile_id=profile.id,
+        branch_id=branch.id,
+        total_amount=500,
+        subtotal=500,
+        status="CANCELLED",
+        delivery_address_snapshot={"address_line": "Campus"},
+    )
+    db_session.add(order)
+    await db_session.flush()
+    payment = Payment(
+        order_id=order.id,
+        customer_profile_id=profile.id,
+        amount=500,
+        currency="INR",
+        provider="mock",
+        provider_order_id="order_admin_refund",
+    )
+    db_session.add(payment)
+    await db_session.flush()
+    db_session.add(
+        PaymentTransaction(
+            payment_id=payment.id,
+            transaction_type="CAPTURED",
+            razorpay_payment_id="pay_admin_refund",
+            razorpay_order_id="order_admin_refund",
+            amount=500,
+            status="SUCCESS",
+        )
+    )
     await db_session.commit()
 
-    return {"admin_user": admin_user, "merchant": merchant}
+    return {"admin_user": admin_user, "merchant": merchant, "payment": payment}
 
 
 async def get_admin_headers(client: AsyncClient, email: str) -> dict:
@@ -53,9 +103,7 @@ async def get_admin_headers(client: AsyncClient, email: str) -> dict:
 
 
 @pytest.mark.asyncio
-async def test_admin_merchant_approval_and_audit(
-    client: AsyncClient, setup_admin_fixture: dict
-):
+async def test_admin_merchant_approval_and_audit(client: AsyncClient, setup_admin_fixture: dict):
     fixture = setup_admin_fixture
     headers = await get_admin_headers(client, fixture["admin_user"].email)
 
@@ -79,9 +127,7 @@ async def test_admin_merchant_approval_and_audit(
 
 
 @pytest.mark.asyncio
-async def test_admin_banner_cms_and_feature_flags(
-    client: AsyncClient, setup_admin_fixture: dict
-):
+async def test_admin_banner_cms_and_feature_flags(client: AsyncClient, setup_admin_fixture: dict):
     fixture = setup_admin_fixture
     headers = await get_admin_headers(client, fixture["admin_user"].email)
 
@@ -93,9 +139,7 @@ async def test_admin_banner_cms_and_feature_flags(
         "display_order": 1,
         "is_active": True,
     }
-    banner_resp = await client.post(
-        "/api/v1/admin/banners", headers=headers, json=banner_payload
-    )
+    banner_resp = await client.post("/api/v1/admin/banners", headers=headers, json=banner_payload)
     assert banner_resp.status_code == 201
     banner_id = banner_resp.json()["id"]
 
@@ -105,9 +149,7 @@ async def test_admin_banner_cms_and_feature_flags(
     assert len(list_resp.json()) >= 1
 
     # 3. Delete banner
-    del_resp = await client.delete(
-        f"/api/v1/admin/banners/{banner_id}", headers=headers
-    )
+    del_resp = await client.delete(f"/api/v1/admin/banners/{banner_id}", headers=headers)
     assert del_resp.status_code == 204
 
     # 4. Feature flags
@@ -127,14 +169,14 @@ async def test_admin_banner_cms_and_feature_flags(
 
 @pytest.mark.asyncio
 async def test_admin_refund_and_analytics(
-    client: AsyncClient, setup_admin_fixture: dict
+    client: AsyncClient, db_session: AsyncSession, setup_admin_fixture: dict
 ):
     fixture = setup_admin_fixture
     headers = await get_admin_headers(client, fixture["admin_user"].email)
 
     # Refund override
     ref_payload = {
-        "payment_id": str(uuid.uuid4()),
+        "payment_id": str(fixture["payment"].id),
         "amount": 250.0,
         "reason": "Customer complaint dispute resolution",
     }
@@ -143,11 +185,16 @@ async def test_admin_refund_and_analytics(
     )
     assert ref_resp.status_code == 200
     assert ref_resp.json()["status"] == "PROCESSED"
+    refund = await db_session.scalar(
+        select(PaymentTransaction).where(
+            PaymentTransaction.id == uuid.UUID(ref_resp.json()["refund_transaction_id"])
+        )
+    )
+    assert refund is not None
+    assert refund.transaction_type == "REFUNDED"
 
     # Analytics overview
-    analytics_resp = await client.get(
-        "/api/v1/admin/analytics/overview", headers=headers
-    )
+    analytics_resp = await client.get("/api/v1/admin/analytics/overview", headers=headers)
     assert analytics_resp.status_code == 200
     data = analytics_resp.json()
     assert "total_merchants" in data

@@ -10,9 +10,9 @@ class UserRegisterRequest(BaseModel):
     password: str = Field(
         ..., min_length=8, description="Plaintext password (minimum 8 characters)"
     )
-    role: str = Field(
-        default="Customer",
-        description="User role (Customer, KitchenStaff, BranchManager, MerchantOwner, PlatformAdmin)",
+    role: str | None = Field(
+        default=None,
+        description="Compatibility field; public registration only permits Customer",
     )
 
 
@@ -59,3 +59,33 @@ class UserClaims(BaseModel):
     sub: str
     email: str
     role: str
+
+
+class TokenRequest(BaseModel):
+    token: str = Field(..., min_length=20)
+
+
+class EmailRequest(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetRequest(TokenRequest):
+    new_password: str = Field(..., min_length=8)
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(..., min_length=8)
+
+
+class LogoutRequest(BaseModel):
+    refresh_token: str
+
+
+class InvitationAcceptRequest(TokenRequest):
+    password: str = Field(..., min_length=8)
+
+
+class MessageResponse(BaseModel):
+    message: str
+    preview_token: str | None = None

@@ -1,16 +1,37 @@
 from contextlib import asynccontextmanager
 
 import structlog
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.models as _models  # noqa: F401
+from app.admin.identity_router import router as admin_identity_router
+from app.admin.router import router as admin_router
+from app.auth.router import router as auth_router
+from app.branch.router import router as branch_router
+from app.brand.router import router as brand_router
+from app.cart.router import router as cart_router
+from app.checkout.router import router as checkout_router
 from app.core.config import settings
 from app.core.database import get_db_session
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import CorrelationIdMiddleware, setup_logging
+from app.coupon.router import router as coupon_router
+from app.customer.router import router as customer_router
+from app.inventory.router import router as inventory_router
+from app.kitchen.router import router as kitchen_router
+from app.menu.router import router as menu_router
+from app.merchant.router import router as merchant_router
+from app.merchant.staff_router import router as merchant_staff_router
+from app.notification.router import router as notification_router
+from app.order.router import router as order_router
+from app.payment.router import router as payment_router
+from app.reports.router import router as reports_router
+from app.review.router import router as review_router
+from app.search.router import router as search_router
+from app.subscription.router import router as subscription_router
 
 logger = structlog.get_logger()
 
@@ -49,28 +70,10 @@ app.add_middleware(
 
 app.add_middleware(CorrelationIdMiddleware)
 
-from app.admin.router import router as admin_router
-from app.auth.router import router as auth_router
-from app.branch.router import router as branch_router
-from app.brand.router import router as brand_router
-from app.cart.router import router as cart_router
-from app.checkout.router import router as checkout_router
-from app.coupon.router import router as coupon_router
-from app.customer.router import router as customer_router
-from app.inventory.router import router as inventory_router
-from app.kitchen.router import router as kitchen_router
-from app.menu.router import router as menu_router
-from app.merchant.router import router as merchant_router
-from app.notification.router import router as notification_router
-from app.order.router import router as order_router
-from app.payment.router import router as payment_router
-from app.review.router import router as review_router
-from app.search.router import router as search_router
-from app.subscription.router import router as subscription_router
-
 register_exception_handlers(app)
 
 app.include_router(admin_router, prefix=settings.API_V1_STR)
+app.include_router(admin_identity_router, prefix=settings.API_V1_STR)
 app.include_router(auth_router, prefix=settings.API_V1_STR)
 app.include_router(cart_router, prefix=settings.API_V1_STR)
 app.include_router(checkout_router, prefix=settings.API_V1_STR)
@@ -81,10 +84,12 @@ app.include_router(kitchen_router, prefix=settings.API_V1_STR)
 app.include_router(notification_router, prefix=settings.API_V1_STR)
 app.include_router(order_router, prefix=settings.API_V1_STR)
 app.include_router(review_router, prefix=settings.API_V1_STR)
+app.include_router(reports_router, prefix=settings.API_V1_STR)
 app.include_router(subscription_router, prefix=settings.API_V1_STR)
 app.include_router(menu_router, prefix=settings.API_V1_STR)
 app.include_router(brand_router, prefix=settings.API_V1_STR)
 app.include_router(branch_router, prefix=settings.API_V1_STR)
+app.include_router(merchant_staff_router, prefix=settings.API_V1_STR)
 app.include_router(merchant_router, prefix=settings.API_V1_STR)
 app.include_router(payment_router, prefix=settings.API_V1_STR)
 app.include_router(search_router, prefix=settings.API_V1_STR)
@@ -107,4 +112,7 @@ async def readiness_check(session: AsyncSession = Depends(get_db_session)):
         return {"status": "ready", "database": "connected"}
     except Exception as e:  # noqa: BLE001
         logger.error("Readiness check database connection failure", error=str(e))
-        return {"status": "not_ready", "database": "disconnected"}
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"status": "not_ready", "database": "disconnected"},
+        ) from e

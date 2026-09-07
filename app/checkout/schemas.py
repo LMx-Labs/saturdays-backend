@@ -1,3 +1,6 @@
+import uuid
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -37,6 +40,9 @@ class CheckoutValidationResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     is_valid: bool = Field(..., description="True if order can be placed")
+    quote_id: uuid.UUID | None = None
+    quote_expires_at: datetime | None = None
+    currency: str = "INR"
     customer_id: str
     branch_id: str
     branch_name: str

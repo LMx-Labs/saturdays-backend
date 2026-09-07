@@ -1,9 +1,16 @@
 from fastapi import APIRouter, Depends, status
-from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.identity_service import IdentityService
 from app.auth.repository import UserRepository, UserRepositoryInterface
 from app.auth.schemas import (
+    EmailRequest,
+    InvitationAcceptRequest,
+    LogoutRequest,
+    MessageResponse,
+    PasswordChangeRequest,
+    PasswordResetRequest,
+    TokenRequest,
     TokenRefreshRequest,
     TokenResponse,
     UserClaims,
@@ -12,13 +19,10 @@ from app.auth.schemas import (
     UserResponse,
 )
 from app.auth.service import AuthService, AuthServiceInterface
+from app.core.authorization import get_current_user, require_role  # noqa: F401
 from app.core.database import get_db_session
-from app.core.exceptions import ForbiddenError, UnauthorizedError
-from app.core.security import decode_token
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 
 def get_user_repository(
@@ -37,49 +41,10 @@ def get_auth_service(
     )
 
 
-def get_current_user(token: str = Depends(oauth2_scheme)) -> UserClaims:
-    """Dependency for extracting and validating JWT bearer tokens."""
-    try:
-        payload = decode_token(token)
-    except ValueError:
-        raise UnauthorizedError(
-            message="Invalid or expired access token.",
-            error_code="INVALID_ACCESS_TOKEN",
-        )
-
-    if payload.get("type") != "access":
-        raise UnauthorizedError(
-            message="Token provided is not an access token.",
-            error_code="INVALID_TOKEN_TYPE",
-        )
-
-    sub = payload.get("sub")
-    role = payload.get("role")
-    email = payload.get("email", "")
-
-    if not sub or not role:
-        raise UnauthorizedError(
-            message="Malformed token payload.",
-            error_code="INVALID_ACCESS_TOKEN",
-        )
-
-    return UserClaims(sub=sub, email=email, role=role)
-
-
-def require_role(allowed_roles: list[str]):
-    """RBAC Role check dependency factory."""
-
-    def role_checker(
-        current_user: UserClaims = Depends(get_current_user),
-    ) -> UserClaims:
-        if current_user.role not in allowed_roles:
-            raise ForbiddenError(
-                message=f"Access denied for role '{current_user.role}'.",
-                error_code="ROLE_NOT_AUTHORIZED",
-            )
-        return current_user
-
-    return role_checker
+def get_identity_service(
+    session: AsyncSession = Depends(get_db_session),
+) -> IdentityService:
+    return IdentityService(session)
 
 
 @router.post(
@@ -136,3 +101,74 @@ async def me(
     auth_service: AuthServiceInterface = Depends(get_auth_service),
 ) -> UserResponse:
     return await auth_service.get_current_user_profile(current_user.sub)
+
+
+@router.post("/verify-email", response_model=MessageResponse)
+async def verify_email(
+    req: TokenRequest,
+    service: IdentityService = Depends(get_identity_service),
+) -> MessageResponse:
+    return await service.verify_email(req.token)
+
+
+@router.post("/verification/resend", response_model=MessageResponse)
+async def resend_verification(
+    req: EmailRequest,
+    service: IdentityService = Depends(get_identity_service),
+) -> MessageResponse:
+    return await service.resend_verification(req.email)
+
+
+@router.post("/password/forgot", response_model=MessageResponse)
+async def forgot_password(
+    req: EmailRequest,
+    service: IdentityService = Depends(get_identity_service),
+) -> MessageResponse:
+    return await service.forgot_password(req.email)
+
+
+@router.post("/password/reset", response_model=MessageResponse)
+async def reset_password(
+    req: PasswordResetRequest,
+    service: IdentityService = Depends(get_identity_service),
+) -> MessageResponse:
+    return await service.reset_password(req.token, req.new_password)
+
+
+@router.post("/password/change", response_model=MessageResponse)
+async def change_password(
+    req: PasswordChangeRequest,
+    current_user: UserClaims = Depends(get_current_user),
+    service: IdentityService = Depends(get_identity_service),
+) -> MessageResponse:
+    return await service.change_password(
+        current_user.sub, req.current_password, req.new_password
+    )
+
+
+@router.post("/logout", response_model=MessageResponse)
+async def logout(
+    req: LogoutRequest,
+    service: IdentityService = Depends(get_identity_service),
+) -> MessageResponse:
+    return await service.logout(req.refresh_token)
+
+
+@router.post("/logout-all", response_model=MessageResponse)
+async def logout_all(
+    current_user: UserClaims = Depends(get_current_user),
+    service: IdentityService = Depends(get_identity_service),
+) -> MessageResponse:
+    return await service.logout_all(current_user.sub)
+
+
+@router.post(
+    "/invitations/accept",
+    response_model=TokenResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def accept_invitation(
+    req: InvitationAcceptRequest,
+    service: IdentityService = Depends(get_identity_service),
+) -> TokenResponse:
+    return await service.accept_invitation(req.token, req.password)

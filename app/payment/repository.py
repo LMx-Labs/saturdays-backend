@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import DomainInvariantError, EntityNotFoundError
-from app.payment.models import Payment, PaymentTransaction
+from app.payment.models import Payment, PaymentTransaction, PaymentWebhookEvent
 
 
 class PaymentRepositoryInterface(ABC):
@@ -18,7 +18,22 @@ class PaymentRepositoryInterface(ABC):
         amount: float,
         currency: str = "INR",
         razorpay_order_id: str | None = None,
+        provider: str = "mock",
     ) -> Payment:
+        pass
+
+    @abstractmethod
+    async def get_by_provider_order_id(self, provider_order_id: str) -> Payment | None:
+        pass
+
+    @abstractmethod
+    async def get_webhook_event(self, provider: str, event_id: str) -> PaymentWebhookEvent | None:
+        pass
+
+    @abstractmethod
+    async def get_transaction_by_idempotency_key(
+        self, idempotency_key: str
+    ) -> PaymentTransaction | None:
         pass
 
     @abstractmethod
@@ -32,6 +47,7 @@ class PaymentRepositoryInterface(ABC):
         razorpay_order_id: str | None = None,
         razorpay_signature: str | None = None,
         payload_snapshot: dict | None = None,
+        idempotency_key: str | None = None,
     ) -> PaymentTransaction:
         pass
 
@@ -65,6 +81,7 @@ class PaymentRepository(PaymentRepositoryInterface):
         amount: float,
         currency: str = "INR",
         razorpay_order_id: str | None = None,
+        provider: str = "mock",
     ) -> Payment:
         if amount <= 0:
             raise DomainInvariantError(
@@ -77,6 +94,8 @@ class PaymentRepository(PaymentRepositoryInterface):
             customer_profile_id=customer_profile_id,
             amount=amount,
             currency=currency,
+            provider=provider,
+            provider_order_id=razorpay_order_id,
         )
         self.session.add(payment)
         await self.session.flush()
@@ -88,6 +107,7 @@ class PaymentRepository(PaymentRepositoryInterface):
             razorpay_order_id=razorpay_order_id,
             amount=amount,
             status="SUCCESS",
+            idempotency_key=f"intent:{razorpay_order_id}",
         )
         self.session.add(initial_tx)
         await self.session.flush()
@@ -110,6 +130,7 @@ class PaymentRepository(PaymentRepositoryInterface):
         razorpay_order_id: str | None = None,
         razorpay_signature: str | None = None,
         payload_snapshot: dict | None = None,
+        idempotency_key: str | None = None,
     ) -> PaymentTransaction:
         # INV-0003: Append-Only Financial Ledger (no updating existing rows)
         payment = await self.get_by_id(payment_id)
@@ -137,6 +158,7 @@ class PaymentRepository(PaymentRepositoryInterface):
             amount=amount,
             status=status,
             payload_snapshot=payload_snapshot,
+            idempotency_key=idempotency_key,
         )
         self.session.add(tx)
         await self.session.flush()
@@ -159,6 +181,29 @@ class PaymentRepository(PaymentRepositoryInterface):
         )
         res = await self.session.execute(stmt)
         return res.scalars().first()
+
+    async def get_by_provider_order_id(self, provider_order_id: str) -> Payment | None:
+        stmt = (
+            select(Payment)
+            .where(Payment.provider_order_id == provider_order_id)
+            .options(selectinload(Payment.transactions))
+        )
+        return (await self.session.execute(stmt)).scalars().first()
+
+    async def get_webhook_event(self, provider: str, event_id: str) -> PaymentWebhookEvent | None:
+        return await self.session.scalar(
+            select(PaymentWebhookEvent).where(
+                PaymentWebhookEvent.provider == provider,
+                PaymentWebhookEvent.event_id == event_id,
+            )
+        )
+
+    async def get_transaction_by_idempotency_key(
+        self, idempotency_key: str
+    ) -> PaymentTransaction | None:
+        return await self.session.scalar(
+            select(PaymentTransaction).where(PaymentTransaction.idempotency_key == idempotency_key)
+        )
 
     async def get_transaction_by_razorpay_payment_id(
         self, razorpay_payment_id: str, transaction_type: str | None = None

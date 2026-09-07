@@ -38,6 +38,6 @@ class Brand(Base, TimestampMixin):
         Index(
             "idx_brands_merchant_id",
             merchant_id,
-            postgresql_where=(TimestampMixin.deleted_at == None),
+            postgresql_where=TimestampMixin.deleted_at.is_(None),
         ),
     )

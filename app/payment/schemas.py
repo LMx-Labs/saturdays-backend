@@ -13,7 +13,6 @@ class PaymentTransactionResponse(BaseModel):
     transaction_type: str
     razorpay_payment_id: str | None = None
     razorpay_order_id: str | None = None
-    razorpay_signature: str | None = None
     amount: float
     status: str
     payload_snapshot: Any | None = None
@@ -28,14 +27,24 @@ class PaymentResponse(BaseModel):
     customer_profile_id: uuid.UUID
     amount: float
     currency: str
+    provider: str
+    provider_order_id: str | None = None
     created_at: datetime
     transactions: list[PaymentTransactionResponse] = []
 
 
+class PaymentPage(BaseModel):
+    items: list[PaymentResponse]
+    page: int
+    page_size: int
+    total: int
+    pages: int
+
+
 class PaymentIntentCreateRequest(BaseModel):
     order_id: uuid.UUID
-    amount: float = Field(..., gt=0)
-    currency: str = "INR"
+    amount: float | None = Field(None, gt=0, description="Ignored; derived from order")
+    currency: str | None = Field(None, description="Ignored; derived from order")
 
 
 class PaymentIntentResponse(BaseModel):
@@ -44,6 +53,12 @@ class PaymentIntentResponse(BaseModel):
     razorpay_order_id: str
     amount: float
     currency: str
+    provider: str = "mock"
+    provider_key_id: str | None = None
+
+
+class MockPaymentCompleteRequest(BaseModel):
+    order_id: uuid.UUID
 
 
 class PaymentVerifyRequest(BaseModel):
@@ -63,3 +78,4 @@ class PaymentVerifyResponse(BaseModel):
 class RefundCreateRequest(BaseModel):
     amount: float = Field(..., gt=0)
     reason: str = Field(default="ORDER_CANCELLED", max_length=100)
+    idempotency_key: str | None = Field(default=None, min_length=8, max_length=100)

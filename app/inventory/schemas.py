@@ -3,6 +3,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.menu.schemas import MenuItemResponse
+
 
 class InventoryLogResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -26,6 +28,18 @@ class InventoryItemResponse(BaseModel):
     is_in_stock: bool
     created_at: datetime
     updated_at: datetime
+
+
+class InventoryItemDetailResponse(InventoryItemResponse):
+    menu_item: MenuItemResponse
+
+
+class InventoryLogPage(BaseModel):
+    items: list[InventoryLogResponse]
+    page: int
+    page_size: int
+    total: int
+    pages: int
 
 
 class StockUpdateRequest(BaseModel):

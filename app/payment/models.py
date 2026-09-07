@@ -10,6 +10,7 @@ from sqlalchemy import (
     Index,
     Numeric,
     String,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -26,9 +27,7 @@ if TYPE_CHECKING:
 class Payment(Base):
     __tablename__ = "payments"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid7
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid7)
     order_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("orders.id"), nullable=False
     )
@@ -37,6 +36,8 @@ class Payment(Base):
     )
     amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(10), nullable=False, default="INR")
+    provider: Mapped[str] = mapped_column(String(30), nullable=False, default="mock")
+    provider_order_id: Mapped[str | None] = mapped_column(String(100), nullable=True, unique=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -59,9 +60,7 @@ class Payment(Base):
 class PaymentTransaction(Base):
     __tablename__ = "payment_transactions"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid7
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid7)
     payment_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("payments.id"), nullable=False
     )
@@ -74,6 +73,7 @@ class PaymentTransaction(Base):
     payload_snapshot: Mapped[Any | None] = mapped_column(
         JSONB().with_variant(JSON, "sqlite"), nullable=True
     )
+    idempotency_key: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -82,3 +82,20 @@ class PaymentTransaction(Base):
     payment: Mapped["Payment"] = relationship("Payment", back_populates="transactions")
 
     __table_args__ = (Index("idx_pay_tx_razorpay_id", razorpay_payment_id),)
+
+
+class PaymentWebhookEvent(Base):
+    __tablename__ = "payment_webhook_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid7)
+    provider: Mapped[str] = mapped_column(String(30), nullable=False)
+    event_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    payload_snapshot: Mapped[Any] = mapped_column(
+        JSONB().with_variant(JSON, "sqlite"), nullable=False
+    )
+    processed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (UniqueConstraint("provider", "event_id", name="uq_payment_webhook_event"),)

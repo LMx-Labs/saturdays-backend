@@ -33,6 +33,6 @@ class Kitchen(Base, TimestampMixin):
         Index(
             "idx_kitchens_branch_id",
             branch_id,
-            postgresql_where=(TimestampMixin.deleted_at == None),
+            postgresql_where=TimestampMixin.deleted_at.is_(None),
         ),
     )

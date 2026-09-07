@@ -61,6 +61,6 @@ class Branch(Base, TimestampMixin):
         Index(
             "idx_branches_brand_id",
             brand_id,
-            postgresql_where=(TimestampMixin.deleted_at == None),
+            postgresql_where=TimestampMixin.deleted_at.is_(None),
         ),
     )

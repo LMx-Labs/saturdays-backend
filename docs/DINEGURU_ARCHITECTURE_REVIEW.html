@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="DineGuru architecture and Saturdays integration review">
+  <title>DineGuru Architecture Review</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #18201b;
+      --muted: #667069;
+      --paper: #f7f6f1;
+      --surface: #ffffff;
+      --line: #d9ddd7;
+      --accent: #5a49b7;
+      --accent-soft: #eeebff;
+      --success: #24724a;
+      --warning: #8a5a13;
+      --danger: #a33a32;
+      --radius: 14px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, "Segoe UI", Arial, sans-serif;
+      line-height: 1.55;
+    }
+
+    .shell {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 36px 0 64px;
+    }
+
+    header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 24px;
+      align-items: end;
+      padding-bottom: 28px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 760px; margin-bottom: 12px; font-size: clamp(2rem, 5vw, 4.5rem); line-height: 1; letter-spacing: -0.045em; }
+    h2 { margin: 32px 0 14px; font-size: 1.55rem; letter-spacing: -0.02em; }
+    h3 { margin-bottom: 8px; font-size: 1rem; }
+    p { color: var(--muted); }
+
+    .eyebrow {
+      display: inline-block;
+      margin-bottom: 14px;
+      color: var(--accent);
+      font-size: .78rem;
+      font-weight: 800;
+      letter-spacing: .11em;
+      text-transform: uppercase;
+    }
+
+    .header-note {
+      max-width: 320px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--muted);
+      font-size: .9rem;
+    }
+
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 14px 0;
+      background: color-mix(in srgb, var(--paper) 94%, transparent);
+      backdrop-filter: blur(12px);
+    }
+
+    nav button {
+      flex: 0 0 auto;
+      padding: 9px 14px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--ink);
+      font: inherit;
+      font-size: .85rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    nav button[aria-selected="true"] {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: white;
+    }
+
+    .panel { display: none; animation: reveal .18s ease-out; }
+    .panel.active { display: block; }
+
+    @keyframes reveal {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .callout {
+      margin: 18px 0;
+      padding: 17px 18px;
+      border-left: 4px solid var(--accent);
+      background: var(--accent-soft);
+      border-radius: 0 var(--radius) var(--radius) 0;
+    }
+
+    .callout strong { display: block; margin-bottom: 4px; }
+    .callout p { margin: 0; color: var(--ink); }
+    .callout.warning { border-color: var(--warning); background: #fff5df; }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    .flow.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+    .node, .card {
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+
+    .node.accent { border-color: var(--accent); background: var(--accent-soft); }
+    .node p, .card p { margin-bottom: 0; font-size: .91rem; }
+
+    .arrow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent);
+      font-size: 1.5rem;
+      font-weight: 900;
+    }
+
+    .boundary {
+      display: grid;
+      grid-template-columns: 1fr 44px 1fr 44px 1fr;
+      gap: 8px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+    .tag {
+      display: inline-flex;
+      margin-bottom: 10px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      background: #edf0ec;
+      color: var(--muted);
+      font-size: .74rem;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .tag.live { background: #e7f5ec; color: var(--success); }
+    .tag.partial { background: #fff1d4; color: var(--warning); }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .9rem;
+    }
+
+    th, td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #eff1ed;
+      font-size: .76rem;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+
+    tr:last-child td { border-bottom: 0; }
+
+    code {
+      padding: 2px 5px;
+      border-radius: 5px;
+      background: #eceeea;
+      font-family: "Cascadia Code", Consolas, monospace;
+      font-size: .86em;
+    }
+
+    .risk-list {
+      display: grid;
+      gap: 10px;
+      padding: 0;
+      list-style: none;
+    }
+
+    .risk-list li {
+      display: grid;
+      grid-template-columns: 22px 1fr;
+      gap: 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .risk-list b { color: var(--danger); }
+
+    footer {
+      margin-top: 46px;
+      padding-top: 20px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: .82rem;
+    }
+
+    @media (max-width: 820px) {
+      header { grid-template-columns: 1fr; }
+      .header-note { max-width: none; }
+      .boundary, .flow, .flow.four, .grid, .grid.two { grid-template-columns: 1fr; }
+      .arrow { transform: rotate(90deg); min-height: 32px; }
+    }
+
+    @media print {
+      nav { display: none; }
+      .panel { display: block !important; break-before: page; }
+      .panel:first-of-type { break-before: auto; }
+      body { background: white; }
+      .shell { width: 100%; padding: 0; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div>
+        <span class="eyebrow">Architecture review</span>
+        <h1>DineGuru and the Saturdays platform boundary</h1>
+        <p>DineGuru is the restaurant operating system. Saturdays is the customer marketplace.</p>
+      </div>
+      <aside class="header-note">
+        <strong>Repository audited</strong><br>
+        <code>dineguru/backend</code><br>
+        <code>dineguru/frontend</code><br><br>
+        FastAPI, PostgreSQL, React and Vite.
+      </aside>
+    </header>
+
+    <nav aria-label="Architecture sections">
+      <button data-panel="boundary" aria-selected="true">Responsibilities</button>
+      <button data-panel="flows" aria-selected="false">How it works</button>
+      <button data-panel="modules" aria-selected="false">Modules</button>
+      <button data-panel="integration" aria-selected="false">Integration contract</button>
+      <button data-panel="gaps" aria-selected="false">Gaps and recommendation</button>
+    </nav>
+
+    <section id="boundary" class="panel active">
+      <div class="callout">
+        <strong>Central distinction</strong>
+        <p>There is no customer application inside DineGuru. Customers discover, order, pay and track through Saturdays.</p>
+      </div>
+
+      <h2>System boundary</h2>
+      <div class="boundary">
+        <div class="node">
+          <h3>Saturdays customer platform</h3>
+          <p>Discovery, cart, checkout, online payment and customer tracking.</p>
+        </div>
+        <div class="arrow">→</div>
+        <div class="node accent">
+          <h3>Partner API boundary</h3>
+          <p>API keys, HMAC provisioning, signed webhooks and reconciliation.</p>
+        </div>
+        <div class="arrow">→</div>
+        <div class="node">
+          <h3>DineGuru restaurant OS</h3>
+          <p>POS, KOT, menu, stock, recipes, procurement, analytics and riders.</p>
+        </div>
+      </div>
+
+      <h2>Responsibility map</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Capability</th><th>System of record</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td>Customer discovery and ordering</td><td>Saturdays</td><td>DineGuru has no customer cart or storefront.</td></tr>
+            <tr><td>Online payment and tracking</td><td>Saturdays</td><td>Includes payment provider, OTP and customer delivery state.</td></tr>
+            <tr><td>Restaurant provisioning</td><td>Saturdays → DineGuru</td><td>Saturdays creates DineGuru access through a signed internal call.</td></tr>
+            <tr><td>POS, KOT and in-store billing</td><td>DineGuru</td><td>Native restaurant operations.</td></tr>
+            <tr><td>Menu authoring</td><td>DineGuru</td><td>DineGuru publishes marketplace prices and availability.</td></tr>
+            <tr><td>Inventory, recipes and procurement</td><td>DineGuru</td><td>Stock is deducted when KOT lines are fired.</td></tr>
+            <tr><td>Restaurant analytics</td><td>DineGuru</td><td>Sales, margins, stock, staff and portfolio reporting.</td></tr>
+            <tr><td>Delivery fulfillment</td><td>DineGuru UI + Saturdays API</td><td>Restaurant actions update the customer-facing Saturdays order.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="flows" class="panel">
+      <h2>Restaurant onboarding</h2>
+      <div class="flow four">
+        <div class="node"><span class="tag">Step 1</span><h3>Approve</h3><p>Saturdays vets and approves the restaurant.</p></div>
+        <div class="node accent"><span class="tag">Step 2</span><h3>Provision</h3><p>Saturdays sends an HMAC-signed restaurant, owner, password and API key.</p></div>
+        <div class="node"><span class="tag">Step 3</span><h3>Create tenant</h3><p>DineGuru creates Restaurant, User, Membership and encrypted connection.</p></div>
+        <div class="node"><span class="tag">Step 4</span><h3>Operate</h3><p>The owner logs into DineGuru immediately. Public signup is not used.</p></div>
+      </div>
+
+      <h2>Online order lifecycle</h2>
+      <div class="flow four">
+        <div class="node"><span class="tag">Step 1</span><h3>Customer orders</h3><p>Saturdays performs checkout and payment.</p></div>
+        <div class="node accent"><span class="tag">Step 2</span><h3>Webhook</h3><p>DineGuru verifies HMAC and deduplicates the delivery ID.</p></div>
+        <div class="node"><span class="tag">Step 3</span><h3>Native ingest</h3><p>A confirmed order becomes a DineGuru order and KOT; stock is deducted.</p></div>
+        <div class="node"><span class="tag">Step 4</span><h3>Fulfill</h3><p>Staff prepares, assigns a rider and updates Saturdays.</p></div>
+      </div>
+
+      <h2>POS order lifecycle</h2>
+      <div class="callout">
+        <p>DineGuru has no cart service. A POS cart is an open <code>Order</code> with draft <code>OrderItem</code> rows. Firing a KOT locks kitchen lines and deducts recipe stock. Checkout records CASH, UPI or SPLIT payment.</p>
+      </div>
+    </section>
+
+    <section id="modules" class="panel">
+      <h2>Backend modules</h2>
+      <div class="grid">
+        <article class="card"><span class="tag live">Implemented</span><h3>Identity</h3><p>JWT access, rotating refresh tokens, membership scope and password lifecycle.</p></article>
+        <article class="card"><span class="tag live">Implemented</span><h3>Restaurants</h3><p>Settings, owners, staff, riders and multi-restaurant access.</p></article>
+        <article class="card"><span class="tag live">Implemented</span><h3>Menu</h3><p>Items, categories, availability, recipe pricing and Saturdays publishing.</p></article>
+        <article class="card"><span class="tag live">Implemented</span><h3>Orders</h3><p>POS orders, KOT, discounts, charges, checkout and bills.</p></article>
+        <article class="card"><span class="tag live">Implemented</span><h3>Ingredients</h3><p>Stock, thresholds, adjustments and price history.</p></article>
+        <article class="card"><span class="tag live">Implemented</span><h3>Recipes</h3><p>Ingredients, preparation steps, costing and margin calculation.</p></article>
+        <article class="card"><span class="tag live">Implemented</span><h3>Procurement</h3><p>Vendors, offers and purchase-order receiving.</p></article>
+        <article class="card"><span class="tag live">Implemented</span><h3>Analytics</h3><p>Revenue, margin, staff, inventory and portfolio reporting.</p></article>
+        <article class="card"><span class="tag live">Implemented</span><h3>Saturdays adapter</h3><p>Provisioning, menu sync, webhooks, order cache and reconciliation.</p></article>
+        <article class="card"><span class="tag live">Implemented</span><h3>Rider</h3><p>Pickup, COD QR collection and OTP handover.</p></article>
+        <article class="card"><span class="tag partial">Deferred</span><h3>Floor plan</h3><p>No visual floor-plan or complete table-management module exists.</p></article>
+        <article class="card"><span class="tag partial">Stub</span><h3>Subscriptions</h3><p>Analytics tier gating always returns enabled and has no billing model.</p></article>
+      </div>
+
+      <h2>Frontend modes</h2>
+      <div class="grid">
+        <article class="card"><h3>Owner and staff workspace</h3><p>Overview, POS, inventory, menu, recipes, procurement, bills, Saturdays and analytics.</p></article>
+        <article class="card"><h3>Rider mobile web</h3><p>Assigned deliveries, pickup, collection and handover. This is responsive web, not native mobile.</p></article>
+        <article class="card"><h3>Super-admin portal</h3><p>Restaurant list and approval queue. Previous mock dashboards were removed.</p></article>
+      </div>
+    </section>
+
+    <section id="integration" class="panel">
+      <div class="callout warning">
+        <strong>Current compatibility gap</strong>
+        <p>The current <code>saturdays_v2</code> application does not contain the <code>/api/dineguru/v1</code> partner surface or signed provisioning client expected by DineGuru. Starting both servers is not sufficient to integrate them.</p>
+      </div>
+
+      <h2>Required cross-service calls</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Direction</th><th>Endpoint</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td>Saturdays → DineGuru</td><td><code>POST /api/v1/internal/saturdays/provision</code></td><td>Create or resynchronize restaurant access.</td></tr>
+            <tr><td>Saturdays → DineGuru</td><td><code>POST /api/v1/internal/saturdays/set-active</code></td><td>Suspend or restore owner access.</td></tr>
+            <tr><td>Saturdays → DineGuru</td><td><code>POST /api/v1/saturdays/webhook/{token}</code></td><td>Deliver signed order events.</td></tr>
+            <tr><td>DineGuru → Saturdays</td><td><code>GET/PATCH /api/dineguru/v1/restaurant/</code></td><td>Marketplace profile and operating state.</td></tr>
+            <tr><td>DineGuru → Saturdays</td><td><code>POST /api/dineguru/v1/menu/sync/</code></td><td>Publish menu prices and availability.</td></tr>
+            <tr><td>DineGuru → Saturdays</td><td><code>POST /api/dineguru/v1/orders/{id}/accept/</code></td><td>Accept and progress fulfillment.</td></tr>
+            <tr><td>DineGuru → Saturdays</td><td><code>POST /api/dineguru/v1/orders/{id}/collection/</code></td><td>Create a COD payment QR.</td></tr>
+            <tr><td>DineGuru → Saturdays</td><td><code>POST /api/dineguru/v1/orders/{id}/verify-otp/</code></td><td>Complete customer handover.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>Configuration contract</h2>
+      <div class="grid two">
+        <article class="card"><h3>Shared provisioning secret</h3><p><code>SATURDAYS_PROVISION_SHARED_SECRET</code> must match the Saturdays-side secret exactly.</p></article>
+        <article class="card"><h3>Webhook base URL</h3><p><code>SATURDAYS_WEBHOOK_BASE_URL</code> is DineGuru's externally reachable API address.</p></article>
+        <article class="card"><h3>Per-restaurant API key</h3><p>Saturdays generates it; DineGuru stores it encrypted and sends it as <code>Authorization: Api-Key</code>.</p></article>
+        <article class="card"><h3>Menu external IDs</h3><p>Marketplace lines must retain DineGuru item IDs for native KOT and stock ingestion.</p></article>
+      </div>
+    </section>
+
+    <section id="gaps" class="panel">
+      <h2>Important gaps and risks</h2>
+      <ul class="risk-list">
+        <li><b>1</b><div><strong>Tenant mismatch.</strong> Saturdays uses Merchant → Brand → Branch; DineGuru uses Restaurant as the outlet tenant.</div></li>
+        <li><b>2</b><div><strong>Role mismatch.</strong> Saturdays roles must translate to DineGuru's owner, staff and rider roles.</div></li>
+        <li><b>3</b><div><strong>No background worker.</strong> Missed webhooks depend on reconciliation before KOT and inventory ingest occur.</div></li>
+        <li><b>4</b><div><strong>Menu mapping dependency.</strong> Unmapped marketplace lines are skipped during native ingestion.</div></li>
+        <li><b>5</b><div><strong>Membership authorization.</strong> Some checks use a user's global role rather than the active membership role.</div></li>
+        <li><b>6</b><div><strong>Secret rotation coupling.</strong> DineGuru's secret protects both JWTs and encrypted Saturdays API keys.</div></li>
+        <li><b>7</b><div><strong>Operational readiness.</strong> Rate limiting, metrics, backend CI and frontend automated tests remain incomplete.</div></li>
+        <li><b>8</b><div><strong>Deferred product areas.</strong> Floor plans, vendor contracts and subscription-tier billing are unfinished.</div></li>
+      </ul>
+
+      <h2>Recommended integration direction</h2>
+      <div class="callout">
+        <strong>Map each Saturdays Branch to one DineGuru Restaurant.</strong>
+        <p>Add a Saturdays adapter containing the partner API, provisioning client, stable external IDs, signed webhook delivery, retry and reconciliation. Keep DineGuru as the source of truth for POS, KOT, recipes, inventory, procurement and restaurant fulfillment. Do not merge the databases or duplicate those domains in Saturdays.</p>
+      </div>
+
+      <h2>Suggested implementation order</h2>
+      <div class="flow four">
+        <div class="node"><span class="tag">1</span><h3>Mapping</h3><p>Persist Saturdays branch ↔ DineGuru restaurant identity.</p></div>
+        <div class="node"><span class="tag">2</span><h3>Provisioning</h3><p>Implement signed account creation and lifecycle synchronization.</p></div>
+        <div class="node"><span class="tag">3</span><h3>Partner API</h3><p>Add restaurant, menu, order, collection, OTP and webhook endpoints.</p></div>
+        <div class="node"><span class="tag">4</span><h3>Reliability</h3><p>Add event IDs, retries, reconciliation, monitoring and integration tests.</p></div>
+      </div>
+    </section>
+
+    <footer>
+      Prepared from a read-only audit of the DineGuru backend, frontend, migrations,
+      tests, local setup, deployment documentation, and Saturdays integration code.
+      Source review date: September 2026.
+    </footer>
+  </main>
+
+  <script>
+    const buttons = [...document.querySelectorAll("nav button")];
+    const panels = [...document.querySelectorAll(".panel")];
+
+    buttons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const target = button.dataset.panel;
+        buttons.forEach((item) => item.setAttribute("aria-selected", String(item === button)));
+        panels.forEach((panel) => panel.classList.toggle("active", panel.id === target));
+        history.replaceState(null, "", `#${target}`);
+      });
+    });
+
+    const initial = location.hash.slice(1);
+    const initialButton = buttons.find((button) => button.dataset.panel === initial);
+    if (initialButton) initialButton.click();
+  </script>
+</body>
+</html>

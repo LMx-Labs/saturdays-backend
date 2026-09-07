@@ -89,6 +89,11 @@ class BranchResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+    @field_validator("id", "brand_id", mode="before")
+    @classmethod
+    def format_uuid_str(cls, v: Any) -> str:
+        return str(v)
+
     @field_validator("opening_time", "closing_time", mode="before")
     @classmethod
     def format_time_str(cls, v: Any) -> str:

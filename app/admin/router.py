@@ -1,6 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, Query, Request, status
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admin.repository import AdminRepository, AdminRepositoryInterface
@@ -8,9 +9,12 @@ from app.admin.schemas import (
     AdminAuditLogResponse,
     BannerCreate,
     BannerResponse,
+    BannerUpdate,
     FeatureFlagResponse,
     FeatureFlagUpdate,
     MerchantApprovalRequest,
+    MerchantAdminPage,
+    MerchantAdminSummary,
     PlatformAnalyticsOverview,
     RefundOverrideRequest,
     RefundOverrideResponse,
@@ -24,8 +28,29 @@ from app.coupon.schemas import CouponCreate, CouponResponse
 from app.coupon.service import CouponService
 from app.customer.repository import CustomerRepository
 from app.merchant.repository import MerchantRepository, MerchantRepositoryInterface
+from app.merchant.models import Merchant
+from app.admin.models import AdminAuditLog, Banner
 
 router = APIRouter(prefix="/admin", tags=["Admin Subsystem"])
+
+
+def _mask(value: str | None, visible: int = 4) -> str | None:
+    if not value:
+        return None
+    return "*" * max(0, len(value) - visible) + value[-visible:]
+
+
+def _merchant_summary(merchant: Merchant) -> MerchantAdminSummary:
+    return MerchantAdminSummary(
+        id=merchant.id,
+        business_name=merchant.business_name,
+        legal_entity_name=merchant.legal_entity_name,
+        status=merchant.status,
+        gstin_masked=_mask(merchant.gstin),
+        fssai_license_masked=_mask(merchant.fssai_license_number),
+        bank_account_masked=_mask(merchant.bank_account_number),
+        created_at=merchant.created_at,
+    )
 
 
 def get_admin_repository(
@@ -56,6 +81,60 @@ def get_admin_service(
         merchant_repo=merchant_repo,
         coupon_service=coupon_service,
     )
+
+
+@router.get("/merchants", response_model=MerchantAdminPage)
+async def list_admin_merchants(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    status_filter: str | None = Query(None, alias="status"),
+    search: str | None = Query(None, min_length=1, max_length=100),
+    _current_user: UserClaims = Depends(require_role(["PlatformAdmin"])),
+    session: AsyncSession = Depends(get_db_session),
+) -> MerchantAdminPage:
+    filters = [Merchant.deleted_at.is_(None)]
+    if status_filter:
+        filters.append(Merchant.status == status_filter.upper())
+    if search:
+        term = f"%{search.strip()}%"
+        filters.append(
+            or_(Merchant.business_name.ilike(term), Merchant.legal_entity_name.ilike(term))
+        )
+    total = await session.scalar(select(func.count(Merchant.id)).where(*filters)) or 0
+    merchants = (
+        (
+            await session.execute(
+                select(Merchant)
+                .where(*filters)
+                .order_by(Merchant.created_at.desc())
+                .offset((page - 1) * page_size)
+                .limit(page_size)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return MerchantAdminPage(
+        items=[_merchant_summary(item) for item in merchants],
+        page=page,
+        page_size=page_size,
+        total=total,
+        pages=(total + page_size - 1) // page_size,
+    )
+
+
+@router.get("/merchants/{merchant_id}", response_model=MerchantAdminSummary)
+async def get_admin_merchant(
+    merchant_id: uuid.UUID,
+    _current_user: UserClaims = Depends(require_role(["PlatformAdmin"])),
+    session: AsyncSession = Depends(get_db_session),
+) -> MerchantAdminSummary:
+    merchant = await session.get(Merchant, merchant_id)
+    if not merchant or merchant.deleted_at is not None:
+        from app.core.exceptions import EntityNotFoundError
+
+        raise EntityNotFoundError("Merchant not found.", "MERCHANT_NOT_FOUND")
+    return _merchant_summary(merchant)
 
 
 @router.post(
@@ -113,6 +192,37 @@ async def create_banner(
     return await admin_service.create_banner(
         admin_user_id=uuid.UUID(current_user.sub), req=req, ip_address=ip
     )
+
+
+@router.patch("/banners/{banner_id}", response_model=BannerResponse)
+async def update_banner(
+    banner_id: uuid.UUID,
+    req: BannerUpdate,
+    request: Request,
+    current_user: UserClaims = Depends(require_role(["PlatformAdmin"])),
+    session: AsyncSession = Depends(get_db_session),
+) -> BannerResponse:
+    banner = await session.get(Banner, banner_id)
+    if not banner:
+        from app.core.exceptions import EntityNotFoundError
+
+        raise EntityNotFoundError("Banner not found.", "BANNER_NOT_FOUND")
+    changes = req.model_dump(exclude_unset=True)
+    for field, value in changes.items():
+        setattr(banner, field, value)
+    session.add(
+        AdminAuditLog(
+            admin_user_id=uuid.UUID(current_user.sub),
+            action="BANNER_UPDATED",
+            target_entity="banners",
+            target_entity_id=banner.id,
+            changes_payload=changes,
+            ip_address=request.client.host if request.client else "127.0.0.1",
+        )
+    )
+    await session.commit()
+    await session.refresh(banner)
+    return BannerResponse.model_validate(banner)
 
 
 @router.get(
@@ -205,11 +315,24 @@ async def issue_refund_override(
     summary="Get immutable platform admin audit logs",
 )
 async def get_audit_logs(
+    skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=500),
-    current_user: UserClaims = Depends(require_role(["PlatformAdmin"])),
-    admin_service: AdminServiceInterface = Depends(get_admin_service),
+    action: str | None = Query(None, max_length=100),
+    target_entity: str | None = Query(None, max_length=100),
+    _current_user: UserClaims = Depends(require_role(["PlatformAdmin"])),
+    session: AsyncSession = Depends(get_db_session),
 ) -> list[AdminAuditLogResponse]:
-    return await admin_service.get_audit_logs(limit=limit)
+    stmt = select(AdminAuditLog)
+    if action:
+        stmt = stmt.where(AdminAuditLog.action == action)
+    if target_entity:
+        stmt = stmt.where(AdminAuditLog.target_entity == target_entity)
+    logs = (
+        await session.execute(
+            stmt.order_by(AdminAuditLog.created_at.desc()).offset(skip).limit(limit)
+        )
+    ).scalars()
+    return [AdminAuditLogResponse.model_validate(log) for log in logs]
 
 
 @router.get(

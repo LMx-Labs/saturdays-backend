@@ -3,16 +3,10 @@ from httpx import AsyncClient
 
 
 @pytest.mark.asyncio
-async def test_kitchen_crud_flow(client: AsyncClient):
-    # 1. Register MerchantOwner user
-    owner_payload = {
-        "email": "kitchenowner@saturdays.com",
-        "password": "Password123!",
-        "role": "MerchantOwner",
-    }
-    owner_res = await client.post("/api/v1/auth/register", json=owner_payload)
-    assert owner_res.status_code == 201
-    owner_headers = {"Authorization": f"Bearer {owner_res.json()['access_token']}"}
+async def test_kitchen_crud_flow(client: AsyncClient, provision_headers):
+    owner_headers = await provision_headers(
+        "kitchenowner@saturdays.com", "MerchantOwner"
+    )
 
     # 2. Setup Merchant -> Brand -> Branch hierarchy
     merchant_res = await client.post(
@@ -93,7 +87,7 @@ async def test_kitchen_crud_flow(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_kitchen_invariants_and_rbac(client: AsyncClient):
+async def test_kitchen_invariants_and_rbac(client: AsyncClient, provision_headers):
     # Customer tries to create kitchen -> 403 Forbidden
     cust_payload = {
         "email": "custkitchen@saturdays.com",
@@ -114,13 +108,9 @@ async def test_kitchen_invariants_and_rbac(client: AsyncClient):
     assert res_cust.status_code == 403
 
     # BranchManager tries to create kitchen under non-existent branch_id (INV-KITCH-001)
-    mgr_payload = {
-        "email": "mgrkitchen@saturdays.com",
-        "password": "Password123!",
-        "role": "BranchManager",
-    }
-    mgr_res = await client.post("/api/v1/auth/register", json=mgr_payload)
-    mgr_headers = {"Authorization": f"Bearer {mgr_res.json()['access_token']}"}
+    mgr_headers = await provision_headers(
+        "mgrkitchen@saturdays.com", "BranchManager"
+    )
 
     res_orphan = await client.post(
         "/api/v1/kitchens",

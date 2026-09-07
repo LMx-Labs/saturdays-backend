@@ -7,6 +7,8 @@ from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401
 from app.core.database import Base, get_db_session
+from app.auth.models import User
+from app.core.security import hash_password
 from app.main import app as fastapi_app
 
 # In-memory SQLite for testing
@@ -51,3 +53,25 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         yield ac
 
     fastapi_app.dependency_overrides.clear()
+
+
+@pytest_asyncio.fixture
+async def provision_headers(client: AsyncClient, db_session: AsyncSession):
+    async def provision(email: str, role: str) -> dict[str, str]:
+        db_session.add(
+            User(
+                email=email,
+                password_hash=hash_password("Password123!"),
+                role=role,
+                is_active=True,
+                is_verified=True,
+            )
+        )
+        await db_session.commit()
+        response = await client.post(
+            "/api/v1/auth/login",
+            json={"email": email, "password": "Password123!"},
+        )
+        return {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+    return provision

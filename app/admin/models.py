@@ -16,17 +16,13 @@ if TYPE_CHECKING:
 class AdminAuditLog(Base):
     __tablename__ = "admin_audit_logs"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid7
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid7)
     admin_user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
     )
     action: Mapped[str] = mapped_column(String(100), nullable=False)
     target_entity: Mapped[str] = mapped_column(String(100), nullable=False)
-    target_entity_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), nullable=True
-    )
+    target_entity_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     changes_payload: Mapped[Any] = mapped_column(
         JSONB().with_variant(JSON, "sqlite"), nullable=False
     )
@@ -44,9 +40,7 @@ class AdminAuditLog(Base):
 class Banner(Base):
     __tablename__ = "banners"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid7
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid7)
     title: Mapped[str] = mapped_column(String(150), nullable=False)
     image_url: Mapped[str] = mapped_column(String(255), nullable=False)
     target_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -54,4 +48,18 @@ class Banner(Base):
     display_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class FeatureFlag(Base):
+    __tablename__ = "feature_flags"
+
+    key: Mapped[str] = mapped_column(String(100), primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    value: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    updated_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )

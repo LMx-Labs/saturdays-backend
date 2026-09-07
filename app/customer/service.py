@@ -9,6 +9,7 @@ from app.customer.repository import CustomerRepositoryInterface
 from app.customer.schemas import (
     CustomerAddressCreate,
     CustomerAddressResponse,
+    CustomerAddressUpdate,
     CustomerFavoriteResponse,
     CustomerProfileResponse,
     CustomerProfileUpdate,
@@ -41,6 +42,12 @@ class CustomerServiceInterface(ABC):
     @abstractmethod
     async def set_primary_address(
         self, user_id: uuid.UUID, address_id: uuid.UUID
+    ) -> CustomerAddressResponse:
+        pass
+
+    @abstractmethod
+    async def update_address(
+        self, user_id: uuid.UUID, address_id: uuid.UUID, req: CustomerAddressUpdate
     ) -> CustomerAddressResponse:
         pass
 
@@ -163,6 +170,23 @@ class CustomerService(CustomerServiceInterface):
         )
         await self.session.commit()
         return CustomerAddressResponse.model_validate(updated_address)
+
+    async def update_address(
+        self, user_id: uuid.UUID, address_id: uuid.UUID, req: CustomerAddressUpdate
+    ) -> CustomerAddressResponse:
+        profile = await self.customer_repo.get_by_user_id(user_id)
+        address = await self.customer_repo.get_address_by_id(address_id)
+        if not profile or not address or address.customer_profile_id != profile.id:
+            raise EntityNotFoundError(
+                message="Address not found for this customer.",
+                error_code="ADDRESS_NOT_FOUND",
+            )
+        update_data = req.model_dump(exclude_unset=True)
+        if update_data.get("is_primary"):
+            await self.customer_repo.clear_primary_addresses(profile.id)
+        updated = await self.customer_repo.update_address(address, update_data)
+        await self.session.commit()
+        return CustomerAddressResponse.model_validate(updated)
 
     async def delete_address(self, user_id: uuid.UUID, address_id: uuid.UUID) -> None:
         profile = await self.customer_repo.get_by_user_id(user_id)

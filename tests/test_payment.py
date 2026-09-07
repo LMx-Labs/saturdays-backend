@@ -71,9 +71,7 @@ async def setup_payment_fixture(db_session: AsyncSession):
     await db_session.commit()
 
     cust_token = create_access_token(subject=str(cust_user.id), role=cust_user.role)
-    mgr_token = create_access_token(
-        subject=str(manager_user.id), role=manager_user.role
-    )
+    mgr_token = create_access_token(subject=str(manager_user.id), role=manager_user.role)
 
     return {
         "cust_user": cust_user,
@@ -87,26 +85,46 @@ async def setup_payment_fixture(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_payment_intent_creation(
-    client: AsyncClient, setup_payment_fixture: dict
-):
+async def test_payment_intent_creation(client: AsyncClient, setup_payment_fixture: dict):
     ctx = setup_payment_fixture
     order_id = ctx["order"].id
     headers = ctx["cust_headers"]
 
     payload = {
         "order_id": str(order_id),
-        "amount": 500.00,
-        "currency": "INR",
+        "amount": 1.00,
+        "currency": "USD",
     }
-    response = await client.post(
-        "/api/v1/payments/intent", json=payload, headers=headers
-    )
+    response = await client.post("/api/v1/payments/intent", json=payload, headers=headers)
     assert response.status_code == 201
     data = response.json()
     assert data["order_id"] == str(order_id)
     assert data["amount"] == 500.00
     assert "razorpay_order_id" in data
+    assert data["provider"] == "mock"
+
+
+@pytest.mark.asyncio
+async def test_customer_can_complete_local_mock_payment(
+    client: AsyncClient, setup_payment_fixture: dict
+):
+    ctx = setup_payment_fixture
+    order_id = str(ctx["order"].id)
+    headers = ctx["cust_headers"]
+    intent = await client.post(
+        "/api/v1/payments/intent",
+        json={"order_id": order_id},
+        headers=headers,
+    )
+    assert intent.status_code == 201
+
+    completed = await client.post(
+        "/api/v1/payments/mock/complete",
+        json={"order_id": order_id},
+        headers=headers,
+    )
+    assert completed.status_code == 200
+    assert completed.json()["status"] == "CAPTURED"
 
 
 @pytest.mark.asyncio
@@ -157,6 +175,11 @@ async def test_successful_and_failed_payment_verification(
     )
     assert good_res.status_code == 200
     assert good_res.json()["status"] == "CAPTURED"
+    duplicate_res = await client.post(
+        "/api/v1/payments/verify", json=valid_verify_payload, headers=headers
+    )
+    assert duplicate_res.status_code == 200
+    assert duplicate_res.json() == good_res.json()
 
 
 @pytest.mark.asyncio
@@ -216,9 +239,7 @@ async def test_webhook_verification_and_duplicate_idempotency(
 
 
 @pytest.mark.asyncio
-async def test_refund_flow_and_cap_invariant(
-    client: AsyncClient, setup_payment_fixture: dict
-):
+async def test_refund_flow_and_cap_invariant(client: AsyncClient, setup_payment_fixture: dict):
     ctx = setup_payment_fixture
     order_id = ctx["order"].id
     headers = ctx["cust_headers"]
@@ -230,6 +251,25 @@ async def test_refund_flow_and_cap_invariant(
         headers=headers,
     )
     payment_id = intent_res.json()["payment_id"]
+    provider_order_id = intent_res.json()["razorpay_order_id"]
+    provider_payment_id = f"pay_{uuid.uuid4().hex[:10]}"
+    adapter = RazorpayAdapter()
+    signature = hmac.new(
+        (adapter.key_secret or "").encode(),
+        f"{provider_order_id}|{provider_payment_id}".encode(),
+        hashlib.sha256,
+    ).hexdigest()
+    verify_res = await client.post(
+        "/api/v1/payments/verify",
+        json={
+            "order_id": str(order_id),
+            "razorpay_order_id": provider_order_id,
+            "razorpay_payment_id": provider_payment_id,
+            "razorpay_signature": signature,
+        },
+        headers=headers,
+    )
+    assert verify_res.status_code == 200
 
     # 1. Refund partial amount (200.00 out of 500.00)
     rf_res = await client.post(

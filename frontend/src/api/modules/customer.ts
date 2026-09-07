@@ -1,0 +1,45 @@
+import { api } from "../client";
+import type {
+  Address, Cart, CartValidation, CheckoutQuote, Notification, NotificationPreferences,
+  Order, Payment, PaymentIntent, Review,
+} from "../types";
+
+export const customerApi = {
+  profile: () => api.get<{ id: string; full_name: string; phone_number?: string }>("/customers/me"),
+  updateProfile: (body: unknown) => api.put("/customers/me", body),
+  addresses: () => api.get<Address[]>("/customers/me/addresses"),
+  addAddress: (body: unknown) => api.post<Address>("/customers/me/addresses", body),
+  updateAddress: (id: string, body: unknown) => api.put<Address>(`/customers/me/addresses/${id}`, body),
+  primaryAddress: (id: string) => api.put<Address>(`/customers/me/addresses/${id}/primary`),
+  deleteAddress: (id: string) => api.delete(`/customers/me/addresses/${id}`),
+  favorites: () => api.get<Array<{ id: string; branch_id: string }>>("/customers/me/favorites"),
+  addFavorite: (branchId: string) => api.post("/customers/me/favorites", { branch_id: branchId }),
+  deleteFavorite: (branchId: string) => api.delete(`/customers/me/favorites/${branchId}`),
+  cart: () => api.get<Cart>("/cart"),
+  addCartItem: (body: unknown) => api.post<Cart>("/cart/items", body),
+  updateCartItem: (id: string, body: unknown) => api.put<Cart>(`/cart/items/${id}`, body),
+  removeCartItem: (id: string) => api.delete<Cart>(`/cart/items/${id}`),
+  clearCart: () => api.delete("/cart"),
+  validateCart: () => api.post<CartValidation>("/cart/validate"),
+  checkout: (body: unknown) => api.post<CheckoutQuote>("/checkout/summary", body),
+  orders: (status?: string) => api.get<Order[]>("/orders", { status }),
+  order: (id: string) => api.get<Order>(`/orders/${id}`),
+  createOrder: (body: unknown) => api.post<Order>("/orders", body),
+  cancelOrder: (id: string, reason?: string) => api.post<Order>(`/orders/${id}/cancel`, { reason }),
+  notifications: () => api.get<Notification[]>("/notifications/me"),
+  markNotificationRead: (id: string) => api.patch<Notification>(`/notifications/${id}/read`),
+  markAllNotificationsRead: () => api.patch<{ updated: number }>("/notifications/me/read-all"),
+  notificationPreferences: () => api.get<NotificationPreferences>("/notifications/me/preferences"),
+  updateNotificationPreferences: (body: NotificationPreferences) =>
+    api.put<NotificationPreferences>("/notifications/me/preferences", body),
+  review: (body: unknown) => api.post<Review>("/reviews", body),
+  reviewDetail: (id: string) => api.get<Review>(`/reviews/${id}`),
+  deleteReview: (id: string) => api.delete(`/reviews/${id}`),
+  paymentIntent: (body: unknown) => api.post<PaymentIntent>("/payments/intent", body),
+  payment: (id: string) => api.get<Payment>(`/payments/${id}`),
+  paymentByOrder: (orderId: string) => api.get<Payment>(`/payments/order/${orderId}`),
+  payments: () => api.get<Payment[]>("/payments"),
+  verifyPayment: (body: unknown) => api.post<{ success: boolean; payment_id: string; order_id: string; status: string }>("/payments/verify", body),
+  completeMockPayment: (orderId: string) =>
+    api.post<{ success: boolean; payment_id: string; order_id: string; status: string }>("/payments/mock/complete", { order_id: orderId }),
+};

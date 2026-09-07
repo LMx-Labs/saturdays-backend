@@ -1,5 +1,6 @@
 import uuid
 from abc import ABC, abstractmethod
+from typing import ClassVar
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -53,10 +54,6 @@ class MerchantServiceInterface(ABC):
         self, merchant_id: str, req: MerchantStatusUpdateRequest
     ) -> MerchantResponse:
         """Transition merchant lifecycle status (INV-MERCH-002)."""
-
-
-from typing import ClassVar
-
 
 class MerchantService(MerchantServiceInterface):
     """Concrete implementation of MerchantServiceInterface."""

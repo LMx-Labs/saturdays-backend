@@ -1,11 +1,13 @@
 import uuid
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.router import get_current_user
+from app.auth.router import get_current_user, require_role
 from app.auth.schemas import UserClaims
+from app.core.authorization import require_branch_access
 from app.core.database import get_db_session
+from app.core.exceptions import ForbiddenError
 from app.customer.repository import CustomerRepository, CustomerRepositoryInterface
 from app.review.repository import ReviewRepository, ReviewRepositoryInterface
 from app.review.schemas import (
@@ -37,9 +39,7 @@ def get_review_service(
     review_repo: ReviewRepositoryInterface = Depends(get_review_repository),
     customer_repo: CustomerRepositoryInterface = Depends(get_customer_repository),
 ) -> ReviewServiceInterface:
-    return ReviewService(
-        session=session, review_repo=review_repo, customer_repo=customer_repo
-    )
+    return ReviewService(session=session, review_repo=review_repo, customer_repo=customer_repo)
 
 
 @router.post(
@@ -50,12 +50,10 @@ def get_review_service(
 )
 async def create_review(
     req: ReviewCreate,
-    current_user: UserClaims = Depends(get_current_user),
+    current_user: UserClaims = Depends(require_role(["Customer"])),
     review_service: ReviewServiceInterface = Depends(get_review_service),
 ) -> ReviewResponse:
-    return await review_service.create_review(
-        user_id=uuid.UUID(current_user.sub), req=req
-    )
+    return await review_service.create_review(user_id=uuid.UUID(current_user.sub), req=req)
 
 
 @router.get(
@@ -66,12 +64,9 @@ async def create_review(
 )
 async def list_branch_reviews(
     branch_id: uuid.UUID,
-    include_hidden: bool = Query(False),
     review_service: ReviewServiceInterface = Depends(get_review_service),
 ) -> list[ReviewResponse]:
-    return await review_service.get_branch_reviews(
-        branch_id=branch_id, include_hidden=include_hidden
-    )
+    return await review_service.get_branch_reviews(branch_id=branch_id, include_hidden=False)
 
 
 @router.get(
@@ -95,9 +90,18 @@ async def get_branch_rating_summary(
 )
 async def get_review(
     review_id: uuid.UUID,
+    current_user: UserClaims = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
     review_service: ReviewServiceInterface = Depends(get_review_service),
 ) -> ReviewResponse:
-    return await review_service.get_review(review_id=review_id)
+    review = await review_service.get_review(review_id=review_id)
+    if current_user.role == "Customer":
+        profile = await CustomerRepository(session).get_by_user_id(uuid.UUID(current_user.sub))
+        if not profile or profile.id != review.customer_profile_id:
+            raise ForbiddenError("Review access denied.", "REVIEW_ACCESS_FORBIDDEN")
+    elif current_user.role != "PlatformAdmin":
+        await require_branch_access(session, current_user.sub, current_user.role, review.branch_id)
+    return review
 
 
 @router.post(
@@ -109,8 +113,14 @@ async def get_review(
 async def reply_to_review(
     review_id: uuid.UUID,
     req: ReviewReply,
+    current_user: UserClaims = Depends(
+        require_role(["MerchantOwner", "BranchManager", "PlatformAdmin"])
+    ),
+    session: AsyncSession = Depends(get_db_session),
     review_service: ReviewServiceInterface = Depends(get_review_service),
 ) -> ReviewResponse:
+    review = await review_service.get_review(review_id=review_id)
+    await require_branch_access(session, current_user.sub, current_user.role, review.branch_id)
     return await review_service.reply_to_review(review_id=review_id, req=req)
 
 
@@ -123,6 +133,7 @@ async def reply_to_review(
 async def moderate_review(
     review_id: uuid.UUID,
     req: ReviewModerateRequest,
+    _current_user: UserClaims = Depends(require_role(["PlatformAdmin"])),
     review_service: ReviewServiceInterface = Depends(get_review_service),
 ) -> ReviewResponse:
     return await review_service.moderate_review(review_id=review_id, req=req)
@@ -135,6 +146,23 @@ async def moderate_review(
 )
 async def delete_review(
     review_id: uuid.UUID,
+    current_user: UserClaims = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
     review_service: ReviewServiceInterface = Depends(get_review_service),
 ) -> None:
+    review = await review_service.get_review(review_id=review_id)
+    if current_user.role == "Customer":
+        profile = await CustomerRepository(session).get_by_user_id(uuid.UUID(current_user.sub))
+        if not profile or profile.id != review.customer_profile_id:
+            raise ForbiddenError("Review access denied.", "REVIEW_ACCESS_FORBIDDEN")
+    elif current_user.role != "PlatformAdmin":
+        raise ForbiddenError("Only the review owner or platform admin can delete reviews.")
     await review_service.delete_review(review_id=review_id)
+
+
+@router.get("/admin/reviews/hidden", response_model=list[ReviewResponse])
+async def list_hidden_reviews(
+    _current_user: UserClaims = Depends(require_role(["PlatformAdmin"])),
+    review_service: ReviewServiceInterface = Depends(get_review_service),
+) -> list[ReviewResponse]:
+    return await review_service.get_hidden_reviews()

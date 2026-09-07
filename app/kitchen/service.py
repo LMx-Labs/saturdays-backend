@@ -8,8 +8,8 @@ from app.brand.repository import BrandRepositoryInterface
 from app.core.exceptions import (
     DomainInvariantError,
     EntityNotFoundError,
-    ForbiddenError,
 )
+from app.core.authorization import require_branch_access
 from app.kitchen.models import Kitchen
 from app.kitchen.repository import KitchenRepositoryInterface
 from app.kitchen.schemas import (
@@ -88,21 +88,7 @@ class KitchenService(KitchenServiceInterface):
                 error_code="BRANCH_NOT_FOUND",
             )
 
-        if role != "PlatformAdmin":
-            brand = await self.brand_repo.get_by_id(branch.brand_id)
-            merchant = (
-                await self.merchant_repo.get_by_id(brand.merchant_id) if brand else None
-            )
-            if (
-                not merchant or str(merchant.owner_user_id) != user_id
-            ) and role not in {
-                "BranchManager",
-                "MerchantOwner",
-            }:
-                raise ForbiddenError(
-                    message="You do not have permission to create a kitchen under this branch.",
-                    error_code="KITCHEN_CREATE_FORBIDDEN",
-                )
+        await require_branch_access(self.session, user_id, role, branch.id)
 
         kitchen = Kitchen(
             branch_id=branch.id,
@@ -131,6 +117,7 @@ class KitchenService(KitchenServiceInterface):
                 message=f"Kitchen unit with ID '{kitchen_id}' not found.",
                 error_code="KITCHEN_NOT_FOUND",
             )
+        await require_branch_access(self.session, user_id, role, kitchen.branch_id)
         return self._to_response(kitchen)
 
     async def list_branch_kitchens(
@@ -150,6 +137,7 @@ class KitchenService(KitchenServiceInterface):
                 message=f"Branch with ID '{branch_id}' not found.",
                 error_code="BRANCH_NOT_FOUND",
             )
+        await require_branch_access(self.session, user_id, role, branch.id)
 
         kitchens = await self.kitchen_repo.list_by_branch_id(
             branch_uuid, skip=skip, limit=limit
@@ -167,11 +155,7 @@ class KitchenService(KitchenServiceInterface):
                 error_code="KITCHEN_NOT_FOUND",
             )
 
-        if role != "PlatformAdmin" and role not in {"BranchManager", "MerchantOwner"}:
-            raise ForbiddenError(
-                message="You do not have permission to update this kitchen unit.",
-                error_code="KITCHEN_UPDATE_FORBIDDEN",
-            )
+        await require_branch_access(self.session, user_id, role, kitchen.branch_id)
 
         if req.name is not None:
             kitchen.name = req.name
@@ -191,11 +175,7 @@ class KitchenService(KitchenServiceInterface):
                 error_code="KITCHEN_NOT_FOUND",
             )
 
-        if role != "PlatformAdmin" and role not in {"BranchManager", "MerchantOwner"}:
-            raise ForbiddenError(
-                message="You do not have permission to delete this kitchen unit.",
-                error_code="KITCHEN_DELETE_FORBIDDEN",
-            )
+        await require_branch_access(self.session, user_id, role, kitchen.branch_id)
 
         await self.kitchen_repo.soft_delete(kitchen)
         await self.session.commit()

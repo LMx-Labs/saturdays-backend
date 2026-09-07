@@ -1,4 +1,6 @@
 from datetime import UTC, datetime, timedelta
+import hashlib
+import secrets
 from typing import Any
 
 import jwt
@@ -58,6 +60,7 @@ def create_access_token(
 def create_refresh_token(
     subject: str,
     expires_delta: timedelta | None = None,
+    session_id: str | None = None,
 ) -> str:
     """Issue signed 7-day JWT refresh token (INV-AUTH-003)."""
     now = datetime.now(UTC)
@@ -69,12 +72,23 @@ def create_refresh_token(
     payload: dict[str, Any] = {
         "sub": str(subject),
         "type": "refresh",
+        "jti": secrets.token_urlsafe(24),
         "iat": int(now.timestamp()),
         "exp": int(expire.timestamp()),
     }
+    if session_id:
+        payload["sid"] = session_id
     return jwt.encode(
         payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM
     )
+
+
+def generate_secure_token() -> str:
+    return secrets.token_urlsafe(48)
+
+
+def hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 def decode_token(token: str) -> dict[str, Any]:

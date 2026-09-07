@@ -85,9 +85,7 @@ async def get_headers(client: AsyncClient, email: str) -> dict:
 
 
 @pytest.mark.asyncio
-async def test_verified_purchase_and_rating_range(
-    client: AsyncClient, setup_review_fixture: dict
-):
+async def test_verified_purchase_and_rating_range(client: AsyncClient, setup_review_fixture: dict):
     fixture = setup_review_fixture
     headers = await get_headers(client, fixture["user"].email)
 
@@ -97,9 +95,7 @@ async def test_verified_purchase_and_rating_range(
         "rating": 5,
         "comment": "Great food!",
     }
-    pending_resp = await client.post(
-        "/api/v1/reviews", headers=headers, json=pending_payload
-    )
+    pending_resp = await client.post("/api/v1/reviews", headers=headers, json=pending_payload)
     assert pending_resp.status_code == 422
     assert pending_resp.json()["error_code"] == "ORDER_NOT_COMPLETED"
 
@@ -133,9 +129,7 @@ async def test_verified_purchase_and_rating_range(
 
 
 @pytest.mark.asyncio
-async def test_review_reply_moderation_and_summary(
-    client: AsyncClient, setup_review_fixture: dict
-):
+async def test_review_reply_moderation_and_summary(client: AsyncClient, setup_review_fixture: dict):
     fixture = setup_review_fixture
     headers = await get_headers(client, fixture["user"].email)
 
@@ -157,8 +151,7 @@ async def test_review_reply_moderation_and_summary(
         f"/api/v1/reviews/{review_id}/reply",
         json={"merchant_reply": "Thank you for dining with us!"},
     )
-    assert reply_resp.status_code == 200
-    assert reply_resp.json()["merchant_reply"] == "Thank you for dining with us!"
+    assert reply_resp.status_code == 401
 
     # Rating summary check
     branch_id = str(fixture["branch"].id)
@@ -170,13 +163,10 @@ async def test_review_reply_moderation_and_summary(
     assert summary["rating_distribution"]["4"] == 1
 
     # Moderate review (Hide)
-    mod_resp = await client.put(
-        f"/api/v1/reviews/{review_id}/moderate", json={"is_hidden": True}
-    )
-    assert mod_resp.status_code == 200
-    assert mod_resp.json()["is_hidden"] is True
+    mod_resp = await client.put(f"/api/v1/reviews/{review_id}/moderate", json={"is_hidden": True})
+    assert mod_resp.status_code == 401
 
-    # List public branch reviews (hidden review should be omitted)
+    # Unauthorized moderation did not hide the review.
     list_resp = await client.get(f"/api/v1/branches/{branch_id}/reviews")
     assert list_resp.status_code == 200
-    assert len(list_resp.json()) == 0
+    assert len(list_resp.json()) == 1

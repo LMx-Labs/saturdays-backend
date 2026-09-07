@@ -29,6 +29,10 @@ class ReviewRepositoryInterface(ABC):
         pass
 
     @abstractmethod
+    async def get_hidden_reviews(self) -> Sequence[Review]:
+        pass
+
+    @abstractmethod
     async def get_branch_rating_summary(self, branch_id: uuid.UUID) -> dict:
         pass
 
@@ -61,23 +65,27 @@ class ReviewRepository(ReviewRepositoryInterface):
         return res.scalar_one_or_none()
 
     async def get_by_order_id(self, order_id: uuid.UUID) -> Review | None:
-        stmt = select(Review).where(
-            Review.order_id == order_id, Review.deleted_at.is_(None)
-        )
+        stmt = select(Review).where(Review.order_id == order_id, Review.deleted_at.is_(None))
         res = await self.session.execute(stmt)
         return res.scalar_one_or_none()
 
     async def get_branch_reviews(
         self, branch_id: uuid.UUID, include_hidden: bool = False
     ) -> Sequence[Review]:
-        stmt = select(Review).where(
-            Review.branch_id == branch_id, Review.deleted_at.is_(None)
-        )
+        stmt = select(Review).where(Review.branch_id == branch_id, Review.deleted_at.is_(None))
         if not include_hidden:
             stmt = stmt.where(Review.is_hidden.is_(False))
         stmt = stmt.order_by(Review.created_at.desc())
         res = await self.session.execute(stmt)
         return res.scalars().all()
+
+    async def get_hidden_reviews(self) -> Sequence[Review]:
+        result = await self.session.execute(
+            select(Review)
+            .where(Review.is_hidden.is_(True), Review.deleted_at.is_(None))
+            .order_by(Review.updated_at.desc())
+        )
+        return result.scalars().all()
 
     async def get_branch_rating_summary(self, branch_id: uuid.UUID) -> dict:
         stmt = (

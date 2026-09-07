@@ -1,19 +1,38 @@
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.auth.models import User
+from app.core.security import hash_password
+
+
+async def provision_headers(
+    client: AsyncClient, db_session: AsyncSession, email: str, role: str
+) -> dict[str, str]:
+    db_session.add(
+        User(
+            email=email,
+            password_hash=hash_password("Password123!"),
+            role=role,
+            is_active=True,
+            is_verified=True,
+        )
+    )
+    await db_session.commit()
+    response = await client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": "Password123!"},
+    )
+    return {"Authorization": f"Bearer {response.json()['access_token']}"}
 
 
 @pytest.mark.asyncio
-async def test_merchant_onboarding_and_profile_flow(client: AsyncClient):
-    # 1. Register a MerchantOwner user
-    user_payload = {
-        "email": "owner1@saturdays.com",
-        "password": "Password123!",
-        "role": "MerchantOwner",
-    }
-    user_res = await client.post("/api/v1/auth/register", json=user_payload)
-    assert user_res.status_code == 201
-    access_token = user_res.json()["access_token"]
-    headers = {"Authorization": f"Bearer {access_token}"}
+async def test_merchant_onboarding_and_profile_flow(
+    client: AsyncClient, db_session: AsyncSession
+):
+    headers = await provision_headers(
+        client, db_session, "owner1@saturdays.com", "MerchantOwner"
+    )
 
     # 2. Onboard merchant profile
     onboard_payload = {
@@ -42,6 +61,10 @@ async def test_merchant_onboarding_and_profile_flow(client: AsyncClient):
     me_data = me_res.json()
     assert me_data["id"] == merchant_id
 
+    submit_res = await client.post("/api/v1/merchants/me/submit", headers=headers)
+    assert submit_res.status_code == 200
+    assert submit_res.json()["status"] == "PENDING_VERIFICATION"
+
     # 4. Fetch merchant by ID
     get_id_res = await client.get(f"/api/v1/merchants/{merchant_id}", headers=headers)
     assert get_id_res.status_code == 200
@@ -49,15 +72,12 @@ async def test_merchant_onboarding_and_profile_flow(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_merchant_validation_and_duplicate_checks(client: AsyncClient):
-    user_payload = {
-        "email": "owner2@saturdays.com",
-        "password": "Password123!",
-        "role": "MerchantOwner",
-    }
-    user_res = await client.post("/api/v1/auth/register", json=user_payload)
-    access_token = user_res.json()["access_token"]
-    headers = {"Authorization": f"Bearer {access_token}"}
+async def test_merchant_validation_and_duplicate_checks(
+    client: AsyncClient, db_session: AsyncSession
+):
+    headers = await provision_headers(
+        client, db_session, "owner2@saturdays.com", "MerchantOwner"
+    )
 
     # Invalid FSSAI license number (must be 14 digits)
     invalid_fssai_payload = {
@@ -90,14 +110,9 @@ async def test_merchant_validation_and_duplicate_checks(client: AsyncClient):
     assert res_dup_user.json()["error_code"] == "MERCHANT_ALREADY_EXISTS"
 
     # Duplicate GSTIN check for another user
-    user2_payload = {
-        "email": "owner3@saturdays.com",
-        "password": "Password123!",
-        "role": "MerchantOwner",
-    }
-    user2_res = await client.post("/api/v1/auth/register", json=user2_payload)
-    access_token2 = user2_res.json()["access_token"]
-    headers2 = {"Authorization": f"Bearer {access_token2}"}
+    headers2 = await provision_headers(
+        client, db_session, "owner3@saturdays.com", "MerchantOwner"
+    )
 
     dup_gstin_payload = {
         "business_name": "Another Store",
@@ -113,23 +128,15 @@ async def test_merchant_validation_and_duplicate_checks(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_merchant_status_lifecycle_and_rbac(client: AsyncClient):
-    # Register admin and merchant owner
-    admin_payload = {
-        "email": "admin@saturdays.com",
-        "password": "Password123!",
-        "role": "PlatformAdmin",
-    }
-    admin_res = await client.post("/api/v1/auth/register", json=admin_payload)
-    admin_headers = {"Authorization": f"Bearer {admin_res.json()['access_token']}"}
-
-    owner_payload = {
-        "email": "owner4@saturdays.com",
-        "password": "Password123!",
-        "role": "MerchantOwner",
-    }
-    owner_res = await client.post("/api/v1/auth/register", json=owner_payload)
-    owner_headers = {"Authorization": f"Bearer {owner_res.json()['access_token']}"}
+async def test_merchant_status_lifecycle_and_rbac(
+    client: AsyncClient, db_session: AsyncSession
+):
+    admin_headers = await provision_headers(
+        client, db_session, "admin@saturdays.com", "PlatformAdmin"
+    )
+    owner_headers = await provision_headers(
+        client, db_session, "owner4@saturdays.com", "MerchantOwner"
+    )
 
     customer_payload = {
         "email": "customer1@saturdays.com",

@@ -13,6 +13,7 @@ from app.branch.schemas import (
 from app.branch.service import BranchService, BranchServiceInterface
 from app.brand.repository import BrandRepository, BrandRepositoryInterface
 from app.core.database import get_db_session
+from app.core.authorization import require_branch_access
 from app.merchant.repository import MerchantRepository, MerchantRepositoryInterface
 
 router = APIRouter(prefix="/branches", tags=["Branch"])
@@ -75,15 +76,11 @@ async def list_branches(
 )
 async def create_branch(
     req: BranchCreateRequest,
-    current_user: UserClaims = Depends(
-        require_role(["BranchManager", "MerchantOwner", "PlatformAdmin"])
-    ),
+    current_user: UserClaims = Depends(require_role(["MerchantOwner", "PlatformAdmin"])),
     branch_service: BranchServiceInterface = Depends(get_branch_service),
 ) -> BranchResponse:
     is_admin = current_user.role == "PlatformAdmin"
-    return await branch_service.create_branch(
-        user_id=current_user.sub, is_admin=is_admin, req=req
-    )
+    return await branch_service.create_branch(user_id=current_user.sub, is_admin=is_admin, req=req)
 
 
 @router.get(
@@ -113,11 +110,12 @@ async def update_branch(
     current_user: UserClaims = Depends(
         require_role(["BranchManager", "MerchantOwner", "PlatformAdmin"])
     ),
+    session: AsyncSession = Depends(get_db_session),
     branch_service: BranchServiceInterface = Depends(get_branch_service),
 ) -> BranchResponse:
-    is_admin = current_user.role == "PlatformAdmin"
+    await require_branch_access(session, current_user.sub, current_user.role, branch_id)
     return await branch_service.update_branch(
-        branch_id=branch_id, user_id=current_user.sub, is_admin=is_admin, req=req
+        branch_id=branch_id, user_id=current_user.sub, is_admin=True, req=req
     )
 
 
@@ -134,11 +132,12 @@ async def update_branch_status(
     current_user: UserClaims = Depends(
         require_role(["BranchManager", "MerchantOwner", "PlatformAdmin"])
     ),
+    session: AsyncSession = Depends(get_db_session),
     branch_service: BranchServiceInterface = Depends(get_branch_service),
 ) -> BranchResponse:
-    is_admin = current_user.role == "PlatformAdmin"
+    await require_branch_access(session, current_user.sub, current_user.role, branch_id)
     return await branch_service.update_branch_status(
-        branch_id=branch_id, user_id=current_user.sub, is_admin=is_admin, req=req
+        branch_id=branch_id, user_id=current_user.sub, is_admin=True, req=req
     )
 
 
@@ -150,12 +149,9 @@ async def update_branch_status(
 )
 async def delete_branch(
     branch_id: str,
-    current_user: UserClaims = Depends(
-        require_role(["MerchantOwner", "PlatformAdmin"])
-    ),
+    current_user: UserClaims = Depends(require_role(["MerchantOwner", "PlatformAdmin"])),
+    session: AsyncSession = Depends(get_db_session),
     branch_service: BranchServiceInterface = Depends(get_branch_service),
 ) -> None:
-    is_admin = current_user.role == "PlatformAdmin"
-    await branch_service.delete_branch(
-        branch_id=branch_id, user_id=current_user.sub, is_admin=is_admin
-    )
+    await require_branch_access(session, current_user.sub, current_user.role, branch_id)
+    await branch_service.delete_branch(branch_id=branch_id, user_id=current_user.sub, is_admin=True)

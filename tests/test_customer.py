@@ -69,6 +69,14 @@ async def test_customer_address_primary_invariants(client: AsyncClient):
     addr2 = resp2.json()
     assert addr2["is_primary"] is False
 
+    edit_resp = await client.put(
+        f"/api/v1/customers/me/addresses/{addr2['id']}",
+        headers=headers,
+        json={"building_name": "Library Gate", "campus_zone": "Academic Block"},
+    )
+    assert edit_resp.status_code == 200
+    assert edit_resp.json()["building_name"] == "Library Gate"
+
     # Set second address as primary
     resp_pri = await client.put(
         f"/api/v1/customers/me/addresses/{addr2['id']}/primary", headers=headers

@@ -38,6 +38,11 @@ dev = [
     "black>=24.0.0",
     "mypy>=1.9.0",
 ]
+docs = [
+    "markdown>=3.7.0",
+    "pypdf>=5.0.0",
+    "xhtml2pdf>=0.2.16",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

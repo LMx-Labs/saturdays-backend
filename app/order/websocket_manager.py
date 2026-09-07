@@ -12,7 +12,15 @@ class OrderWebSocketManager:
         self.active_connections: dict[uuid.UUID, list[WebSocket]] = {}
 
     async def connect(self, branch_id: uuid.UUID, websocket: WebSocket) -> None:
-        await websocket.accept()
+        offered = [
+            value.strip()
+            for value in websocket.headers.get("sec-websocket-protocol", "").split(",")
+            if value.strip()
+        ]
+        subprotocol = (
+            offered[0] if offered and offered[0].lower() in {"bearer", "access_token"} else None
+        )
+        await websocket.accept(subprotocol=subprotocol)
         if branch_id not in self.active_connections:
             self.active_connections[branch_id] = []
         self.active_connections[branch_id].append(websocket)
@@ -24,9 +32,7 @@ class OrderWebSocketManager:
             if not self.active_connections[branch_id]:
                 del self.active_connections[branch_id]
 
-    async def broadcast_to_branch(
-        self, branch_id: uuid.UUID, message: dict[str, Any]
-    ) -> None:
+    async def broadcast_to_branch(self, branch_id: uuid.UUID, message: dict[str, Any]) -> None:
         if branch_id in self.active_connections:
             for connection in list(self.active_connections[branch_id]):
                 try:

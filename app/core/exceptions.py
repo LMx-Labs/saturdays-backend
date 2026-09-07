@@ -1,6 +1,7 @@
 from typing import Any
 
 from fastapi import FastAPI, Request, status
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
@@ -151,10 +152,6 @@ async def saturdays_exception_handler(request: Request, exc: Exception) -> JSONR
             "correlation_id": correlation_id,
         },
     )
-
-
-from fastapi.encoders import jsonable_encoder
-
 
 def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(AppException, saturdays_exception_handler)

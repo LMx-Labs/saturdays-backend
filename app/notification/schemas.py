@@ -22,4 +22,16 @@ class NotificationResponse(BaseModel):
     body: str
     status: str
     vendor_message_id: str | None = None
+    is_read: bool = False
+    read_at: datetime | None = None
     created_at: datetime
+
+
+class NotificationPreferences(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    email_enabled: bool = True
+    sms_enabled: bool = False
+    push_enabled: bool = True
+    order_updates: bool = True
+    marketing: bool = False

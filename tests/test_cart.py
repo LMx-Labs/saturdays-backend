@@ -9,6 +9,7 @@ from app.auth.models import User
 from app.branch.models import Branch
 from app.brand.models import Brand
 from app.cart.models import Cart
+from app.core.config import settings
 from app.core.security import hash_password
 from app.menu.models import Menu, MenuCategory, MenuItem
 from app.merchant.models import Merchant
@@ -242,9 +243,17 @@ async def test_cart_expiry_and_purge(
     db_session.add(old_cart)
     await db_session.commit()
 
-    # Call purge endpoint
+    denied = await client.delete(
+        "/api/v1/cart/purge-expired",
+        params={"max_age_days": 7},
+        headers={"X-Internal-Cleanup-Key": "wrong"},
+    )
+    assert denied.status_code == 403
+
     purge_resp = await client.delete(
-        "/api/v1/cart/purge-expired", params={"max_age_days": 7}
+        "/api/v1/cart/purge-expired",
+        params={"max_age_days": 7},
+        headers={"X-Internal-Cleanup-Key": settings.INTERNAL_CLEANUP_KEY},
     )
     assert purge_resp.status_code == 200
     assert purge_resp.json()["purged_count"] >= 1

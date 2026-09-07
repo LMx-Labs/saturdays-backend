@@ -43,6 +43,11 @@ venv.bak/
 .coverage
 htmlcov/
 
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+
 # Database & Storage
 *.sqlite3
 *.db

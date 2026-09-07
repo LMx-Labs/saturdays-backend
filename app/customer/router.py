@@ -10,6 +10,7 @@ from app.customer.repository import CustomerRepository, CustomerRepositoryInterf
 from app.customer.schemas import (
     CustomerAddressCreate,
     CustomerAddressResponse,
+    CustomerAddressUpdate,
     CustomerFavoriteCreate,
     CustomerFavoriteResponse,
     CustomerProfileResponse,
@@ -106,6 +107,23 @@ async def set_primary_address(
 ) -> CustomerAddressResponse:
     return await customer_service.set_primary_address(
         user_id=uuid.UUID(current_user.sub), address_id=address_id
+    )
+
+
+@router.put(
+    "/me/addresses/{address_id}",
+    response_model=CustomerAddressResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Update customer delivery address",
+)
+async def update_address(
+    address_id: uuid.UUID,
+    req: CustomerAddressUpdate,
+    current_user: UserClaims = Depends(get_current_user),
+    customer_service: CustomerServiceInterface = Depends(get_customer_service),
+) -> CustomerAddressResponse:
+    return await customer_service.update_address(
+        user_id=uuid.UUID(current_user.sub), address_id=address_id, req=req
     )
 
 

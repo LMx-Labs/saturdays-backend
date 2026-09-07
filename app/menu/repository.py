@@ -48,6 +48,7 @@ class MenuRepository(MenuRepositoryInterface):
         stmt = (
             select(Menu)
             .where(Menu.branch_id == branch_id, Menu.deleted_at.is_(None))
+            .execution_options(populate_existing=True)
             .options(
                 selectinload(Menu.categories)
                 .selectinload(MenuCategory.items)
@@ -67,7 +68,10 @@ class MenuRepository(MenuRepositoryInterface):
         stmt = (
             select(MenuCategory)
             .where(MenuCategory.id == category_id, MenuCategory.deleted_at.is_(None))
-            .options(selectinload(MenuCategory.menu))
+            .options(
+                selectinload(MenuCategory.menu),
+                selectinload(MenuCategory.items).selectinload(MenuItem.modifiers),
+            )
         )
         result = await self.session.execute(stmt)
         return result.scalars().first()

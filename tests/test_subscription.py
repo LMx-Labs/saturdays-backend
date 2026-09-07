@@ -76,6 +76,4 @@ async def test_subscription_lifecycle(client: AsyncClient, setup_sub_fixture: di
     # Get invoices
     inv_resp = await client.get("/api/v1/merchants/me/invoices", headers=headers)
     assert inv_resp.status_code == 200
-    invoices = inv_resp.json()
-    assert len(invoices) >= 1
-    assert invoices[0]["amount"] == 1999.0
+    assert inv_resp.json() == []

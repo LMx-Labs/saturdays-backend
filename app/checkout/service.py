@@ -1,22 +1,25 @@
 import uuid
 from abc import ABC, abstractmethod
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.checkout.repository import CheckoutRepositoryInterface
+from app.checkout.models import CheckoutQuote
 from app.checkout.schemas import (
     CheckoutIssue,
     CheckoutItemSummary,
     CheckoutValidateRequest,
     CheckoutValidationResponse,
 )
+from app.core.config import settings
 from app.coupon.repository import CouponRepository, CouponRepositoryInterface
 from app.coupon.schemas import CouponValidateRequest as CouponCodeValidateRequest
 from app.coupon.service import CouponService, CouponServiceInterface
 from app.customer.repository import CustomerRepository
-from app.menu.models import MenuItem
+from app.menu.models import MenuCategory, MenuItem
 
 
 class CheckoutServiceInterface(ABC):
@@ -72,15 +75,19 @@ class CheckoutService(CheckoutServiceInterface):
         try:
             cart_uuid = uuid.UUID(req.cart_id)
         except ValueError:
-            issues.append(
-                CheckoutIssue(code="INVALID_UUID", message="Invalid cart UUID format.")
-            )
+            issues.append(CheckoutIssue(code="INVALID_UUID", message="Invalid cart UUID format."))
             return self._build_empty_response(req.cart_id, issues)
 
         cart = await self.checkout_repo.get_cart_with_items(cart_uuid)
         if not cart or not cart.items:
+            issues.append(CheckoutIssue(code="CART_EMPTY", message="Cart is empty or not found."))
+            return self._build_empty_response(req.cart_id, issues, cust_id)
+        if not profile or cart.customer_profile_id != profile.id:
             issues.append(
-                CheckoutIssue(code="CART_EMPTY", message="Cart is empty or not found.")
+                CheckoutIssue(
+                    code="CART_OWNERSHIP_MISMATCH",
+                    message="Cart does not belong to the authenticated customer.",
+                )
             )
             return self._build_empty_response(req.cart_id, issues, cust_id)
 
@@ -129,18 +136,29 @@ class CheckoutService(CheckoutServiceInterface):
 
         # 5. Inventory Availability Verification (INV-0005) & Subtotal Math
         item_summaries: list[CheckoutItemSummary] = []
+        item_snapshots: list[dict] = []
         subtotal = 0.0
 
         for cart_item in cart.items:
             # Fetch menu item details
-            stmt_menu = select(MenuItem).where(
-                MenuItem.id == cart_item.menu_item_id,
-                MenuItem.deleted_at.is_(None),
+            stmt_menu = (
+                select(MenuItem)
+                .where(
+                    MenuItem.id == cart_item.menu_item_id,
+                    MenuItem.deleted_at.is_(None),
+                )
+                .options(selectinload(MenuItem.category).selectinload(MenuCategory.menu))
             )
             res_menu = await self.session.execute(stmt_menu)
             menu_item = res_menu.scalar_one_or_none()
 
-            if not menu_item or not menu_item.is_available:
+            belongs_to_branch = bool(
+                menu_item
+                and menu_item.category
+                and menu_item.category.menu
+                and menu_item.category.menu.branch_id == branch_uuid
+            )
+            if not menu_item or not menu_item.is_available or not belongs_to_branch:
                 issues.append(
                     CheckoutIssue(
                         code="ITEM_UNAVAILABLE",
@@ -159,12 +177,13 @@ class CheckoutService(CheckoutServiceInterface):
                 inv = await self.checkout_repo.get_inventory_item(
                     branch_uuid, cart_item.menu_item_id
                 )
-                if inv and (not inv.is_in_stock or inv.quantity < cart_item.quantity):
+                if not inv or not inv.is_in_stock or inv.quantity < cart_item.quantity:
                     is_avail = False
+                    available = inv.quantity if inv else 0
                     issues.append(
                         CheckoutIssue(
                             code="INSUFFICIENT_STOCK",
-                            message=f"Item '{menu_item.name}' has insufficient stock (available: {inv.quantity}, requested: {cart_item.quantity}).",
+                            message=f"Item '{menu_item.name}' has insufficient stock (available: {available}, requested: {cart_item.quantity}).",
                         )
                     )
 
@@ -181,9 +200,19 @@ class CheckoutService(CheckoutServiceInterface):
                     is_available=is_avail,
                 )
             )
+            item_snapshots.append(
+                {
+                    "menu_item_id": str(cart_item.menu_item_id),
+                    "name": item_name,
+                    "unit_price": unit_price,
+                    "quantity": cart_item.quantity,
+                    "selected_modifiers": cart_item.selected_modifiers,
+                }
+            )
 
         # 6. Validate Coupon & Discount Amount
         discount_amount = 0.0
+        coupon_id = None
         if req.coupon_code:
             try:
                 c_req = CouponCodeValidateRequest(
@@ -195,28 +224,77 @@ class CheckoutService(CheckoutServiceInterface):
                     user_id=user_uuid,
                     req=c_req,
                 )
+                coupon_id = coupon_val.coupon_id
                 discount_amount = min(coupon_val.discount_amount, subtotal)
             except Exception as exc:  # noqa: BLE001
                 issues.append(
                     CheckoutIssue(
                         code="INVALID_COUPON",
-                        message=getattr(
-                            exc, "message", "Coupon code is invalid or expired."
-                        ),
+                        message=getattr(exc, "message", "Coupon code is invalid or expired."),
                     )
                 )
 
         # 7. Financial Calculations (Tax, Delivery Fee, Final Payable)
         tax_amount = round(subtotal * 0.05, 2)  # 5% GST tax
         delivery_fee = 30.00  # Flat standard delivery fee
-        final_payable = round(
-            max(0.0, subtotal + tax_amount + delivery_fee - discount_amount), 2
-        )
+        final_payable = round(max(0.0, subtotal + tax_amount + delivery_fee - discount_amount), 2)
 
         is_valid = len(issues) == 0
+        address_id = None
+        address_snapshot: dict = {}
+        if req.delivery_address_id:
+            try:
+                address_id = uuid.UUID(req.delivery_address_id)
+            except ValueError:
+                issues.append(
+                    CheckoutIssue(
+                        code="INVALID_ADDRESS_ID",
+                        message="Invalid delivery address UUID format.",
+                    )
+                )
+            else:
+                address = await self.checkout_repo.get_address(address_id, profile.id)
+                if not address:
+                    issues.append(
+                        CheckoutIssue(
+                            code="ADDRESS_NOT_FOUND",
+                            message="Delivery address was not found for this customer.",
+                        )
+                    )
+                else:
+                    address_snapshot = {
+                        "address_line": address.address_line,
+                        "building_name": address.building_name,
+                        "campus_zone": address.campus_zone,
+                    }
+
+        is_valid = len(issues) == 0
+        quote = None
+        if is_valid:
+            quote = CheckoutQuote(
+                customer_profile_id=profile.id,
+                cart_id=cart.id,
+                branch_id=branch_uuid,
+                delivery_address_id=address_id,
+                coupon_id=coupon_id,
+                subtotal=round(subtotal, 2),
+                discount_amount=round(discount_amount, 2),
+                tax_amount=tax_amount,
+                delivery_fee=delivery_fee,
+                final_amount=final_payable,
+                currency="INR",
+                items_snapshot=item_snapshots,
+                address_snapshot=address_snapshot,
+                expires_at=datetime.now(UTC)
+                + timedelta(minutes=settings.CHECKOUT_QUOTE_TTL_MINUTES),
+            )
+            await self.checkout_repo.create_quote(quote)
+            await self.session.commit()
 
         return CheckoutValidationResponse(
             is_valid=is_valid,
+            quote_id=quote.id if quote else None,
+            quote_expires_at=quote.expires_at if quote else None,
             customer_id=cust_id,
             branch_id=str(branch_uuid),
             branch_name=branch_name,

@@ -25,9 +25,7 @@ PLAN_DETAILS = {
 
 class SubscriptionServiceInterface(ABC):
     @abstractmethod
-    async def get_active_subscription(
-        self, user_id: uuid.UUID
-    ) -> MerchantSubscriptionResponse:
+    async def get_active_subscription(self, user_id: uuid.UUID) -> MerchantSubscriptionResponse:
         pass
 
     @abstractmethod
@@ -55,9 +53,7 @@ class SubscriptionServiceInterface(ABC):
         pass
 
     @abstractmethod
-    async def get_merchant_invoices(
-        self, user_id: uuid.UUID
-    ) -> list[SubscriptionInvoiceResponse]:
+    async def get_merchant_invoices(self, user_id: uuid.UUID) -> list[SubscriptionInvoiceResponse]:
         pass
 
     @abstractmethod
@@ -84,9 +80,7 @@ class SubscriptionService(SubscriptionServiceInterface):
             )
         return merchant
 
-    def _to_sub_response(
-        self, sub: MerchantSubscription
-    ) -> MerchantSubscriptionResponse:
+    def _to_sub_response(self, sub: MerchantSubscription) -> MerchantSubscriptionResponse:
         tier_info = PLAN_DETAILS.get(sub.plan_tier, PLAN_DETAILS["BASIC"])
         return MerchantSubscriptionResponse(
             id=sub.id,
@@ -101,9 +95,7 @@ class SubscriptionService(SubscriptionServiceInterface):
             updated_at=sub.updated_at,
         )
 
-    async def get_active_subscription(
-        self, user_id: uuid.UUID
-    ) -> MerchantSubscriptionResponse:
+    async def get_active_subscription(self, user_id: uuid.UUID) -> MerchantSubscriptionResponse:
         merchant = await self._get_merchant_by_user_id(user_id)
         sub = await self.sub_repo.get_active_subscription(merchant.id)
         if not sub:
@@ -144,9 +136,7 @@ class SubscriptionService(SubscriptionServiceInterface):
 
         existing_sub = await self.sub_repo.get_active_subscription(merchant.id)
         if existing_sub:
-            await self.sub_repo.update_subscription(
-                existing_sub, {"status": "SUPERSEDED"}
-            )
+            await self.sub_repo.update_subscription(existing_sub, {"status": "SUPERSEDED"})
 
         sub = MerchantSubscription(
             merchant_id=merchant.id,
@@ -186,9 +176,7 @@ class SubscriptionService(SubscriptionServiceInterface):
 
         # Extend existing subscription
         current_expiry = (
-            sub.valid_until
-            if sub.valid_until.tzinfo
-            else sub.valid_until.replace(tzinfo=UTC)
+            sub.valid_until if sub.valid_until.tzinfo else sub.valid_until.replace(tzinfo=UTC)
         )
         base_time = max(now, current_expiry)
         new_expiry = base_time + timedelta(days=30 * req.duration_months)
@@ -199,9 +187,7 @@ class SubscriptionService(SubscriptionServiceInterface):
             tier = req.plan_tier.upper()
             if tier in PLAN_DETAILS:
                 update_data["plan_tier"] = tier
-                update_data["commission_rate_percentage"] = PLAN_DETAILS[tier][
-                    "commission_rate"
-                ]
+                update_data["commission_rate_percentage"] = PLAN_DETAILS[tier]["commission_rate"]
 
         updated = await self.sub_repo.update_subscription(sub, update_data)
         await self.session.commit()
@@ -239,29 +225,9 @@ class SubscriptionService(SubscriptionServiceInterface):
         commissions = await self.sub_repo.get_merchant_commissions(merchant.id)
         return [PlatformCommissionResponse.model_validate(c) for c in commissions]
 
-    async def get_merchant_invoices(
-        self, user_id: uuid.UUID
-    ) -> list[SubscriptionInvoiceResponse]:
-        merchant = await self._get_merchant_by_user_id(user_id)
-        sub = await self.sub_repo.get_active_subscription(merchant.id)
-        if not sub:
-            return []
-
-        tier_info = PLAN_DETAILS.get(sub.plan_tier, PLAN_DETAILS["BASIC"])
-        inv_num = f"INV-SUB-{sub.id.hex[:8].upper()}"
-
-        return [
-            SubscriptionInvoiceResponse(
-                invoice_number=inv_num,
-                merchant_id=merchant.id,
-                subscription_id=sub.id,
-                plan_tier=sub.plan_tier,
-                amount=tier_info["price"],
-                billing_cycle=sub.billing_cycle,
-                valid_until=sub.valid_until,
-                issued_at=sub.created_at,
-            )
-        ]
+    async def get_merchant_invoices(self, user_id: uuid.UUID) -> list[SubscriptionInvoiceResponse]:
+        await self._get_merchant_by_user_id(user_id)
+        return []
 
     async def validate_branch_limit(self, merchant_id: uuid.UUID) -> None:
         sub = await self.sub_repo.get_active_subscription(merchant_id)

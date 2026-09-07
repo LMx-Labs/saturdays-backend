@@ -13,6 +13,11 @@ class MenuModifierCreate(MenuModifierBase):
     pass
 
 
+class MenuModifierUpdate(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=100)
+    price_delta: float | None = Field(None, ge=0)
+
+
 class MenuModifierResponse(MenuModifierBase):
     model_config = ConfigDict(from_attributes=True)
 
@@ -64,6 +69,11 @@ class MenuCategoryCreate(MenuCategoryBase):
     pass
 
 
+class MenuCategoryUpdate(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=100)
+    display_order: int | None = Field(None, ge=0)
+
+
 class MenuCategoryResponse(MenuCategoryBase):
     model_config = ConfigDict(from_attributes=True)
 
@@ -77,6 +87,11 @@ class MenuCategoryResponse(MenuCategoryBase):
 class MenuCreate(BaseModel):
     name: str = Field(default="Main Menu", max_length=100)
     is_active: bool = True
+
+
+class MenuUpdate(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=100)
+    is_active: bool | None = None
 
 
 class MenuResponse(BaseModel):

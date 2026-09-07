@@ -7,7 +7,8 @@ from sqlalchemy.orm import selectinload
 
 from app.branch.models import Branch
 from app.cart.models import Cart
-from app.customer.models import CustomerProfile
+from app.checkout.models import CheckoutQuote
+from app.customer.models import CustomerAddress, CustomerProfile
 from app.inventory.models import InventoryItem
 from app.kitchen.models import Kitchen
 
@@ -36,6 +37,16 @@ class CheckoutRepositoryInterface(ABC):
         self, branch_id: uuid.UUID, menu_item_id: uuid.UUID
     ) -> InventoryItem | None:
         """Fetch inventory item stock status."""
+
+    @abstractmethod
+    async def get_address(
+        self, address_id: uuid.UUID, customer_profile_id: uuid.UUID
+    ) -> CustomerAddress | None:
+        """Fetch an address owned by the customer."""
+
+    @abstractmethod
+    async def create_quote(self, quote: CheckoutQuote) -> CheckoutQuote:
+        """Persist a checkout quote."""
 
 
 class CheckoutRepository(CheckoutRepositoryInterface):
@@ -89,3 +100,18 @@ class CheckoutRepository(CheckoutRepositoryInterface):
         )
         res = await self.session.execute(stmt)
         return res.scalar_one_or_none()
+
+    async def get_address(
+        self, address_id: uuid.UUID, customer_profile_id: uuid.UUID
+    ) -> CustomerAddress | None:
+        stmt = select(CustomerAddress).where(
+            CustomerAddress.id == address_id,
+            CustomerAddress.customer_profile_id == customer_profile_id,
+            CustomerAddress.deleted_at.is_(None),
+        )
+        return (await self.session.execute(stmt)).scalar_one_or_none()
+
+    async def create_quote(self, quote: CheckoutQuote) -> CheckoutQuote:
+        self.session.add(quote)
+        await self.session.flush()
+        return quote

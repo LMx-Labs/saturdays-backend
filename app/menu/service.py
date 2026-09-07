@@ -70,7 +70,7 @@ class MenuService(MenuServiceInterface):
 
         menu = await self.menu_repo.create_menu(branch_id=branch_id, name=req.name)
         await self.session.commit()
-        return menu
+        return await self.menu_repo.get_menu_by_branch_id(menu.branch_id)
 
     async def create_category(
         self, branch_id: uuid.UUID, req: MenuCategoryCreate
@@ -83,7 +83,7 @@ class MenuService(MenuServiceInterface):
             menu_id=menu.id, name=req.name, display_order=req.display_order
         )
         await self.session.commit()
-        return category
+        return await self.menu_repo.get_category_by_id(category.id)
 
     async def create_menu_item(
         self, branch_id: uuid.UUID, req: MenuItemCreate

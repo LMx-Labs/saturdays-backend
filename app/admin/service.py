@@ -1,11 +1,8 @@
 import uuid
 from abc import ABC, abstractmethod
-from datetime import UTC, datetime
-from typing import Any
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.admin.models import AdminAuditLog, Banner
+from app.admin.models import AdminAuditLog, Banner, FeatureFlag
 from app.admin.repository import AdminRepositoryInterface
 from app.admin.schemas import (
     AdminAuditLogResponse,
@@ -23,8 +20,7 @@ from app.coupon.schemas import CouponCreate, CouponResponse
 from app.coupon.service import CouponServiceInterface
 from app.merchant.repository import MerchantRepositoryInterface
 
-# In-memory operational system feature flags
-SYSTEM_FEATURE_FLAGS: dict[str, dict[str, Any]] = {
+DEFAULT_FEATURE_FLAGS = {
     "EMERGENCY_MAINTENANCE_MODE": {
         "enabled": False,
         "value": None,
@@ -243,9 +239,17 @@ class AdminService(AdminServiceInterface):
         await self.session.commit()
 
     async def get_feature_flags(self) -> list[FeatureFlagResponse]:
+        flags = await self.admin_repo.get_feature_flags()
+        if not flags:
+            for key, value in DEFAULT_FEATURE_FLAGS.items():
+                await self.admin_repo.upsert_feature_flag(
+                    FeatureFlag(key=key, enabled=value["enabled"], value=value.get("value"))
+                )
+            await self.session.commit()
+            flags = await self.admin_repo.get_feature_flags()
         return [
-            FeatureFlagResponse(flag_key=k, enabled=v["enabled"], value=v.get("value"))
-            for k, v in SYSTEM_FEATURE_FLAGS.items()
+            FeatureFlagResponse(flag_key=flag.key, enabled=flag.enabled, value=flag.value)
+            for flag in flags
         ]
 
     async def update_feature_flag(
@@ -255,15 +259,13 @@ class AdminService(AdminServiceInterface):
         req: FeatureFlagUpdate,
         ip_address: str = "127.0.0.1",
     ) -> FeatureFlagResponse:
-        if flag_key not in SYSTEM_FEATURE_FLAGS:
-            SYSTEM_FEATURE_FLAGS[flag_key] = {
-                "enabled": req.enabled,
-                "value": req.value,
-                "description": "Custom system feature flag",
-            }
-        else:
-            SYSTEM_FEATURE_FLAGS[flag_key]["enabled"] = req.enabled
-            SYSTEM_FEATURE_FLAGS[flag_key]["value"] = req.value
+        flag = await self.session.get(FeatureFlag, flag_key)
+        if not flag:
+            flag = FeatureFlag(key=flag_key)
+        flag.enabled = req.enabled
+        flag.value = req.value
+        flag.updated_by_user_id = admin_user_id
+        await self.admin_repo.upsert_feature_flag(flag)
 
         await self._write_audit_log(
             admin_user_id=admin_user_id,
@@ -291,8 +293,17 @@ class AdminService(AdminServiceInterface):
         req: RefundOverrideRequest,
         ip_address: str = "127.0.0.1",
     ) -> RefundOverrideResponse:
-        refund_tx_id = f"ref_override_{uuid.uuid4().hex[:12]}"
-        now = datetime.now(UTC)
+        from app.payment.repository import PaymentRepository
+        from app.payment.schemas import RefundCreateRequest
+        from app.payment.service import PaymentService
+
+        refund_tx = await PaymentService(
+            self.session, PaymentRepository(self.session)
+        ).refund_payment(
+            req.payment_id,
+            RefundCreateRequest(amount=req.amount, reason=req.reason),
+        )
+        now = refund_tx.created_at
 
         await self._write_audit_log(
             admin_user_id=admin_user_id,
@@ -300,7 +311,7 @@ class AdminService(AdminServiceInterface):
             target_entity="payments",
             target_entity_id=req.payment_id,
             changes_payload={
-                "refund_transaction_id": refund_tx_id,
+                "refund_transaction_id": str(refund_tx.id),
                 "amount": req.amount,
                 "reason": req.reason,
             },
@@ -309,7 +320,7 @@ class AdminService(AdminServiceInterface):
         await self.session.commit()
 
         return RefundOverrideResponse(
-            refund_transaction_id=refund_tx_id,
+            refund_transaction_id=str(refund_tx.id),
             payment_id=req.payment_id,
             amount=req.amount,
             status="PROCESSED",
@@ -319,7 +330,7 @@ class AdminService(AdminServiceInterface):
 
     async def get_audit_logs(self, limit: int = 50) -> list[AdminAuditLogResponse]:
         logs = await self.admin_repo.get_audit_logs(limit=limit)
-        return [AdminAuditLogResponse.model_validate(l) for l in logs]
+        return [AdminAuditLogResponse.model_validate(log) for log in logs]
 
     async def get_analytics_overview(self) -> PlatformAnalyticsOverview:
         stats = await self.admin_repo.get_analytics_overview()

@@ -3,17 +3,8 @@ from httpx import AsyncClient
 
 
 @pytest.mark.asyncio
-async def test_branch_crud_flow(client: AsyncClient):
-    # 1. Register merchant owner
-    user_payload = {
-        "email": "branchowner@saturdays.com",
-        "password": "Password123!",
-        "role": "MerchantOwner",
-    }
-    user_res = await client.post("/api/v1/auth/register", json=user_payload)
-    assert user_res.status_code == 201
-    access_token = user_res.json()["access_token"]
-    headers = {"Authorization": f"Bearer {access_token}"}
+async def test_branch_crud_flow(client: AsyncClient, provision_headers):
+    headers = await provision_headers("branchowner@saturdays.com", "MerchantOwner")
 
     # 2. Onboard merchant & brand
     merchant_res = await client.post(
@@ -44,9 +35,7 @@ async def test_branch_crud_flow(client: AsyncClient):
         "opening_time": "09:00:00",
         "closing_time": "22:00:00",
     }
-    branch_res = await client.post(
-        "/api/v1/branches", json=branch_payload, headers=headers
-    )
+    branch_res = await client.post("/api/v1/branches", json=branch_payload, headers=headers)
     assert branch_res.status_code == 201
     branch_data = branch_res.json()
     assert branch_data["name"] == "Burger Shack VIT Main Campus"
@@ -55,6 +44,10 @@ async def test_branch_crud_flow(client: AsyncClient):
     assert branch_data["opening_time"] == "09:00:00"
     assert branch_data["closing_time"] == "22:00:00"
     branch_id = branch_data["id"]
+
+    owned_res = await client.get("/api/v1/merchants/me/branches", headers=headers)
+    assert owned_res.status_code == 200
+    assert [branch["id"] for branch in owned_res.json()] == [branch_id]
 
     # 4. Get branch by ID
     get_res = await client.get(f"/api/v1/branches/{branch_id}")
@@ -95,7 +88,7 @@ async def test_branch_crud_flow(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_branch_invariants_and_rbac(client: AsyncClient):
+async def test_branch_invariants_and_rbac(client: AsyncClient, provision_headers):
     # Customer tries to create branch -> 403 Forbidden
     cust_payload = {
         "email": "custbranch@saturdays.com",
@@ -116,14 +109,8 @@ async def test_branch_invariants_and_rbac(client: AsyncClient):
     )
     assert res_cust.status_code == 403
 
-    # BranchManager tries to create branch under non-existent brand (INV-BRANCH-001)
-    mgr_payload = {
-        "email": "mgrbranch@saturdays.com",
-        "password": "Password123!",
-        "role": "BranchManager",
-    }
-    mgr_res = await client.post("/api/v1/auth/register", json=mgr_payload)
-    mgr_headers = {"Authorization": f"Bearer {mgr_res.json()['access_token']}"}
+    # Branch managers cannot create new merchant locations.
+    mgr_headers = await provision_headers("mgrbranch@saturdays.com", "BranchManager")
 
     res_orphan = await client.post(
         "/api/v1/branches",
@@ -134,5 +121,4 @@ async def test_branch_invariants_and_rbac(client: AsyncClient):
         },
         headers=mgr_headers,
     )
-    assert res_orphan.status_code == 404
-    assert res_orphan.json()["error_code"] == "BRAND_NOT_FOUND"
+    assert res_orphan.status_code == 403

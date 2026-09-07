@@ -1,6 +1,7 @@
+import secrets
 import uuid
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Header, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.router import get_current_user
@@ -13,7 +14,9 @@ from app.cart.schemas import (
     CartValidationResponse,
 )
 from app.cart.service import CartService, CartServiceInterface
+from app.core.config import settings
 from app.core.database import get_db_session
+from app.core.exceptions import ForbiddenError
 from app.customer.repository import CustomerRepository, CustomerRepositoryInterface
 
 router = APIRouter(prefix="/cart", tags=["Cart"])
@@ -133,7 +136,10 @@ async def validate_cart(
 )
 async def purge_expired_carts(
     max_age_days: int = Query(7, ge=1, le=30),
+    x_internal_cleanup_key: str = Header(..., alias="X-Internal-Cleanup-Key"),
     cart_service: CartServiceInterface = Depends(get_cart_service),
 ) -> dict:
+    if not secrets.compare_digest(x_internal_cleanup_key, settings.INTERNAL_CLEANUP_KEY):
+        raise ForbiddenError("Invalid internal cleanup key.", "INVALID_INTERNAL_CLEANUP_KEY")
     purged_count = await cart_service.purge_expired_carts(max_age_days=max_age_days)
     return {"purged_count": purged_count, "max_age_days": max_age_days}
