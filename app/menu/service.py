@@ -129,7 +129,7 @@ class MenuService(MenuServiceInterface):
             base_price=float(created_item.base_price),
         )
 
-        return created_item
+        return await self.get_menu_item(created_item.id)
 
     async def get_menu_item(self, item_id: uuid.UUID) -> MenuItem:
         item = await self.menu_repo.get_menu_item_by_id(item_id)
@@ -164,6 +164,6 @@ class MenuService(MenuServiceInterface):
         if req.is_veg is not None:
             item.is_veg = req.is_veg
 
-        updated = await self.menu_repo.update_menu_item(item)
+        await self.menu_repo.update_menu_item(item)
         await self.session.commit()
-        return updated
+        return await self.get_menu_item(item_id)
