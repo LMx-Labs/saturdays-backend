@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.router import get_current_user
 from app.auth.schemas import UserClaims
 from app.core.database import get_db_session
-from app.core.exceptions import EntityNotFoundError
+from app.core.exceptions import EntityNotFoundError, ForbiddenError
 from app.customer.repository import CustomerRepository
 from app.order.repository import OrderRepository, OrderRepositoryInterface
 from app.order.schemas import (
@@ -25,6 +25,38 @@ from app.order.service import OrderService, OrderServiceInterface
 from app.order.websocket_manager import ws_manager
 
 router = APIRouter(prefix="", tags=["Order"])
+
+STAFF_ROLES = {
+    "KitchenStaff",
+    "BranchManager",
+    "MerchantOwner",
+    "PlatformAdmin",
+    "Admin",
+}
+
+
+def _assert_staff_branch_access(user: UserClaims, branch_id: uuid.UUID) -> None:
+    """Staff bound to a branch (token carries branch_id) may only act on that branch."""
+    if (
+        user.role in {"KitchenStaff", "BranchManager"}
+        and user.branch_id
+        and user.branch_id != str(branch_id)
+    ):
+        raise ForbiddenError(
+            message="You can only manage orders of your own branch.",
+            error_code="ORDER_BRANCH_FORBIDDEN",
+        )
+
+
+async def _assert_customer_owns_order(
+    session: AsyncSession, user: UserClaims, customer_profile_id: uuid.UUID
+) -> None:
+    profile = await CustomerRepository(session).get_by_user_id(uuid.UUID(user.sub))
+    if not profile or profile.id != customer_profile_id:
+        raise ForbiddenError(
+            message="You do not have access to this order.",
+            error_code="ORDER_ACCESS_FORBIDDEN",
+        )
 
 
 def get_order_repository(
@@ -86,6 +118,7 @@ async def list_orders(
         "MerchantOwner",
         "Admin",
     ]:
+        _assert_staff_branch_access(current_user, branch_id)
         orders = await order_service.get_branch_orders(branch_id, status=order_status)
     else:
         cust_repo = CustomerRepository(session)
@@ -106,10 +139,17 @@ async def list_orders(
 )
 async def get_order(
     id: uuid.UUID,
-    _current_user: UserClaims = Depends(get_current_user),
+    current_user: UserClaims = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
     order_service: OrderServiceInterface = Depends(get_order_service),
 ) -> OrderResponse:
     order = await order_service.get_order(id)
+    if current_user.role == "Customer":
+        await _assert_customer_owns_order(
+            session, current_user, order.customer_profile_id
+        )
+    elif current_user.role in STAFF_ROLES:
+        _assert_staff_branch_access(current_user, order.branch_id)
     return OrderResponse.model_validate(order)
 
 
@@ -124,8 +164,23 @@ async def update_order_status(
     id: uuid.UUID,
     req: OrderStatusUpdateRequest,
     current_user: UserClaims = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
     order_service: OrderServiceInterface = Depends(get_order_service),
 ) -> OrderResponse:
+    existing = await order_service.get_order(id)
+    if current_user.role in STAFF_ROLES:
+        _assert_staff_branch_access(current_user, existing.branch_id)
+    elif not (req.status == "CANCELLED" and current_user.role == "Customer"):
+        # Only staff drive the kitchen workflow (and trigger merchant payouts);
+        # customers may only cancel their own order.
+        raise ForbiddenError(
+            message=f"Role '{current_user.role}' cannot set status '{req.status}'.",
+            error_code="ORDER_STATUS_FORBIDDEN",
+        )
+    if current_user.role == "Customer":
+        await _assert_customer_owns_order(
+            session, current_user, existing.customer_profile_id
+        )
     order = await order_service.update_order_status(
         order_id=id,
         changed_by_user_id=uuid.UUID(current_user.sub),
@@ -144,8 +199,21 @@ async def update_order_status(
 async def cancel_order(
     id: uuid.UUID,
     current_user: UserClaims = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
     order_service: OrderServiceInterface = Depends(get_order_service),
 ) -> OrderResponse:
+    existing = await order_service.get_order(id)
+    if current_user.role == "Customer":
+        await _assert_customer_owns_order(
+            session, current_user, existing.customer_profile_id
+        )
+    elif current_user.role in STAFF_ROLES:
+        _assert_staff_branch_access(current_user, existing.branch_id)
+    else:
+        raise ForbiddenError(
+            message="You do not have access to this order.",
+            error_code="ORDER_ACCESS_FORBIDDEN",
+        )
     order = await order_service.cancel_order(
         order_id=id,
         user_id=uuid.UUID(current_user.sub),

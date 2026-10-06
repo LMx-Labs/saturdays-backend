@@ -42,6 +42,7 @@ class OrderResponse(BaseModel):
     customer_profile_id: uuid.UUID
     branch_id: uuid.UUID
     total_amount: float
+    store_credit_applied: float = 0.0
     status: str
     delivery_address_snapshot: Any
     created_at: datetime
@@ -54,6 +55,10 @@ class OrderCreateRequest(BaseModel):
     branch_id: uuid.UUID
     items: list[OrderItemCreate] = Field(..., min_length=1)
     delivery_address_snapshot: dict[str, Any]
+    use_store_credit: bool = Field(
+        False,
+        description="Spend the customer's store credit for this brand against the order.",
+    )
 
 
 class OrderStatusUpdateRequest(BaseModel):

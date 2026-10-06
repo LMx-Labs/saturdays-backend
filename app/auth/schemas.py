@@ -37,6 +37,7 @@ class UserResponse(BaseModel):
     id: str
     email: str
     role: str
+    branch_id: str | None = None
     is_active: bool
     is_verified: bool
     created_at: datetime
@@ -59,3 +60,4 @@ class UserClaims(BaseModel):
     sub: str
     email: str
     role: str
+    branch_id: str | None = None

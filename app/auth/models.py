@@ -1,7 +1,7 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, DateTime, Index, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -31,6 +31,13 @@ class User(Base):
         String(50),
         nullable=False,
         default="Customer",
+    )
+    # Branch a BranchManager / KitchenStaff user operates. Set by the Super Admin at
+    # onboarding so clients never have to work out which branch a manager belongs to.
+    branch_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("branches.id", use_alter=True, name="fk_users_branch_id"),
+        nullable=True,
     )
     is_active: Mapped[bool] = mapped_column(
         Boolean,
@@ -68,4 +75,5 @@ class User(Base):
             unique=True,
             postgresql_where=(deleted_at.is_(None)),
         ),
+        Index("idx_users_branch_id", "branch_id"),
     )

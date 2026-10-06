@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import DomainInvariantError, EntityNotFoundError
+from app.credit.service import StoreCreditService
 from app.menu.models import MenuCategory, MenuItem
 from app.order.models import Order, OrderItem
 from app.order.repository import OrderRepositoryInterface
@@ -144,6 +145,18 @@ class OrderService(OrderServiceInterface):
             items=order_items,
             user_id=user_id,
         )
+
+        if req.use_store_credit and order.total_amount > 0:
+            credit_service = StoreCreditService(self.session)
+            brand_id = await credit_service.brand_id_for_branch(req.branch_id)
+            applied = await credit_service.redeem(
+                customer_profile_id=customer_profile_id,
+                brand_id=brand_id,
+                max_amount=float(order.total_amount),
+                order_id=created_order.id,
+            )
+            created_order.store_credit_applied = applied
+
         await self.session.commit()
         refreshed_order = await self.get_order(created_order.id)
 
@@ -197,6 +210,13 @@ class OrderService(OrderServiceInterface):
             new_status=target_status,
             changed_by_user_id=changed_by_user_id,
         )
+
+        # Refund policy: cancelled / unfulfilled orders are never refunded in cash.
+        # What the customer paid comes back as store credit, in the same transaction.
+        if target_status == "CANCELLED":
+            await StoreCreditService(self.session).issue_for_cancelled_order(
+                updated_order
+            )
         await self.session.commit()
         refreshed_order = await self.get_order(updated_order.id)
 
