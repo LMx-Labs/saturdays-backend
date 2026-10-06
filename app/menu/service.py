@@ -33,6 +33,10 @@ class MenuServiceInterface(ABC):
         pass
 
     @abstractmethod
+    async def get_category(self, category_id: uuid.UUID) -> MenuCategory:
+        pass
+
+    @abstractmethod
     async def create_menu_item(
         self, branch_id: uuid.UUID, req: MenuItemCreate
     ) -> MenuItem:
@@ -68,9 +72,9 @@ class MenuService(MenuServiceInterface):
         if existing:
             return existing
 
-        menu = await self.menu_repo.create_menu(branch_id=branch_id, name=req.name)
+        await self.menu_repo.create_menu(branch_id=branch_id, name=req.name)
         await self.session.commit()
-        return menu
+        return await self.get_branch_menu(branch_id)
 
     async def create_category(
         self, branch_id: uuid.UUID, req: MenuCategoryCreate
@@ -83,6 +87,15 @@ class MenuService(MenuServiceInterface):
             menu_id=menu.id, name=req.name, display_order=req.display_order
         )
         await self.session.commit()
+        return await self.get_category(category.id)
+
+    async def get_category(self, category_id: uuid.UUID) -> MenuCategory:
+        category = await self.menu_repo.get_category_by_id(category_id)
+        if not category:
+            raise EntityNotFoundError(
+                message=f"Category '{category_id}' not found.",
+                error_code="CATEGORY_NOT_FOUND",
+            )
         return category
 
     async def create_menu_item(
@@ -110,7 +123,7 @@ class MenuService(MenuServiceInterface):
             )
 
         item = MenuItem(
-            category_id=req.category_id,
+            category=category,
             name=req.name,
             description=req.description,
             base_price=req.base_price,
