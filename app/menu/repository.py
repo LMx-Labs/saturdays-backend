@@ -67,7 +67,10 @@ class MenuRepository(MenuRepositoryInterface):
         stmt = (
             select(MenuCategory)
             .where(MenuCategory.id == category_id, MenuCategory.deleted_at.is_(None))
-            .options(selectinload(MenuCategory.menu))
+            .options(
+                selectinload(MenuCategory.menu),
+                selectinload(MenuCategory.items).selectinload(MenuItem.modifiers),
+            )
         )
         result = await self.session.execute(stmt)
         return result.scalars().first()
