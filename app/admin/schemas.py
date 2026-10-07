@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class MerchantApprovalRequest(BaseModel):
@@ -76,3 +76,23 @@ class PlatformAnalyticsOverview(BaseModel):
     gross_revenue: float
     platform_commissions: float
     total_customers: int
+
+
+class BranchManagerCreateRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(..., min_length=8, max_length=128)
+    branch_id: uuid.UUID
+
+
+class BranchManagerAssignRequest(BaseModel):
+    branch_id: uuid.UUID
+
+
+class BranchManagerResponse(BaseModel):
+    user_id: uuid.UUID
+    email: str
+    role: str
+    is_active: bool
+    branch_id: uuid.UUID
+    branch_name: str
+    brand_id: uuid.UUID

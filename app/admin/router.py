@@ -8,6 +8,9 @@ from app.admin.schemas import (
     AdminAuditLogResponse,
     BannerCreate,
     BannerResponse,
+    BranchManagerAssignRequest,
+    BranchManagerCreateRequest,
+    BranchManagerResponse,
     FeatureFlagResponse,
     FeatureFlagUpdate,
     MerchantApprovalRequest,
@@ -195,6 +198,60 @@ async def issue_refund_override(
     ip = request.client.host if request.client else "127.0.0.1"
     return await admin_service.issue_refund_override(
         admin_user_id=uuid.UUID(current_user.sub), req=req, ip_address=ip
+    )
+
+
+@router.post(
+    "/branch-managers",
+    response_model=BranchManagerResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Onboard a BranchManager bound to a specific branch",
+)
+async def create_branch_manager(
+    req: BranchManagerCreateRequest,
+    request: Request,
+    current_user: UserClaims = Depends(require_role(["PlatformAdmin"])),
+    admin_service: AdminServiceInterface = Depends(get_admin_service),
+) -> BranchManagerResponse:
+    ip = request.client.host if request.client else "127.0.0.1"
+    return await admin_service.create_branch_manager(
+        admin_user_id=uuid.UUID(current_user.sub), req=req, ip_address=ip
+    )
+
+
+@router.get(
+    "/branch-managers",
+    response_model=list[BranchManagerResponse],
+    status_code=status.HTTP_200_OK,
+    summary="List BranchManagers with their branch IDs",
+)
+async def list_branch_managers(
+    branch_id: uuid.UUID | None = Query(None),
+    current_user: UserClaims = Depends(require_role(["PlatformAdmin"])),
+    admin_service: AdminServiceInterface = Depends(get_admin_service),
+) -> list[BranchManagerResponse]:
+    return await admin_service.list_branch_managers(branch_id=branch_id)
+
+
+@router.put(
+    "/branch-managers/{user_id}/branch",
+    response_model=BranchManagerResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Assign or move an existing BranchManager to a branch",
+)
+async def assign_branch_manager(
+    user_id: uuid.UUID,
+    req: BranchManagerAssignRequest,
+    request: Request,
+    current_user: UserClaims = Depends(require_role(["PlatformAdmin"])),
+    admin_service: AdminServiceInterface = Depends(get_admin_service),
+) -> BranchManagerResponse:
+    ip = request.client.host if request.client else "127.0.0.1"
+    return await admin_service.assign_branch_manager(
+        admin_user_id=uuid.UUID(current_user.sub),
+        user_id=user_id,
+        branch_id=req.branch_id,
+        ip_address=ip,
     )
 
 

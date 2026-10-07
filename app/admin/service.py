@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from datetime import UTC, datetime
 from typing import Any
 
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admin.models import AdminAuditLog, Banner
@@ -11,6 +12,8 @@ from app.admin.schemas import (
     AdminAuditLogResponse,
     BannerCreate,
     BannerResponse,
+    BranchManagerCreateRequest,
+    BranchManagerResponse,
     FeatureFlagResponse,
     FeatureFlagUpdate,
     MerchantApprovalRequest,
@@ -18,10 +21,18 @@ from app.admin.schemas import (
     RefundOverrideRequest,
     RefundOverrideResponse,
 )
-from app.core.exceptions import EntityNotFoundError, UnprocessableEntityError
+from app.auth.models import User
+from app.branch.models import Branch
+from app.core.exceptions import (
+    ConflictError,
+    EntityNotFoundError,
+    UnprocessableEntityError,
+)
+from app.core.security import hash_password
 from app.coupon.schemas import CouponCreate, CouponResponse
 from app.coupon.service import CouponServiceInterface
 from app.merchant.repository import MerchantRepositoryInterface
+from app.payment.service import ensure_refunds_enabled
 
 # In-memory operational system feature flags
 SYSTEM_FEATURE_FLAGS: dict[str, dict[str, Any]] = {
@@ -95,6 +106,31 @@ class AdminServiceInterface(ABC):
         req: RefundOverrideRequest,
         ip_address: str = "127.0.0.1",
     ) -> RefundOverrideResponse:
+        pass
+
+    @abstractmethod
+    async def create_branch_manager(
+        self,
+        admin_user_id: uuid.UUID,
+        req: BranchManagerCreateRequest,
+        ip_address: str = "127.0.0.1",
+    ) -> BranchManagerResponse:
+        pass
+
+    @abstractmethod
+    async def assign_branch_manager(
+        self,
+        admin_user_id: uuid.UUID,
+        user_id: uuid.UUID,
+        branch_id: uuid.UUID,
+        ip_address: str = "127.0.0.1",
+    ) -> BranchManagerResponse:
+        pass
+
+    @abstractmethod
+    async def list_branch_managers(
+        self, branch_id: uuid.UUID | None = None
+    ) -> list[BranchManagerResponse]:
         pass
 
     @abstractmethod
@@ -291,6 +327,7 @@ class AdminService(AdminServiceInterface):
         req: RefundOverrideRequest,
         ip_address: str = "127.0.0.1",
     ) -> RefundOverrideResponse:
+        ensure_refunds_enabled()
         refund_tx_id = f"ref_override_{uuid.uuid4().hex[:12]}"
         now = datetime.now(UTC)
 
@@ -316,6 +353,122 @@ class AdminService(AdminServiceInterface):
             reason=req.reason,
             processed_at=now,
         )
+
+    async def _get_active_branch(self, branch_id: uuid.UUID) -> Branch:
+        res = await self.session.execute(
+            select(Branch).where(Branch.id == branch_id, Branch.deleted_at.is_(None))
+        )
+        branch = res.scalars().first()
+        if not branch:
+            raise EntityNotFoundError(
+                message=f"Branch '{branch_id}' not found.",
+                error_code="BRANCH_NOT_FOUND",
+            )
+        return branch
+
+    @staticmethod
+    def _to_manager_response(user: User, branch: Branch) -> BranchManagerResponse:
+        return BranchManagerResponse(
+            user_id=user.id,
+            email=user.email,
+            role=user.role,
+            is_active=user.is_active,
+            branch_id=branch.id,
+            branch_name=branch.name,
+            brand_id=branch.brand_id,
+        )
+
+    async def create_branch_manager(
+        self,
+        admin_user_id: uuid.UUID,
+        req: BranchManagerCreateRequest,
+        ip_address: str = "127.0.0.1",
+    ) -> BranchManagerResponse:
+        branch = await self._get_active_branch(req.branch_id)
+
+        email = req.email.strip().lower()
+        existing = await self.session.execute(
+            select(User.id).where(
+                func.lower(User.email) == email, User.deleted_at.is_(None)
+            )
+        )
+        if existing.first():
+            raise ConflictError(
+                message="User with this email already exists.",
+                error_code="EMAIL_ALREADY_EXISTS",
+            )
+
+        user = User(
+            email=email,
+            password_hash=hash_password(req.password),
+            role="BranchManager",
+            branch_id=branch.id,
+            is_active=True,
+            is_verified=True,
+        )
+        self.session.add(user)
+        await self.session.flush()
+
+        await self._write_audit_log(
+            admin_user_id=admin_user_id,
+            action="BRANCH_MANAGER_CREATED",
+            target_entity="users",
+            target_entity_id=user.id,
+            changes_payload={"email": email, "branch_id": str(branch.id)},
+            ip_address=ip_address,
+        )
+        await self.session.commit()
+        return self._to_manager_response(user, branch)
+
+    async def assign_branch_manager(
+        self,
+        admin_user_id: uuid.UUID,
+        user_id: uuid.UUID,
+        branch_id: uuid.UUID,
+        ip_address: str = "127.0.0.1",
+    ) -> BranchManagerResponse:
+        branch = await self._get_active_branch(branch_id)
+        res = await self.session.execute(
+            select(User).where(User.id == user_id, User.deleted_at.is_(None))
+        )
+        user = res.scalars().first()
+        if not user or user.role != "BranchManager":
+            raise EntityNotFoundError(
+                message="Branch manager not found.",
+                error_code="BRANCH_MANAGER_NOT_FOUND",
+            )
+
+        previous = str(user.branch_id) if user.branch_id else None
+        user.branch_id = branch.id
+        await self.session.flush()
+
+        await self._write_audit_log(
+            admin_user_id=admin_user_id,
+            action="BRANCH_MANAGER_REASSIGNED",
+            target_entity="users",
+            target_entity_id=user.id,
+            changes_payload={
+                "from_branch_id": previous,
+                "to_branch_id": str(branch.id),
+            },
+            ip_address=ip_address,
+        )
+        await self.session.commit()
+        return self._to_manager_response(user, branch)
+
+    async def list_branch_managers(
+        self, branch_id: uuid.UUID | None = None
+    ) -> list[BranchManagerResponse]:
+        stmt = (
+            select(User, Branch)
+            .join(Branch, Branch.id == User.branch_id)
+            .where(User.role == "BranchManager", User.deleted_at.is_(None))
+            .order_by(Branch.name, User.email)
+        )
+        if branch_id:
+            stmt = stmt.where(User.branch_id == branch_id)
+        res = await self.session.execute(stmt)
+        return [self._to_manager_response(u, b) for u, b in res.all()]
 
     async def get_audit_logs(self, limit: int = 50) -> list[AdminAuditLogResponse]:
         logs = await self.admin_repo.get_audit_logs(limit=limit)

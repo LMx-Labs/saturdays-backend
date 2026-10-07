@@ -7,6 +7,7 @@ import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.exceptions import DomainInvariantError, EntityNotFoundError
 from app.payment.models import Payment, PaymentTransaction
 from app.payment.razorpay_adapter import RazorpayAdapter
@@ -19,6 +20,18 @@ from app.payment.schemas import (
 )
 
 logger = structlog.get_logger()
+
+
+def ensure_refunds_enabled() -> None:
+    """Cash refunds are disabled by policy; cancelled orders earn store credit."""
+    if not settings.REFUNDS_ENABLED:
+        raise DomainInvariantError(
+            message=(
+                "Cash refunds are not offered. Cancelled or unfulfilled orders are "
+                "converted into store credit automatically."
+            ),
+            error_code="REFUNDS_DISABLED_USE_STORE_CREDIT",
+        )
 
 
 class PaymentServiceInterface(ABC):
@@ -253,6 +266,7 @@ class PaymentService(PaymentServiceInterface):
     async def refund_payment(
         self, payment_id: uuid.UUID, req: RefundCreateRequest
     ) -> PaymentTransaction:
+        ensure_refunds_enabled()
         payment = await self.payment_repo.get_by_id(payment_id)
         if not payment:
             raise EntityNotFoundError(

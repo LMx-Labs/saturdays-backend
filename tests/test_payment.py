@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.models import User
 from app.branch.models import Branch
 from app.brand.models import Brand
+from app.core.config import settings
 from app.core.security import create_access_token, hash_password
 from app.customer.models import CustomerProfile
 from app.merchant.models import Merchant
@@ -217,8 +218,9 @@ async def test_webhook_verification_and_duplicate_idempotency(
 
 @pytest.mark.asyncio
 async def test_refund_flow_and_cap_invariant(
-    client: AsyncClient, setup_payment_fixture: dict
+    client: AsyncClient, setup_payment_fixture: dict, monkeypatch
 ):
+    monkeypatch.setattr(settings, "REFUNDS_ENABLED", True)
     ctx = setup_payment_fixture
     order_id = ctx["order"].id
     headers = ctx["cust_headers"]
@@ -256,3 +258,24 @@ async def test_refund_flow_and_cap_invariant(
     )
     assert bad_rf.status_code == 400
     assert bad_rf.json()["error_code"] == "REFUND_EXCEEDS_PAYMENT_AMOUNT"
+
+
+@pytest.mark.asyncio
+async def test_cash_refund_is_disabled_by_policy(
+    client: AsyncClient, setup_payment_fixture: dict
+):
+    ctx = setup_payment_fixture
+    intent_res = await client.post(
+        "/api/v1/payments/intent",
+        json={"order_id": str(ctx["order"].id), "amount": 500.00},
+        headers=ctx["cust_headers"],
+    )
+    payment_id = intent_res.json()["payment_id"]
+
+    rf_res = await client.post(
+        f"/api/v1/payments/{payment_id}/refund",
+        json={"amount": 100.00, "reason": "CANCELLED"},
+        headers=ctx["mgr_headers"],
+    )
+    assert rf_res.status_code == 400
+    assert rf_res.json()["error_code"] == "REFUNDS_DISABLED_USE_STORE_CREDIT"

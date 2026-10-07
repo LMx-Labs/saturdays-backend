@@ -63,7 +63,9 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> UserClaims:
             error_code="INVALID_ACCESS_TOKEN",
         )
 
-    return UserClaims(sub=sub, email=email, role=role)
+    return UserClaims(
+        sub=sub, email=email, role=role, branch_id=payload.get("branch_id")
+    )
 
 
 def require_role(allowed_roles: list[str]):

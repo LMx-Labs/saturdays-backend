@@ -53,6 +53,26 @@ class AuthService(AuthServiceInterface):
         self.session = session
         self.user_repo = user_repo
 
+    @staticmethod
+    def _access_claims(user: User) -> dict[str, str]:
+        claims = {"email": user.email}
+        if user.branch_id is not None:
+            claims["branch_id"] = str(user.branch_id)
+        return claims
+
+    @staticmethod
+    def _to_user_response(user: User) -> UserResponse:
+        return UserResponse(
+            id=str(user.id),
+            email=user.email,
+            role=user.role,
+            branch_id=str(user.branch_id) if user.branch_id else None,
+            is_active=user.is_active,
+            is_verified=user.is_verified,
+            created_at=user.created_at,
+            updated_at=user.updated_at,
+        )
+
     async def register_user(self, req: UserRegisterRequest) -> TokenResponse:
         # Domain Invariant INV-AUTH-001: Unique case-insensitive email
         existing_user = await self.user_repo.get_by_email(req.email)
@@ -82,19 +102,11 @@ class AuthService(AuthServiceInterface):
         access_token = create_access_token(
             subject=str(created_user.id),
             role=created_user.role,
-            extra_claims={"email": created_user.email},
+            extra_claims=self._access_claims(created_user),
         )
         refresh_token = create_refresh_token(subject=str(created_user.id))
 
-        user_resp = UserResponse(
-            id=str(created_user.id),
-            email=created_user.email,
-            role=created_user.role,
-            is_active=created_user.is_active,
-            is_verified=created_user.is_verified,
-            created_at=created_user.created_at,
-            updated_at=created_user.updated_at,
-        )
+        user_resp = self._to_user_response(created_user)
 
         return TokenResponse(
             access_token=access_token,
@@ -121,19 +133,11 @@ class AuthService(AuthServiceInterface):
         access_token = create_access_token(
             subject=str(user.id),
             role=user.role,
-            extra_claims={"email": user.email},
+            extra_claims=self._access_claims(user),
         )
         refresh_token = create_refresh_token(subject=str(user.id))
 
-        user_resp = UserResponse(
-            id=str(user.id),
-            email=user.email,
-            role=user.role,
-            is_active=user.is_active,
-            is_verified=user.is_verified,
-            created_at=user.created_at,
-            updated_at=user.updated_at,
-        )
+        user_resp = self._to_user_response(user)
 
         return TokenResponse(
             access_token=access_token,
@@ -183,19 +187,11 @@ class AuthService(AuthServiceInterface):
         access_token = create_access_token(
             subject=str(user.id),
             role=user.role,
-            extra_claims={"email": user.email},
+            extra_claims=self._access_claims(user),
         )
         new_refresh_token = create_refresh_token(subject=str(user.id))
 
-        user_resp = UserResponse(
-            id=str(user.id),
-            email=user.email,
-            role=user.role,
-            is_active=user.is_active,
-            is_verified=user.is_verified,
-            created_at=user.created_at,
-            updated_at=user.updated_at,
-        )
+        user_resp = self._to_user_response(user)
 
         return TokenResponse(
             access_token=access_token,
@@ -221,12 +217,4 @@ class AuthService(AuthServiceInterface):
                 error_code="USER_NOT_FOUND",
             )
 
-        return UserResponse(
-            id=str(user.id),
-            email=user.email,
-            role=user.role,
-            is_active=user.is_active,
-            is_verified=user.is_verified,
-            created_at=user.created_at,
-            updated_at=user.updated_at,
-        )
+        return self._to_user_response(user)

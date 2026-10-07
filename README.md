@@ -14,6 +14,24 @@ This repository contains the backend implementation and canonical engineering ar
 
 ---
 
+## Payouts, Store Credit & Branch Managers
+
+- **Daily payouts** — `POST /api/v1/payouts/run` (PlatformAdmin; `dry_run` to preview) or
+  `PAYOUT_SCHEDULER_ENABLED=true`, or cron `python -m app.payout.scheduler`. Pays each
+  approved merchant, from the platform RazorpayX account, the net of completed, fully-paid
+  orders (gross − commission). Idempotent; failures are retried; RazorpayX webhook
+  `POST /api/v1/payouts/webhook` (`payout.processed|failed|reversed`) updates status.
+  Merchants see their own via `GET /payouts/me`. Needs `RAZORPAY_KEY_ID/SECRET`,
+  `RAZORPAYX_ACCOUNT_NUMBER`, `RAZORPAY_SIMULATE=false`.
+- **No cash refunds** — cancelling or rejecting a paid order issues brand-scoped store credit
+  (`/store-credits`, spend it with `use_store_credit` on `POST /orders`). Cash-refund endpoints
+  return `REFUNDS_DISABLED_USE_STORE_CREDIT` unless `REFUNDS_ENABLED=true`.
+- **BranchManager ↔ branch** — onboard with `POST /admin/branch-managers {email, password,
+  branch_id}`; `branch_id` is returned on login, `/auth/me` and in the JWT. Reassign with
+  `PUT /admin/branch-managers/{user_id}/branch`.
+
+---
+
 ## Local Setup & Quickstart
 
 ### Prerequisites
