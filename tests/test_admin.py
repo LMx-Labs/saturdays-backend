@@ -5,6 +5,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
+from app.core.config import settings
 from app.core.security import hash_password
 from app.merchant.models import Merchant
 
@@ -127,8 +128,9 @@ async def test_admin_banner_cms_and_feature_flags(
 
 @pytest.mark.asyncio
 async def test_admin_refund_and_analytics(
-    client: AsyncClient, setup_admin_fixture: dict
+    client: AsyncClient, setup_admin_fixture: dict, monkeypatch
 ):
+    monkeypatch.setattr(settings, "REFUNDS_ENABLED", True)
     fixture = setup_admin_fixture
     headers = await get_admin_headers(client, fixture["admin_user"].email)
 
@@ -152,3 +154,17 @@ async def test_admin_refund_and_analytics(
     data = analytics_resp.json()
     assert "total_merchants" in data
     assert "gross_revenue" in data
+
+
+@pytest.mark.asyncio
+async def test_admin_refund_override_blocked_by_policy(
+    client: AsyncClient, setup_admin_fixture: dict
+):
+    headers = await get_admin_headers(client, setup_admin_fixture["admin_user"].email)
+    resp = await client.post(
+        "/api/v1/admin/refunds/override",
+        headers=headers,
+        json={"payment_id": str(uuid.uuid4()), "amount": 10.0, "reason": "x"},
+    )
+    assert resp.status_code == 400
+    assert resp.json()["error_code"] == "REFUNDS_DISABLED_USE_STORE_CREDIT"

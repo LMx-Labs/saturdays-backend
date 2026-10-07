@@ -43,6 +43,10 @@ class Order(Base):
         UUID(as_uuid=True), ForeignKey("branches.id"), nullable=False
     )
     total_amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+    # Portion of total_amount paid with brand store credit instead of money.
+    store_credit_applied: Mapped[float] = mapped_column(
+        Numeric(10, 2), nullable=False, default=0, server_default="0"
+    )
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="PLACED")
     delivery_address_snapshot: Mapped[Any] = mapped_column(
         JSONB().with_variant(JSON, "sqlite"), nullable=False
@@ -80,6 +84,10 @@ class Order(Base):
     __table_args__ = (
         CheckConstraint(
             "total_amount >= 0", name="ck_orders_total_amount_non_negative"
+        ),
+        CheckConstraint(
+            "store_credit_applied >= 0 AND store_credit_applied <= total_amount",
+            name="ck_orders_store_credit_range",
         ),
         Index("idx_orders_branch_status", branch_id, status, created_at.desc()),
         Index("idx_orders_customer", customer_profile_id, created_at.desc()),
