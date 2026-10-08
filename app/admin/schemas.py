@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
 
 class MerchantApprovalRequest(BaseModel):
@@ -96,3 +96,41 @@ class BranchManagerResponse(BaseModel):
     branch_id: uuid.UUID
     branch_name: str
     brand_id: uuid.UUID
+
+
+class AdminSetPasswordRequest(BaseModel):
+    """Schema for administrator setting a user's password."""
+
+    user_id: uuid.UUID | None = Field(default=None, description="Target user UUID")
+    email: EmailStr | None = Field(default=None, description="Target user email")
+    password: str | None = Field(
+        default=None, min_length=8, max_length=128, description="New plaintext password"
+    )
+    new_password: str | None = Field(
+        default=None, min_length=8, max_length=128, description="Alternative field for new password"
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if not data.get("password") and data.get("new_password"):
+                data["password"] = data["new_password"]
+        return data
+
+    @model_validator(mode="after")
+    def validate_password_presence(self) -> "AdminSetPasswordRequest":
+        if not self.password:
+            raise ValueError(
+                "password (or new_password) is required and must be at least 8 characters."
+            )
+        return self
+
+
+class AdminSetPasswordResponse(BaseModel):
+    """Response schema for administrator setting password."""
+
+    message: str = "Password has been successfully updated by administrator."
+    user_id: uuid.UUID
+    email: str
+

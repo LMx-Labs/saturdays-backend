@@ -10,6 +10,8 @@ from app.admin.models import AdminAuditLog, Banner
 from app.admin.repository import AdminRepositoryInterface
 from app.admin.schemas import (
     AdminAuditLogResponse,
+    AdminSetPasswordRequest,
+    AdminSetPasswordResponse,
     BannerCreate,
     BannerResponse,
     BranchManagerCreateRequest,
@@ -25,6 +27,7 @@ from app.auth.models import User
 from app.branch.models import Branch
 from app.core.exceptions import (
     ConflictError,
+    DomainInvariantError,
     EntityNotFoundError,
     UnprocessableEntityError,
 )
@@ -140,6 +143,17 @@ class AdminServiceInterface(ABC):
     @abstractmethod
     async def get_analytics_overview(self) -> PlatformAnalyticsOverview:
         pass
+
+    @abstractmethod
+    async def set_user_password(
+        self,
+        admin_user_id: uuid.UUID,
+        req: AdminSetPasswordRequest,
+        target_user_id: uuid.UUID | None = None,
+        ip_address: str = "127.0.0.1",
+    ) -> AdminSetPasswordResponse:
+        pass
+
 
 
 class AdminService(AdminServiceInterface):
@@ -477,3 +491,54 @@ class AdminService(AdminServiceInterface):
     async def get_analytics_overview(self) -> PlatformAnalyticsOverview:
         stats = await self.admin_repo.get_analytics_overview()
         return PlatformAnalyticsOverview(**stats)
+
+    async def set_user_password(
+        self,
+        admin_user_id: uuid.UUID,
+        req: AdminSetPasswordRequest,
+        target_user_id: uuid.UUID | None = None,
+        ip_address: str = "127.0.0.1",
+    ) -> AdminSetPasswordResponse:
+        user_id = target_user_id or req.user_id
+        email = req.email
+
+        stmt = select(User).where(User.deleted_at.is_(None))
+        if user_id:
+            stmt = stmt.where(User.id == user_id)
+        elif email:
+            stmt = stmt.where(func.lower(User.email) == email.strip().lower())
+        else:
+            raise DomainInvariantError(
+                message="Either user_id or email must be provided to set user password.",
+                error_code="MISSING_USER_IDENTIFIER",
+            )
+
+        res = await self.session.execute(stmt)
+        user = res.scalars().first()
+        if not user:
+            raise EntityNotFoundError(
+                message="User not found.",
+                error_code="USER_NOT_FOUND",
+            )
+
+        # Hash new password with Argon2id (INV-AUTH-002)
+        user.password_hash = hash_password(req.password)  # type: ignore[arg-type]
+        await self.session.flush()
+
+        # Audit log the admin password override (never logging the password)
+        await self._write_audit_log(
+            admin_user_id=admin_user_id,
+            action="USER_PASSWORD_SET_BY_ADMIN",
+            target_entity="users",
+            target_entity_id=user.id,
+            changes_payload={"email": user.email, "user_id": str(user.id)},
+            ip_address=ip_address,
+        )
+        await self.session.commit()
+
+        return AdminSetPasswordResponse(
+            message="Password has been successfully updated by administrator.",
+            user_id=user.id,
+            email=user.email,
+        )
+

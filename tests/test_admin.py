@@ -168,3 +168,128 @@ async def test_admin_refund_override_blocked_by_policy(
     )
     assert resp.status_code == 400
     assert resp.json()["error_code"] == "REFUNDS_DISABLED_USE_STORE_CREDIT"
+
+
+@pytest.mark.asyncio
+async def test_admin_set_password_by_user_id(
+    client: AsyncClient, setup_admin_fixture: dict
+):
+    fixture = setup_admin_fixture
+    admin_headers = await get_admin_headers(client, fixture["admin_user"].email)
+
+    # 1. Register a customer user
+    cust_res = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "target_customer@saturdays.com",
+            "password": "OriginalPassword123!",
+            "role": "Customer",
+        },
+    )
+    assert cust_res.status_code == 201
+    user_id = cust_res.json()["user"]["id"]
+
+    # 2. Admin overrides target user's password via /set-password
+    new_admin_pwd = "AdminSetSecret123!"
+    set_resp = await client.post(
+        "/api/v1/admin/set-password",
+        headers=admin_headers,
+        json={"user_id": user_id, "password": new_admin_pwd},
+    )
+    assert set_resp.status_code == 200
+    assert "Password has been successfully updated" in set_resp.json()["message"]
+
+    # 3. Target user can log in with new password
+    login_resp = await client.post(
+        "/api/v1/auth/login",
+        json={"email": "target_customer@saturdays.com", "password": new_admin_pwd},
+    )
+    assert login_resp.status_code == 200
+
+    # 4. Old password fails
+    old_login = await client.post(
+        "/api/v1/auth/login",
+        json={"email": "target_customer@saturdays.com", "password": "OriginalPassword123!"},
+    )
+    assert old_login.status_code == 401
+
+    # 5. Verify audit log entry
+    audit_resp = await client.get("/api/v1/admin/audit-logs", headers=admin_headers)
+    assert audit_resp.status_code == 200
+    actions = [log["action"] for log in audit_resp.json()]
+    assert "USER_PASSWORD_SET_BY_ADMIN" in actions
+
+
+@pytest.mark.asyncio
+async def test_admin_set_password_by_email(
+    client: AsyncClient, setup_admin_fixture: dict
+):
+    fixture = setup_admin_fixture
+    admin_headers = await get_admin_headers(client, fixture["admin_user"].email)
+
+    target_email = "target_by_email@saturdays.com"
+    await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": target_email,
+            "password": "InitialPassword123!",
+            "role": "Customer",
+        },
+    )
+
+    new_pwd = "ChangedViaAdminByEmail123!"
+    set_resp = await client.post(
+        "/api/v1/admin/set-password",
+        headers=admin_headers,
+        json={"email": target_email, "new_password": new_pwd},
+    )
+    assert set_resp.status_code == 200
+
+    login_resp = await client.post(
+        "/api/v1/auth/login",
+        json={"email": target_email, "password": new_pwd},
+    )
+    assert login_resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_non_admin_cannot_access_set_password(
+    client: AsyncClient, setup_admin_fixture: dict
+):
+    # Customer attempts to set password
+    cust_res = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "unauthorized_user@saturdays.com",
+            "password": "Password123!",
+            "role": "Customer",
+        },
+    )
+    cust_token = cust_res.json()["access_token"]
+    cust_headers = {"Authorization": f"Bearer {cust_token}"}
+
+    resp = await client.post(
+        "/api/v1/admin/set-password",
+        headers=cust_headers,
+        json={"user_id": str(uuid.uuid4()), "password": "HackedPassword123!"},
+    )
+    assert resp.status_code == 403
+    assert resp.json()["error_code"] == "ROLE_NOT_AUTHORIZED"
+
+
+@pytest.mark.asyncio
+async def test_admin_set_password_user_not_found(
+    client: AsyncClient, setup_admin_fixture: dict
+):
+    fixture = setup_admin_fixture
+    admin_headers = await get_admin_headers(client, fixture["admin_user"].email)
+
+    resp = await client.post(
+        "/api/v1/admin/set-password",
+        headers=admin_headers,
+        json={"user_id": str(uuid.uuid4()), "password": "SomeValidPassword123!"},
+    )
+    assert resp.status_code == 404
+    assert resp.json()["error_code"] == "USER_NOT_FOUND"
+
+

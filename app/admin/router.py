@@ -6,6 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.admin.repository import AdminRepository, AdminRepositoryInterface
 from app.admin.schemas import (
     AdminAuditLogResponse,
+    AdminSetPasswordRequest,
+    AdminSetPasswordResponse,
     BannerCreate,
     BannerResponse,
     BranchManagerAssignRequest,
@@ -280,3 +282,27 @@ async def get_analytics_overview(
     admin_service: AdminServiceInterface = Depends(get_admin_service),
 ) -> PlatformAnalyticsOverview:
     return await admin_service.get_analytics_overview()
+
+
+@router.post(
+    "/set-password",
+    response_model=AdminSetPasswordResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Admin set user password",
+    description="Administrator directly sets or overrides the password for any user account using user_id or email.",
+)
+async def admin_set_password(
+    req: AdminSetPasswordRequest,
+    request: Request,
+    current_user: UserClaims = Depends(require_role(["PlatformAdmin"])),
+    admin_service: AdminServiceInterface = Depends(get_admin_service),
+) -> AdminSetPasswordResponse:
+    ip = request.client.host if request.client else "127.0.0.1"
+    return await admin_service.set_user_password(
+        admin_user_id=uuid.UUID(current_user.sub),
+        req=req,
+        ip_address=ip,
+    )
+
+
+
