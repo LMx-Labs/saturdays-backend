@@ -1,6 +1,6 @@
 import uuid
 from abc import ABC, abstractmethod
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func, select
@@ -10,8 +10,15 @@ from app.admin.models import AdminAuditLog, Banner
 from app.admin.repository import AdminRepositoryInterface
 from app.admin.schemas import (
     AdminAuditLogResponse,
+    AdminCustomerAddressResponse,
+    AdminCustomerDetailResponse,
+    AdminCustomerResponse,
+    AdminCustomerUpdateRequest,
+    AdminMerchantResponse,
     AdminSetPasswordRequest,
     AdminSetPasswordResponse,
+    AdminSubscriptionModifyRequest,
+    AdminSubscriptionResponse,
     BannerCreate,
     BannerResponse,
     BranchManagerCreateRequest,
@@ -34,8 +41,19 @@ from app.core.exceptions import (
 from app.core.security import hash_password
 from app.coupon.schemas import CouponCreate, CouponResponse
 from app.coupon.service import CouponServiceInterface
+from app.customer.repository import (
+    CustomerRepository,
+    CustomerRepositoryInterface,
+)
+from app.merchant.models import Merchant
 from app.merchant.repository import MerchantRepositoryInterface
 from app.payment.service import ensure_refunds_enabled
+from app.subscription.models import MerchantSubscription
+from app.subscription.repository import (
+    SubscriptionRepository,
+    SubscriptionRepositoryInterface,
+)
+from app.subscription.service import PLAN_DETAILS
 
 # In-memory operational system feature flags
 SYSTEM_FEATURE_FLAGS: dict[str, dict[str, Any]] = {
@@ -61,6 +79,12 @@ class AdminServiceInterface(ABC):
         req: MerchantApprovalRequest,
         ip_address: str = "127.0.0.1",
     ) -> dict:
+        pass
+
+    @abstractmethod
+    async def list_merchants(
+        self, status: str | None = None
+    ) -> list[AdminMerchantResponse]:
         pass
 
     @abstractmethod
@@ -154,6 +178,71 @@ class AdminServiceInterface(ABC):
     ) -> AdminSetPasswordResponse:
         pass
 
+    @abstractmethod
+    async def list_subscriptions(
+        self,
+        merchant_id: uuid.UUID | None = None,
+        status: str | None = None,
+        plan_tier: str | None = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> list[AdminSubscriptionResponse]:
+        pass
+
+    @abstractmethod
+    async def get_subscription_history(
+        self,
+        merchant_id: uuid.UUID | None = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> list[AdminSubscriptionResponse]:
+        pass
+
+    @abstractmethod
+    async def modify_subscription(
+        self,
+        subscription_id: uuid.UUID,
+        req: AdminSubscriptionModifyRequest,
+        admin_user_id: uuid.UUID,
+        ip_address: str = "127.0.0.1",
+    ) -> AdminSubscriptionResponse:
+        pass
+
+    @abstractmethod
+    async def modify_merchant_subscription(
+        self,
+        merchant_id: uuid.UUID,
+        req: AdminSubscriptionModifyRequest,
+        admin_user_id: uuid.UUID,
+        ip_address: str = "127.0.0.1",
+    ) -> AdminSubscriptionResponse:
+        pass
+
+    @abstractmethod
+    async def list_customers(
+        self,
+        search: str | None = None,
+        is_active: bool | None = None,
+        skip: int = 0,
+        limit: int = 50,
+    ) -> list[AdminCustomerResponse]:
+        pass
+
+    @abstractmethod
+    async def get_customer(
+        self, customer_id: uuid.UUID
+    ) -> AdminCustomerDetailResponse:
+        pass
+
+    @abstractmethod
+    async def update_customer(
+        self,
+        customer_id: uuid.UUID,
+        req: AdminCustomerUpdateRequest,
+        admin_user_id: uuid.UUID,
+        ip_address: str = "127.0.0.1",
+    ) -> AdminCustomerDetailResponse:
+        pass
 
 
 class AdminService(AdminServiceInterface):
@@ -163,11 +252,15 @@ class AdminService(AdminServiceInterface):
         admin_repo: AdminRepositoryInterface,
         merchant_repo: MerchantRepositoryInterface,
         coupon_service: CouponServiceInterface,
+        sub_repo: SubscriptionRepositoryInterface | None = None,
+        customer_repo: CustomerRepositoryInterface | None = None,
     ):
         self.session = session
         self.admin_repo = admin_repo
         self.merchant_repo = merchant_repo
         self.coupon_service = coupon_service
+        self.sub_repo = sub_repo or SubscriptionRepository(session=session)
+        self.customer_repo = customer_repo or CustomerRepository(session=session)
 
     async def _write_audit_log(
         self,
@@ -231,6 +324,39 @@ class AdminService(AdminServiceInterface):
             "status": new_status,
             "message": f"Merchant has been {new_status.lower()}.",
         }
+
+    @staticmethod
+    def _to_admin_merchant_response(
+        merchant: Merchant, owner: User
+    ) -> AdminMerchantResponse:
+        return AdminMerchantResponse(
+            id=merchant.id,
+            owner_user_id=merchant.owner_user_id,
+            owner_email=owner.email,
+            business_name=merchant.business_name,
+            legal_entity_name=merchant.legal_entity_name,
+            gstin=merchant.gstin,
+            fssai_license_number=merchant.fssai_license_number,
+            bank_account_number=merchant.bank_account_number,
+            bank_ifsc_code=merchant.bank_ifsc_code,
+            status=merchant.status,
+            created_at=merchant.created_at,
+            updated_at=merchant.updated_at,
+        )
+
+    async def list_merchants(
+        self, status: str | None = None
+    ) -> list[AdminMerchantResponse]:
+        stmt = (
+            select(Merchant, User)
+            .join(User, User.id == Merchant.owner_user_id)
+            .where(Merchant.deleted_at.is_(None))
+            .order_by(Merchant.created_at.desc())
+        )
+        if status:
+            stmt = stmt.where(func.upper(Merchant.status) == status.strip().upper())
+        res = await self.session.execute(stmt)
+        return [self._to_admin_merchant_response(m, u) for m, u in res.all()]
 
     async def admin_create_coupon(
         self, admin_user_id: uuid.UUID, req: CouponCreate, ip_address: str = "127.0.0.1"
@@ -541,4 +667,376 @@ class AdminService(AdminServiceInterface):
             user_id=user.id,
             email=user.email,
         )
+
+    def _to_admin_sub_response(
+        self, sub: MerchantSubscription
+    ) -> AdminSubscriptionResponse:
+        tier_info = PLAN_DETAILS.get(sub.plan_tier, PLAN_DETAILS["BASIC"])
+        business_name = sub.merchant.business_name if sub.merchant else None
+        return AdminSubscriptionResponse(
+            id=sub.id,
+            merchant_id=sub.merchant_id,
+            business_name=business_name,
+            merchant_name=business_name,
+            plan_tier=sub.plan_tier,
+            billing_cycle=sub.billing_cycle,
+            status=sub.status,
+            commission_rate_percentage=float(sub.commission_rate_percentage),
+            max_branches=int(tier_info["max_branches"]),
+            valid_until=sub.valid_until,
+            created_at=sub.created_at,
+            updated_at=sub.updated_at,
+        )
+
+    async def list_subscriptions(
+        self,
+        merchant_id: uuid.UUID | None = None,
+        status: str | None = None,
+        plan_tier: str | None = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> list[AdminSubscriptionResponse]:
+        subs = await self.sub_repo.list_subscriptions(
+            merchant_id=merchant_id,
+            status=status,
+            plan_tier=plan_tier,
+            skip=skip,
+            limit=limit,
+        )
+        return [self._to_admin_sub_response(s) for s in subs]
+
+    async def get_subscription_history(
+        self,
+        merchant_id: uuid.UUID | None = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> list[AdminSubscriptionResponse]:
+        if merchant_id:
+            merchant = await self.merchant_repo.get_by_id(merchant_id)
+            if not merchant:
+                raise EntityNotFoundError(
+                    message="Merchant not found.", error_code="MERCHANT_NOT_FOUND"
+                )
+        subs = await self.sub_repo.get_subscription_history(
+            merchant_id=merchant_id,
+            skip=skip,
+            limit=limit,
+        )
+        return [self._to_admin_sub_response(s) for s in subs]
+
+    async def modify_subscription(
+        self,
+        subscription_id: uuid.UUID,
+        req: AdminSubscriptionModifyRequest,
+        admin_user_id: uuid.UUID,
+        ip_address: str = "127.0.0.1",
+    ) -> AdminSubscriptionResponse:
+        sub = await self.sub_repo.get_subscription_by_id(subscription_id)
+        if not sub:
+            raise EntityNotFoundError(
+                message=f"Subscription '{subscription_id}' not found.",
+                error_code="SUBSCRIPTION_NOT_FOUND",
+            )
+
+        update_data: dict[str, Any] = {}
+        if req.plan_tier is not None:
+            tier = req.plan_tier.upper()
+            if tier not in PLAN_DETAILS:
+                raise UnprocessableEntityError(
+                    message=f"Invalid plan tier '{req.plan_tier}'. Must be BASIC, PROFESSIONAL, or ENTERPRISE.",
+                    error_code="INVALID_PLAN_TIER",
+                )
+            update_data["plan_tier"] = tier
+            if req.commission_rate_percentage is None:
+                update_data["commission_rate_percentage"] = PLAN_DETAILS[tier][
+                    "commission_rate"
+                ]
+
+        if req.commission_rate_percentage is not None:
+            update_data["commission_rate_percentage"] = req.commission_rate_percentage
+
+        if req.billing_cycle is not None:
+            cycle = req.billing_cycle.upper()
+            if cycle not in ("MONTHLY", "ANNUAL"):
+                raise UnprocessableEntityError(
+                    message=f"Invalid billing cycle '{req.billing_cycle}'. Must be MONTHLY or ANNUAL.",
+                    error_code="INVALID_BILLING_CYCLE",
+                )
+            update_data["billing_cycle"] = cycle
+
+        if req.status is not None:
+            status_val = req.status.upper()
+            valid_statuses = (
+                "ACTIVE",
+                "CANCELLED",
+                "SUSPENDED",
+                "EXPIRED",
+                "SUPERSEDED",
+            )
+            if status_val not in valid_statuses:
+                raise UnprocessableEntityError(
+                    message=f"Invalid subscription status '{req.status}'.",
+                    error_code="INVALID_SUBSCRIPTION_STATUS",
+                )
+            update_data["status"] = status_val
+
+            # If setting to ACTIVE, supersede any other active subscriptions for this merchant
+            if status_val == "ACTIVE":
+                active_sub = await self.sub_repo.get_active_subscription(
+                    sub.merchant_id
+                )
+                if active_sub and active_sub.id != sub.id:
+                    await self.sub_repo.update_subscription(
+                        active_sub, {"status": "SUPERSEDED"}
+                    )
+
+        if req.valid_until is not None:
+            update_data["valid_until"] = req.valid_until
+        elif req.duration_months is not None:
+            now = datetime.now(UTC)
+            current_expiry = (
+                sub.valid_until
+                if sub.valid_until.tzinfo
+                else sub.valid_until.replace(tzinfo=UTC)
+            )
+            base_time = max(now, current_expiry)
+            update_data["valid_until"] = base_time + timedelta(
+                days=30 * req.duration_months
+            )
+
+        await self.sub_repo.update_subscription(sub, update_data)
+
+        await self._write_audit_log(
+            admin_user_id=admin_user_id,
+            action="SUBSCRIPTION_MODIFIED",
+            target_entity="merchant_subscriptions",
+            target_entity_id=sub.id,
+            changes_payload={
+                "merchant_id": str(sub.merchant_id),
+                "updates": {
+                    k: str(v) if isinstance(v, datetime) else v
+                    for k, v in update_data.items()
+                },
+                "reason": req.reason,
+            },
+            ip_address=ip_address,
+        )
+
+        await self.session.commit()
+        self.session.expire_all()
+
+        refreshed = await self.sub_repo.get_subscription_by_id(subscription_id)
+        assert refreshed is not None
+        return self._to_admin_sub_response(refreshed)
+
+    async def modify_merchant_subscription(
+        self,
+        merchant_id: uuid.UUID,
+        req: AdminSubscriptionModifyRequest,
+        admin_user_id: uuid.UUID,
+        ip_address: str = "127.0.0.1",
+    ) -> AdminSubscriptionResponse:
+        merchant = await self.merchant_repo.get_by_id(merchant_id)
+        if not merchant:
+            raise EntityNotFoundError(
+                message="Merchant not found.", error_code="MERCHANT_NOT_FOUND"
+            )
+
+        active_sub = await self.sub_repo.get_active_subscription(merchant_id)
+        if active_sub:
+            return await self.modify_subscription(
+                subscription_id=active_sub.id,
+                req=req,
+                admin_user_id=admin_user_id,
+                ip_address=ip_address,
+            )
+
+        # No active subscription: create a new one with the requested details
+        tier = req.plan_tier.upper() if req.plan_tier else "BASIC"
+        if tier not in PLAN_DETAILS:
+            raise UnprocessableEntityError(
+                message=f"Invalid plan tier '{req.plan_tier}'. Must be BASIC, PROFESSIONAL, or ENTERPRISE.",
+                error_code="INVALID_PLAN_TIER",
+            )
+        tier_info = PLAN_DETAILS[tier]
+        cycle = req.billing_cycle.upper() if req.billing_cycle else "MONTHLY"
+        if cycle not in ("MONTHLY", "ANNUAL"):
+            raise UnprocessableEntityError(
+                message=f"Invalid billing cycle '{req.billing_cycle}'. Must be MONTHLY or ANNUAL.",
+                error_code="INVALID_BILLING_CYCLE",
+            )
+
+        rate = (
+            req.commission_rate_percentage
+            if req.commission_rate_percentage is not None
+            else tier_info["commission_rate"]
+        )
+        status_val = req.status.upper() if req.status else "ACTIVE"
+
+        now = datetime.now(UTC)
+        if req.valid_until is not None:
+            valid_until = req.valid_until
+        elif req.duration_months is not None:
+            valid_until = now + timedelta(days=30 * req.duration_months)
+        elif cycle == "ANNUAL":
+            valid_until = now + timedelta(days=365)
+        else:
+            valid_until = now + timedelta(days=30)
+
+        new_sub = MerchantSubscription(
+            merchant_id=merchant_id,
+            plan_tier=tier,
+            billing_cycle=cycle,
+            status=status_val,
+            commission_rate_percentage=rate,
+            valid_until=valid_until,
+        )
+        created_sub = await self.sub_repo.create_subscription(new_sub)
+
+        await self._write_audit_log(
+            admin_user_id=admin_user_id,
+            action="SUBSCRIPTION_CREATED",
+            target_entity="merchant_subscriptions",
+            target_entity_id=created_sub.id,
+            changes_payload={
+                "merchant_id": str(merchant_id),
+                "plan_tier": tier,
+                "billing_cycle": cycle,
+                "status": status_val,
+                "commission_rate_percentage": rate,
+                "reason": req.reason,
+            },
+            ip_address=ip_address,
+        )
+
+        sub_id = created_sub.id
+        await self.session.commit()
+        self.session.expire_all()
+
+        refreshed = await self.sub_repo.get_subscription_by_id(sub_id)
+        assert refreshed is not None
+        return self._to_admin_sub_response(refreshed)
+
+    async def list_customers(
+        self,
+        search: str | None = None,
+        is_active: bool | None = None,
+        skip: int = 0,
+        limit: int = 50,
+    ) -> list[AdminCustomerResponse]:
+        customers = await self.customer_repo.list_customers(
+            search=search, is_active=is_active, skip=skip, limit=limit
+        )
+        return [
+            AdminCustomerResponse(
+                id=c.id,
+                user_id=c.user_id,
+                email=c.user.email if c.user else "",
+                full_name=c.full_name,
+                phone_number=c.phone_number,
+                is_active=c.user.is_active if c.user else True,
+                is_verified=c.user.is_verified if c.user else False,
+                created_at=c.created_at,
+                updated_at=c.updated_at,
+            )
+            for c in customers
+        ]
+
+    async def get_customer(
+        self, customer_id: uuid.UUID
+    ) -> AdminCustomerDetailResponse:
+        customer = await self.customer_repo.get_by_id(customer_id)
+        if not customer:
+            raise EntityNotFoundError(
+                message=f"Customer profile with id '{customer_id}' not found.",
+                error_code="CUSTOMER_NOT_FOUND",
+            )
+        addresses = await self.customer_repo.get_addresses(customer.id)
+        order_count, total_spent = await self.customer_repo.get_customer_order_stats(
+            customer.id
+        )
+        return AdminCustomerDetailResponse(
+            id=customer.id,
+            user_id=customer.user_id,
+            email=customer.user.email if customer.user else "",
+            full_name=customer.full_name,
+            phone_number=customer.phone_number,
+            is_active=customer.user.is_active if customer.user else True,
+            is_verified=customer.user.is_verified if customer.user else False,
+            created_at=customer.created_at,
+            updated_at=customer.updated_at,
+            addresses=[
+                AdminCustomerAddressResponse(
+                    id=a.id,
+                    address_line=a.address_line,
+                    building_name=a.building_name,
+                    campus_zone=a.campus_zone,
+                    is_primary=a.is_primary,
+                    created_at=a.created_at,
+                    updated_at=a.updated_at,
+                )
+                for a in addresses
+            ],
+            total_orders=order_count,
+            total_spent=total_spent,
+        )
+
+    async def update_customer(
+        self,
+        customer_id: uuid.UUID,
+        req: AdminCustomerUpdateRequest,
+        admin_user_id: uuid.UUID,
+        ip_address: str = "127.0.0.1",
+    ) -> AdminCustomerDetailResponse:
+        customer = await self.customer_repo.get_by_id(customer_id)
+        if not customer:
+            raise EntityNotFoundError(
+                message=f"Customer profile with id '{customer_id}' not found.",
+                error_code="CUSTOMER_NOT_FOUND",
+            )
+
+        changes: dict[str, Any] = {}
+
+        # Profile fields
+        profile_updates: dict[str, Any] = {}
+        if req.full_name is not None and req.full_name != customer.full_name:
+            profile_updates["full_name"] = req.full_name
+            changes["full_name"] = {"old": customer.full_name, "new": req.full_name}
+        if req.phone_number is not None and req.phone_number != customer.phone_number:
+            profile_updates["phone_number"] = req.phone_number
+            changes["phone_number"] = {
+                "old": customer.phone_number,
+                "new": req.phone_number,
+            }
+
+        if profile_updates:
+            await self.customer_repo.update_profile(customer, profile_updates)
+
+        # User fields
+        if customer.user:
+            user = customer.user
+            if req.is_active is not None and req.is_active != user.is_active:
+                changes["is_active"] = {"old": user.is_active, "new": req.is_active}
+                user.is_active = req.is_active
+            if req.is_verified is not None and req.is_verified != user.is_verified:
+                changes["is_verified"] = {
+                    "old": user.is_verified,
+                    "new": req.is_verified,
+                }
+                user.is_verified = req.is_verified
+
+        if changes:
+            await self._write_audit_log(
+                admin_user_id=admin_user_id,
+                action="CUSTOMER_UPDATED",
+                target_entity="customer_profiles",
+                target_entity_id=customer.id,
+                changes_payload=changes,
+                ip_address=ip_address,
+            )
+
+        await self.session.commit()
+        self.session.expire_all()
+
+        return await self.get_customer(customer_id)
 

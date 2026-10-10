@@ -64,6 +64,11 @@ class MenuCategoryCreate(MenuCategoryBase):
     pass
 
 
+class MenuCategoryUpdate(BaseModel):
+    name: str | None = Field(default=None, max_length=100)
+    display_order: int | None = None
+
+
 class MenuCategoryResponse(MenuCategoryBase):
     model_config = ConfigDict(from_attributes=True)
 
