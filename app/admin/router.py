@@ -310,7 +310,6 @@ async def delete_banner(
     summary="Get system feature flags & operational throttles",
 )
 async def get_feature_flags(
-    current_user: UserClaims = Depends(require_role(["PlatformAdmin"])),
     admin_service: AdminServiceInterface = Depends(get_admin_service),
 ) -> list[FeatureFlagResponse]:
     return await admin_service.get_feature_flags()
