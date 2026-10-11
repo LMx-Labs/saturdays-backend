@@ -1,7 +1,8 @@
 import uuid
 from abc import ABC, abstractmethod
+from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -28,6 +29,24 @@ class MenuRepositoryInterface(ABC):
         pass
 
     @abstractmethod
+    async def update_category(self, category: MenuCategory) -> MenuCategory:
+        pass
+
+    @abstractmethod
+    async def count_active_items_by_category(self, category_id: uuid.UUID) -> int:
+        pass
+
+    @abstractmethod
+    async def reassign_category_items(
+        self, from_category_id: uuid.UUID, to_category_id: uuid.UUID
+    ) -> None:
+        pass
+
+    @abstractmethod
+    async def soft_delete_category(self, category: MenuCategory) -> None:
+        pass
+
+    @abstractmethod
     async def create_menu_item(self, item: MenuItem) -> MenuItem:
         pass
 
@@ -49,8 +68,8 @@ class MenuRepository(MenuRepositoryInterface):
             select(Menu)
             .where(Menu.branch_id == branch_id, Menu.deleted_at.is_(None))
             .options(
-                selectinload(Menu.categories)
-                .selectinload(MenuCategory.items)
+                selectinload(Menu.categories.and_(MenuCategory.deleted_at.is_(None)))
+                .selectinload(MenuCategory.items.and_(MenuItem.deleted_at.is_(None)))
                 .selectinload(MenuItem.modifiers)
             )
         )
@@ -69,7 +88,9 @@ class MenuRepository(MenuRepositoryInterface):
             .where(MenuCategory.id == category_id, MenuCategory.deleted_at.is_(None))
             .options(
                 selectinload(MenuCategory.menu),
-                selectinload(MenuCategory.items).selectinload(MenuItem.modifiers),
+                selectinload(
+                    MenuCategory.items.and_(MenuItem.deleted_at.is_(None))
+                ).selectinload(MenuItem.modifiers),
             )
         )
         result = await self.session.execute(stmt)
@@ -82,6 +103,40 @@ class MenuRepository(MenuRepositoryInterface):
         self.session.add(category)
         await self.session.flush()
         return category
+
+    async def update_category(self, category: MenuCategory) -> MenuCategory:
+        self.session.add(category)
+        await self.session.flush()
+        return category
+
+    async def count_active_items_by_category(self, category_id: uuid.UUID) -> int:
+        stmt = (
+            select(func.count())
+            .select_from(MenuItem)
+            .where(MenuItem.category_id == category_id, MenuItem.deleted_at.is_(None))
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one()
+
+    async def reassign_category_items(
+        self, from_category_id: uuid.UUID, to_category_id: uuid.UUID
+    ) -> None:
+        stmt = (
+            update(MenuItem)
+            .where(
+                MenuItem.category_id == from_category_id,
+                MenuItem.deleted_at.is_(None),
+            )
+            .values(category_id=to_category_id)
+            .execution_options(synchronize_session="fetch")
+        )
+        await self.session.execute(stmt)
+        await self.session.flush()
+
+    async def soft_delete_category(self, category: MenuCategory) -> None:
+        category.deleted_at = datetime.now(UTC)
+        self.session.add(category)
+        await self.session.flush()
 
     async def create_menu_item(self, item: MenuItem) -> MenuItem:
         self.session.add(item)

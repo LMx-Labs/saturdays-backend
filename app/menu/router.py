@@ -1,7 +1,7 @@
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.router import require_role
@@ -10,6 +10,7 @@ from app.menu.repository import MenuRepository, MenuRepositoryInterface
 from app.menu.schemas import (
     MenuCategoryCreate,
     MenuCategoryResponse,
+    MenuCategoryUpdate,
     MenuCreate,
     MenuItemCreate,
     MenuItemResponse,
@@ -58,7 +59,9 @@ async def get_branch_menu(
 async def create_branch_menu(
     branch_id: uuid.UUID,
     req: MenuCreate,
-    _current_user=Depends(require_role(["BranchManager", "MerchantOwner", "Admin"])),
+    _current_user=Depends(
+        require_role(["BranchManager", "MerchantOwner", "PlatformAdmin"])
+    ),
     menu_service: MenuServiceInterface = Depends(get_menu_service),
 ) -> Any:
     return await menu_service.create_branch_menu(branch_id, req)
@@ -74,10 +77,50 @@ async def create_branch_menu(
 async def create_category(
     branch_id: uuid.UUID,
     req: MenuCategoryCreate,
-    _current_user=Depends(require_role(["BranchManager", "MerchantOwner", "Admin"])),
+    _current_user=Depends(
+        require_role(["BranchManager", "MerchantOwner", "PlatformAdmin"])
+    ),
     menu_service: MenuServiceInterface = Depends(get_menu_service),
 ) -> Any:
     return await menu_service.create_category(branch_id, req)
+
+
+@router.patch(
+    "/menu/categories/{category_id}",
+    response_model=MenuCategoryResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Update menu category",
+    description="Update a category's name and/or display order.",
+)
+async def update_category(
+    category_id: uuid.UUID,
+    req: MenuCategoryUpdate,
+    _current_user=Depends(
+        require_role(["BranchManager", "MerchantOwner", "PlatformAdmin"])
+    ),
+    menu_service: MenuServiceInterface = Depends(get_menu_service),
+) -> Any:
+    return await menu_service.update_category(category_id, req)
+
+
+@router.delete(
+    "/menu/categories/{category_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete menu category",
+    description="Delete an empty category or soft-delete it after reassigning dishes to a fallback category.",
+)
+async def delete_category(
+    category_id: uuid.UUID,
+    fallback_category_id: uuid.UUID | None = Query(
+        default=None,
+        description="Optional fallback category ID to reassign dishes before deleting.",
+    ),
+    _current_user=Depends(
+        require_role(["BranchManager", "MerchantOwner", "PlatformAdmin"])
+    ),
+    menu_service: MenuServiceInterface = Depends(get_menu_service),
+) -> None:
+    await menu_service.delete_category(category_id, fallback_category_id)
 
 
 @router.post(
@@ -90,7 +133,9 @@ async def create_category(
 async def create_menu_item(
     branch_id: uuid.UUID,
     req: MenuItemCreate,
-    _current_user=Depends(require_role(["BranchManager", "MerchantOwner", "Admin"])),
+    _current_user=Depends(
+        require_role(["BranchManager", "MerchantOwner", "PlatformAdmin"])
+    ),
     menu_service: MenuServiceInterface = Depends(get_menu_service),
 ) -> Any:
     return await menu_service.create_menu_item(branch_id, req)
@@ -120,7 +165,9 @@ async def get_menu_item(
 async def update_menu_item(
     item_id: uuid.UUID,
     req: MenuItemUpdate,
-    _current_user=Depends(require_role(["BranchManager", "MerchantOwner", "Admin"])),
+    _current_user=Depends(
+        require_role(["BranchManager", "MerchantOwner", "PlatformAdmin"])
+    ),
     menu_service: MenuServiceInterface = Depends(get_menu_service),
 ) -> Any:
     return await menu_service.update_menu_item(item_id, req)

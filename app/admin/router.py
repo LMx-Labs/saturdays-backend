@@ -6,6 +6,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.admin.repository import AdminRepository, AdminRepositoryInterface
 from app.admin.schemas import (
     AdminAuditLogResponse,
+    AdminCustomerDetailResponse,
+    AdminCustomerResponse,
+    AdminCustomerUpdateRequest,
+    AdminMerchantResponse,
+    AdminSetPasswordRequest,
+    AdminSetPasswordResponse,
+    AdminSubscriptionModifyRequest,
+    AdminSubscriptionResponse,
     BannerCreate,
     BannerResponse,
     BranchManagerAssignRequest,
@@ -58,6 +66,7 @@ def get_admin_service(
         admin_repo=admin_repo,
         merchant_repo=merchant_repo,
         coupon_service=coupon_service,
+        customer_repo=customer_repo,
     )
 
 
@@ -78,6 +87,152 @@ async def approve_or_reject_merchant(
         admin_user_id=uuid.UUID(current_user.sub),
         merchant_id=merchant_id,
         req=req,
+        ip_address=ip,
+    )
+
+
+@router.get(
+    "/merchants",
+    response_model=list[AdminMerchantResponse],
+    status_code=status.HTTP_200_OK,
+    summary="List merchants with owner details and verification status",
+)
+async def list_merchants(
+    status: str | None = Query(
+        None,
+        description="Optional status filter (e.g. DRAFT, PENDING, APPROVED, REJECTED)",
+    ),
+    current_user: UserClaims = Depends(require_role(["PlatformAdmin"])),
+    admin_service: AdminServiceInterface = Depends(get_admin_service),
+) -> list[AdminMerchantResponse]:
+    return await admin_service.list_merchants(status=status)
+
+
+@router.get(
+    "/subscriptions",
+    response_model=list[AdminSubscriptionResponse],
+    status_code=status.HTTP_200_OK,
+    summary="List all merchant subscriptions with filters",
+    description="Retrieve all subscriptions across merchants with optional filtering by merchant_id, status, and plan_tier.",
+)
+async def list_subscriptions(
+    merchant_id: uuid.UUID | None = Query(
+        None, description="Optional merchant ID filter"
+    ),
+    status: str | None = Query(
+        None,
+        description="Optional status filter ('ACTIVE', 'SUPERSEDED', 'CANCELLED', etc.)",
+    ),
+    plan_tier: str | None = Query(
+        None, description="Optional tier filter ('BASIC', 'PROFESSIONAL', 'ENTERPRISE')"
+    ),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    current_user: UserClaims = Depends(require_role(["PlatformAdmin"])),
+    admin_service: AdminServiceInterface = Depends(get_admin_service),
+) -> list[AdminSubscriptionResponse]:
+    return await admin_service.list_subscriptions(
+        merchant_id=merchant_id,
+        status=status,
+        plan_tier=plan_tier,
+        skip=skip,
+        limit=limit,
+    )
+
+
+@router.get(
+    "/subscriptions/history",
+    response_model=list[AdminSubscriptionResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Get subscription change history",
+    description="Retrieve historical subscription transitions and changes across all merchants or filtered by merchant_id.",
+)
+async def get_subscription_history(
+    merchant_id: uuid.UUID | None = Query(
+        None, description="Optional merchant ID filter"
+    ),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    current_user: UserClaims = Depends(require_role(["PlatformAdmin"])),
+    admin_service: AdminServiceInterface = Depends(get_admin_service),
+) -> list[AdminSubscriptionResponse]:
+    return await admin_service.get_subscription_history(
+        merchant_id=merchant_id,
+        skip=skip,
+        limit=limit,
+    )
+
+
+@router.get(
+    "/merchants/{merchant_id}/subscriptions",
+    response_model=list[AdminSubscriptionResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Get merchant subscription history",
+    description="Retrieve all previous and current subscription history records for a specific merchant.",
+)
+async def get_merchant_subscription_history(
+    merchant_id: uuid.UUID,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    current_user: UserClaims = Depends(require_role(["PlatformAdmin"])),
+    admin_service: AdminServiceInterface = Depends(get_admin_service),
+) -> list[AdminSubscriptionResponse]:
+    return await admin_service.get_subscription_history(
+        merchant_id=merchant_id,
+        skip=skip,
+        limit=limit,
+    )
+
+
+@router.patch(
+    "/subscriptions/{subscription_id}",
+    response_model=AdminSubscriptionResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Modify subscription",
+    description="Directly modify a merchant's subscription parameters (tier, cycle, status, commission rate, valid_until).",
+)
+async def modify_subscription(
+    subscription_id: uuid.UUID,
+    req: AdminSubscriptionModifyRequest,
+    request: Request,
+    current_user: UserClaims = Depends(require_role(["PlatformAdmin"])),
+    admin_service: AdminServiceInterface = Depends(get_admin_service),
+) -> AdminSubscriptionResponse:
+    ip = request.client.host if request.client else "127.0.0.1"
+    return await admin_service.modify_subscription(
+        subscription_id=subscription_id,
+        req=req,
+        admin_user_id=uuid.UUID(current_user.sub),
+        ip_address=ip,
+    )
+
+
+@router.put(
+    "/merchants/{merchant_id}/subscription",
+    response_model=AdminSubscriptionResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Set or override merchant subscription",
+    description="Modify the active subscription or create/assign a new subscription for a merchant with custom terms.",
+)
+@router.patch(
+    "/merchants/{merchant_id}/subscription",
+    response_model=AdminSubscriptionResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Modify merchant subscription",
+    description="Modify the active subscription or create/assign a new subscription for a merchant with custom terms.",
+)
+async def modify_merchant_subscription(
+    merchant_id: uuid.UUID,
+    req: AdminSubscriptionModifyRequest,
+    request: Request,
+    current_user: UserClaims = Depends(require_role(["PlatformAdmin"])),
+    admin_service: AdminServiceInterface = Depends(get_admin_service),
+) -> AdminSubscriptionResponse:
+    ip = request.client.host if request.client else "127.0.0.1"
+    return await admin_service.modify_merchant_subscription(
+        merchant_id=merchant_id,
+        req=req,
+        admin_user_id=uuid.UUID(current_user.sub),
         ip_address=ip,
     )
 
@@ -155,7 +310,6 @@ async def delete_banner(
     summary="Get system feature flags & operational throttles",
 )
 async def get_feature_flags(
-    current_user: UserClaims = Depends(require_role(["PlatformAdmin"])),
     admin_service: AdminServiceInterface = Depends(get_admin_service),
 ) -> list[FeatureFlagResponse]:
     return await admin_service.get_feature_flags()
@@ -280,3 +434,87 @@ async def get_analytics_overview(
     admin_service: AdminServiceInterface = Depends(get_admin_service),
 ) -> PlatformAnalyticsOverview:
     return await admin_service.get_analytics_overview()
+
+
+@router.post(
+    "/set-password",
+    response_model=AdminSetPasswordResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Admin set user password",
+    description="Administrator directly sets or overrides the password for any user account using user_id or email.",
+)
+async def admin_set_password(
+    req: AdminSetPasswordRequest,
+    request: Request,
+    current_user: UserClaims = Depends(require_role(["PlatformAdmin"])),
+    admin_service: AdminServiceInterface = Depends(get_admin_service),
+) -> AdminSetPasswordResponse:
+    ip = request.client.host if request.client else "127.0.0.1"
+    return await admin_service.set_user_password(
+        admin_user_id=uuid.UUID(current_user.sub),
+        req=req,
+        ip_address=ip,
+    )
+
+
+@router.get(
+    "/customers",
+    response_model=list[AdminCustomerResponse],
+    status_code=status.HTTP_200_OK,
+    summary="List customers with filters and pagination",
+    description="Retrieve customers with optional search across name/email/phone, filter by active status, and pagination.",
+)
+async def list_customers(
+    search: str | None = Query(
+        None, description="Search by name, email, or phone number"
+    ),
+    is_active: bool | None = Query(
+        None, description="Filter by active/inactive account status"
+    ),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    current_user: UserClaims = Depends(require_role(["PlatformAdmin"])),
+    admin_service: AdminServiceInterface = Depends(get_admin_service),
+) -> list[AdminCustomerResponse]:
+    return await admin_service.list_customers(
+        search=search, is_active=is_active, skip=skip, limit=limit
+    )
+
+
+@router.get(
+    "/customers/{customer_id}",
+    response_model=AdminCustomerDetailResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get customer details",
+    description="Retrieve detailed customer profile including delivery addresses and order summary stats.",
+)
+async def get_customer(
+    customer_id: uuid.UUID,
+    current_user: UserClaims = Depends(require_role(["PlatformAdmin"])),
+    admin_service: AdminServiceInterface = Depends(get_admin_service),
+) -> AdminCustomerDetailResponse:
+    return await admin_service.get_customer(customer_id=customer_id)
+
+
+@router.patch(
+    "/customers/{customer_id}",
+    response_model=AdminCustomerDetailResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Update customer profile and account status",
+    description="Update customer profile information and toggle account active/verified status.",
+)
+async def update_customer(
+    customer_id: uuid.UUID,
+    req: AdminCustomerUpdateRequest,
+    request: Request,
+    current_user: UserClaims = Depends(require_role(["PlatformAdmin"])),
+    admin_service: AdminServiceInterface = Depends(get_admin_service),
+) -> AdminCustomerDetailResponse:
+    ip = request.client.host if request.client else "127.0.0.1"
+    return await admin_service.update_customer(
+        customer_id=customer_id,
+        req=req,
+        admin_user_id=uuid.UUID(current_user.sub),
+        ip_address=ip,
+    )
+

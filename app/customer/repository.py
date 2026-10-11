@@ -2,10 +2,13 @@ import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
+from app.auth.models import User
 from app.customer.models import CustomerAddress, CustomerFavorite, CustomerProfile
+from app.order.models import Order
 
 
 class CustomerRepositoryInterface(ABC):
@@ -25,6 +28,22 @@ class CustomerRepositoryInterface(ABC):
     async def update_profile(
         self, profile: CustomerProfile, update_data: dict
     ) -> CustomerProfile:
+        pass
+
+    @abstractmethod
+    async def list_customers(
+        self,
+        search: str | None = None,
+        is_active: bool | None = None,
+        skip: int = 0,
+        limit: int = 50,
+    ) -> Sequence[CustomerProfile]:
+        pass
+
+    @abstractmethod
+    async def get_customer_order_stats(
+        self, customer_profile_id: uuid.UUID
+    ) -> tuple[int, float]:
         pass
 
     @abstractmethod
@@ -83,11 +102,54 @@ class CustomerRepository(CustomerRepositoryInterface):
         self.session = session
 
     async def get_by_id(self, customer_id: uuid.UUID) -> CustomerProfile | None:
-        stmt = select(CustomerProfile).where(
-            CustomerProfile.id == customer_id, CustomerProfile.deleted_at.is_(None)
+        stmt = (
+            select(CustomerProfile)
+            .options(joinedload(CustomerProfile.user))
+            .where(
+                CustomerProfile.id == customer_id, CustomerProfile.deleted_at.is_(None)
+            )
         )
         res = await self.session.execute(stmt)
         return res.scalar_one_or_none()
+
+    async def list_customers(
+        self,
+        search: str | None = None,
+        is_active: bool | None = None,
+        skip: int = 0,
+        limit: int = 50,
+    ) -> Sequence[CustomerProfile]:
+        stmt = (
+            select(CustomerProfile)
+            .join(CustomerProfile.user)
+            .options(joinedload(CustomerProfile.user))
+            .where(CustomerProfile.deleted_at.is_(None))
+        )
+        if is_active is not None:
+            stmt = stmt.where(User.is_active == is_active)
+        if search:
+            search_pattern = f"%{search}%"
+            stmt = stmt.where(
+                or_(
+                    CustomerProfile.full_name.ilike(search_pattern),
+                    CustomerProfile.phone_number.ilike(search_pattern),
+                    User.email.ilike(search_pattern),
+                )
+            )
+        stmt = stmt.order_by(CustomerProfile.created_at.desc()).offset(skip).limit(limit)
+        res = await self.session.execute(stmt)
+        return res.scalars().all()
+
+    async def get_customer_order_stats(
+        self, customer_profile_id: uuid.UUID
+    ) -> tuple[int, float]:
+        stmt = select(
+            func.count(Order.id),
+            func.coalesce(func.sum(Order.total_amount), 0.0),
+        ).where(Order.customer_profile_id == customer_profile_id)
+        res = await self.session.execute(stmt)
+        row = res.one()
+        return (row[0] or 0, float(row[1] or 0.0))
 
     async def get_by_user_id(self, user_id: uuid.UUID) -> CustomerProfile | None:
         stmt = select(CustomerProfile).where(

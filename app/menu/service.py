@@ -9,6 +9,7 @@ from app.menu.models import Menu, MenuCategory, MenuItem
 from app.menu.repository import MenuRepositoryInterface
 from app.menu.schemas import (
     MenuCategoryCreate,
+    MenuCategoryUpdate,
     MenuCreate,
     MenuItemCreate,
     MenuItemUpdate,
@@ -34,6 +35,20 @@ class MenuServiceInterface(ABC):
 
     @abstractmethod
     async def get_category(self, category_id: uuid.UUID) -> MenuCategory:
+        pass
+
+    @abstractmethod
+    async def update_category(
+        self, category_id: uuid.UUID, req: MenuCategoryUpdate
+    ) -> MenuCategory:
+        pass
+
+    @abstractmethod
+    async def delete_category(
+        self,
+        category_id: uuid.UUID,
+        fallback_category_id: uuid.UUID | None = None,
+    ) -> None:
         pass
 
     @abstractmethod
@@ -86,8 +101,10 @@ class MenuService(MenuServiceInterface):
         category = await self.menu_repo.create_category(
             menu_id=menu.id, name=req.name, display_order=req.display_order
         )
+        cat_id = category.id
         await self.session.commit()
-        return await self.get_category(category.id)
+        self.session.expire_all()
+        return await self.get_category(cat_id)
 
     async def get_category(self, category_id: uuid.UUID) -> MenuCategory:
         category = await self.menu_repo.get_category_by_id(category_id)
@@ -97,6 +114,88 @@ class MenuService(MenuServiceInterface):
                 error_code="CATEGORY_NOT_FOUND",
             )
         return category
+
+    async def update_category(
+        self, category_id: uuid.UUID, req: MenuCategoryUpdate
+    ) -> MenuCategory:
+        category = await self.get_category(category_id)
+
+        if req.name is not None:
+            category.name = req.name
+        if req.display_order is not None:
+            category.display_order = req.display_order
+
+        await self.menu_repo.update_category(category)
+
+        logger.info(
+            "MenuCategoryUpdatedEvent",
+            category_id=str(category.id),
+            name=category.name,
+            display_order=category.display_order,
+        )
+
+        await self.session.commit()
+        self.session.expire_all()
+
+        return await self.get_category(category_id)
+
+    async def delete_category(
+        self,
+        category_id: uuid.UUID,
+        fallback_category_id: uuid.UUID | None = None,
+    ) -> None:
+        category = await self.get_category(category_id)
+
+        active_items_count = await self.menu_repo.count_active_items_by_category(
+            category_id
+        )
+
+        if active_items_count > 0 and not fallback_category_id:
+            raise DomainInvariantError(
+                message="Category still contains dishes. Provide a fallback category to reassign dishes before deleting.",
+                error_code="CATEGORY_NOT_EMPTY",
+            )
+
+        if fallback_category_id is not None:
+            if fallback_category_id == category_id:
+                raise DomainInvariantError(
+                    message="Fallback category cannot be the same as the category being deleted.",
+                    error_code="INVALID_FALLBACK_CATEGORY",
+                )
+
+            fallback_category = await self.menu_repo.get_category_by_id(
+                fallback_category_id
+            )
+            if not fallback_category:
+                raise EntityNotFoundError(
+                    message=f"Fallback category '{fallback_category_id}' not found.",
+                    error_code="FALLBACK_CATEGORY_NOT_FOUND",
+                )
+
+            if fallback_category.menu_id != category.menu_id:
+                raise DomainInvariantError(
+                    message="Fallback category must belong to the same menu.",
+                    error_code="INVALID_FALLBACK_CATEGORY",
+                )
+
+            if active_items_count > 0:
+                await self.menu_repo.reassign_category_items(
+                    from_category_id=category_id,
+                    to_category_id=fallback_category_id,
+                )
+
+        logger.info(
+            "MenuCategoryDeletedEvent",
+            category_id=str(category_id),
+            fallback_category_id=(
+                str(fallback_category_id) if fallback_category_id else None
+            ),
+            reassigned_items_count=active_items_count if fallback_category_id else 0,
+        )
+
+        await self.menu_repo.soft_delete_category(category)
+        await self.session.commit()
+        self.session.expire_all()
 
     async def create_menu_item(
         self, branch_id: uuid.UUID, req: MenuItemCreate
