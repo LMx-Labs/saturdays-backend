@@ -107,7 +107,12 @@ async def test_payment_intent_creation(
     data = response.json()
     assert data["order_id"] == str(order_id)
     assert data["amount"] == 500.00
-    assert "razorpay_order_id" in data
+    assert data["razorpay_order_id"].startswith("order_sim_")
+    assert data["key_id"] == settings.RAZORPAY_KEY_ID
+    assert data["is_simulated"] is True
+    assert "key_secret" not in response.text
+    if settings.RAZORPAY_KEY_SECRET:
+        assert settings.RAZORPAY_KEY_SECRET not in response.text
 
 
 @pytest.mark.asyncio
@@ -279,3 +284,59 @@ async def test_cash_refund_is_disabled_by_policy(
     )
     assert rf_res.status_code == 400
     assert rf_res.json()["error_code"] == "REFUNDS_DISABLED_USE_STORE_CREDIT"
+
+
+@pytest.fixture(autouse=True)
+def _simulate_razorpay_orders(monkeypatch):
+    monkeypatch.setattr(settings, "RAZORPAY_SIMULATE", True)
+
+
+@pytest.mark.asyncio
+async def test_live_razorpay_order_uses_paise_and_basic_auth(monkeypatch):
+    monkeypatch.setattr(settings, "RAZORPAY_SIMULATE", False)
+    monkeypatch.setattr(settings, "RAZORPAY_KEY_ID", "rzp_test_public")
+    monkeypatch.setattr(settings, "RAZORPAY_KEY_SECRET", "rzp_test_secret")
+    monkeypatch.setattr(settings, "RAZORPAY_BASE_URL", "https://api.razorpay.com/v1/")
+    captured: dict = {}
+
+    class FakeResponse:
+        status_code = 200
+
+        def json(self):
+            return {
+                "id": "order_live_abc",
+                "amount": 49900,
+                "currency": "INR",
+                "status": "created",
+            }
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            captured["init"] = True
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        async def post(self, url, json, auth):
+            captured["url"] = url
+            captured["json"] = json
+            captured["auth"] = auth
+            return FakeResponse()
+
+    monkeypatch.setattr(
+        "app.payment.razorpay_adapter.httpx.AsyncClient", FakeClient
+    )
+    result = await RazorpayAdapter().create_order(499, "INR", receipt="booking-1")
+    assert result["id"] == "order_live_abc"
+    assert captured["url"] == "https://api.razorpay.com/v1/orders"
+    assert captured["json"] == {
+        "amount": 49900,
+        "currency": "INR",
+        "receipt": "booking-1",
+    }
+    assert type(captured["json"]["amount"]) is int
+    assert captured["auth"] == ("rzp_test_public", "rzp_test_secret")
+    assert "rzp_test_secret" not in json.dumps(result)

@@ -85,7 +85,7 @@ class PaymentService(PaymentServiceInterface):
         currency: str = "INR",
     ) -> PaymentIntentResponse:
         # Create Razorpay order intent via adapter
-        rzp_order = self.razorpay_adapter.create_order(
+        rzp_order = await self.razorpay_adapter.create_order(
             amount=amount, currency=currency, receipt=str(order_id)
         )
         razorpay_order_id = rzp_order["id"]
@@ -106,6 +106,8 @@ class PaymentService(PaymentServiceInterface):
             razorpay_order_id=razorpay_order_id,
             amount=float(payment.amount),
             currency=payment.currency,
+            key_id=settings.RAZORPAY_KEY_ID,
+            is_simulated=settings.RAZORPAY_SIMULATE,
         )
 
     async def verify_payment(self, req: PaymentVerifyRequest) -> PaymentVerifyResponse:

@@ -44,6 +44,8 @@ class PaymentIntentResponse(BaseModel):
     razorpay_order_id: str
     amount: float
     currency: str
+    key_id: str
+    is_simulated: bool
 
 
 class PaymentVerifyRequest(BaseModel):

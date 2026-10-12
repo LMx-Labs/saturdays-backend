@@ -7,6 +7,7 @@ from app.core.base_model import Base, TimestampMixin
 from app.coupon.models import Coupon, CouponRedemption
 from app.credit.models import StoreCredit, StoreCreditTransaction
 from app.customer.models import CustomerAddress, CustomerFavorite, CustomerProfile
+from app.garba.models import GarbaBooking, GarbaCategoryLock, GarbaInventory, GarbaTicket
 from app.inventory.models import InventoryItem, InventoryLog
 from app.kitchen.models import Kitchen
 from app.menu.models import Menu, MenuCategory, MenuItem, MenuModifier
@@ -30,6 +31,10 @@ __all__ = [
     "CustomerAddress",
     "CustomerFavorite",
     "CustomerProfile",
+    "GarbaBooking",
+    "GarbaCategoryLock",
+    "GarbaInventory",
+    "GarbaTicket",
     "InventoryItem",
     "InventoryLog",
     "Kitchen",

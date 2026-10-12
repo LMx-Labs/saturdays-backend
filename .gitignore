@@ -31,6 +31,7 @@ venv.bak/
 .env
 .env.local
 .env.*.local
+.vercel/
 
 # IDEs
 .idea/

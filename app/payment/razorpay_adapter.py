@@ -1,11 +1,21 @@
 import hashlib
 import hmac
 import uuid
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
+import httpx
+
 from app.core.config import get_settings
+from app.core.exceptions import AppException
 
 settings = get_settings()
+
+
+def _amount_to_paise(amount: float) -> int:
+    """Razorpay charges integer paise. 499 INR -> 49900."""
+    paise = (Decimal(str(amount)) * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    return int(paise)
 
 
 class RazorpayAdapter:
@@ -28,20 +38,64 @@ class RazorpayAdapter:
             or ("dummy_webhook_secret" if dev else "")
         )
 
-    def create_order(
+    async def create_order(
         self, amount: float, currency: str = "INR", receipt: str | None = None
     ) -> dict[str, Any]:
-        """Creates Razorpay Order ID."""
-        amount_in_paise = int(amount * 100)
-        razorpay_order_id = f"order_rzp_{uuid.uuid4().hex[:12]}"
-        return {
-            "id": razorpay_order_id,
-            "entity": "order",
+        """Create a Razorpay order.
+
+        RAZORPAY_SIMULATE keeps a local id (Checkout would reject it) and does
+        not mark anything paid. Otherwise POST /orders with key id and secret.
+        """
+        amount_in_paise = _amount_to_paise(amount)
+        receipt_value = (receipt or uuid.uuid4().hex)[:40]
+        if settings.RAZORPAY_SIMULATE:
+            return {
+                "id": f"order_sim_{uuid.uuid4().hex[:12]}",
+                "entity": "order",
+                "amount": amount_in_paise,
+                "currency": currency,
+                "receipt": receipt_value,
+                "status": "created",
+            }
+
+        if not settings.RAZORPAY_KEY_ID or not settings.RAZORPAY_KEY_SECRET:
+            raise AppException(
+                message="Razorpay is not configured.",
+                error_code="RAZORPAY_NOT_CONFIGURED",
+                status_code=503,
+            )
+
+        url = f"{settings.RAZORPAY_BASE_URL.rstrip('/')}/orders"
+        body = {
             "amount": amount_in_paise,
             "currency": currency,
-            "receipt": receipt or str(uuid.uuid4()),
-            "status": "created",
+            "receipt": receipt_value,
         }
+        try:
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                resp = await client.post(
+                    url,
+                    json=body,
+                    auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET),
+                )
+        except httpx.HTTPError as exc:
+            raise AppException(
+                message="Razorpay order request failed.",
+                error_code="RAZORPAY_ORDER_FAILED",
+                status_code=502,
+            ) from exc
+
+        try:
+            payload = resp.json()
+        except ValueError:
+            payload = {}
+        if resp.status_code >= 400 or not payload.get("id"):
+            raise AppException(
+                message="Razorpay did not return an order id.",
+                error_code="RAZORPAY_ORDER_FAILED",
+                status_code=502,
+            )
+        return payload
 
     def verify_payment_signature(
         self,

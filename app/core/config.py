@@ -47,8 +47,8 @@ class Settings(BaseSettings):
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5173",
     ]
-    # Optional regex for dynamic origins (e.g. Vercel preview deployments).
-    CORS_ORIGIN_REGEX: str | None = None
+    # Preview and production apps on Vercel. Override to None to disable.
+    CORS_ORIGIN_REGEX: str | None = r"https://.*\.vercel\.app"
     CORS_ALLOW_CREDENTIALS: bool = True
 
     # Razorpay (collections + RazorpayX payouts)
@@ -59,8 +59,8 @@ class Settings(BaseSettings):
         default="", description="RazorpayX business account number payouts debit from"
     )
     RAZORPAY_BASE_URL: str = "https://api.razorpay.com/v1"
-    # When true (default outside production) no real money moves: payouts are
-    # simulated locally. Production must set this to false explicitly.
+    # When true (default outside production) no real money moves: payment orders
+    # and payouts are simulated locally. Production must set this to false.
     RAZORPAY_SIMULATE: bool = True
 
     # Refund policy: cancelled/unfulfilled orders get store credit, not cash back.
