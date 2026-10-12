@@ -23,6 +23,8 @@ from app.garba.service import GarbaService
 
 router = APIRouter(prefix="/events/garba", tags=["Garba"])
 
+GARBA_STAFF_ROLES = ["PlatformAdmin", "Admin"]
+
 
 def get_garba_service(
     session: AsyncSession = Depends(get_db_session),
@@ -59,7 +61,7 @@ async def garba_availability(
     summary="Garba seat caps, sales, and holds",
 )
 async def garba_inventory(
-    _admin: UserClaims = Depends(require_role(["Admin"])),
+    _admin: UserClaims = Depends(require_role(GARBA_STAFF_ROLES)),
     service: GarbaService = Depends(get_garba_service),
 ) -> list[GarbaInventoryCell]:
     return await service.inventory()
@@ -72,7 +74,7 @@ async def garba_inventory(
 )
 async def update_garba_inventory(
     req: GarbaInventoryUpdate,
-    _admin: UserClaims = Depends(require_role(["Admin"])),
+    _admin: UserClaims = Depends(require_role(GARBA_STAFF_ROLES)),
     service: GarbaService = Depends(get_garba_service),
 ) -> GarbaInventoryCell:
     return await service.set_capacity(req)
@@ -85,7 +87,7 @@ async def update_garba_inventory(
 )
 async def scan_garba_ticket(
     req: GarbaScanRequest,
-    admin: UserClaims = Depends(require_role(["Admin"])),
+    admin: UserClaims = Depends(require_role(GARBA_STAFF_ROLES)),
     service: GarbaService = Depends(get_garba_service),
 ) -> GarbaScanResponse:
     return await service.scan(req.code, admin.sub)
