@@ -3,12 +3,14 @@ from abc import ABC, abstractmethod
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.admin.models import AdminAuditLog, Banner
 from app.admin.repository import AdminRepositoryInterface
 from app.admin.schemas import (
+    STAFF_ACCOUNT_ROLES,
     AdminAuditLogResponse,
     AdminCustomerAddressResponse,
     AdminCustomerDetailResponse,
@@ -19,6 +21,9 @@ from app.admin.schemas import (
     AdminSetPasswordResponse,
     AdminSubscriptionModifyRequest,
     AdminSubscriptionResponse,
+    AdminUserCreateRequest,
+    AdminUserResponse,
+    AdminUserUpdateRequest,
     BannerCreate,
     BannerResponse,
     BranchManagerCreateRequest,
@@ -32,6 +37,7 @@ from app.admin.schemas import (
 )
 from app.auth.models import User
 from app.branch.models import Branch
+from app.brand.models import Brand
 from app.core.exceptions import (
     ConflictError,
     DomainInvariantError,
@@ -216,6 +222,40 @@ class AdminServiceInterface(ABC):
         admin_user_id: uuid.UUID,
         ip_address: str = "127.0.0.1",
     ) -> AdminSubscriptionResponse:
+        pass
+
+    @abstractmethod
+    async def list_staff_users(
+        self,
+        roles: list[str] | None = None,
+        q: str | None = None,
+        is_active: bool | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[AdminUserResponse]:
+        pass
+
+    @abstractmethod
+    async def get_staff_user(self, user_id: uuid.UUID) -> AdminUserResponse:
+        pass
+
+    @abstractmethod
+    async def create_staff_user(
+        self,
+        admin_user_id: uuid.UUID,
+        req: AdminUserCreateRequest,
+        ip_address: str = "127.0.0.1",
+    ) -> AdminUserResponse:
+        pass
+
+    @abstractmethod
+    async def update_staff_user(
+        self,
+        admin_user_id: uuid.UUID,
+        user_id: uuid.UUID,
+        req: AdminUserUpdateRequest,
+        ip_address: str = "127.0.0.1",
+    ) -> AdminUserResponse:
         pass
 
     @abstractmethod
@@ -617,6 +657,311 @@ class AdminService(AdminServiceInterface):
     async def get_analytics_overview(self) -> PlatformAnalyticsOverview:
         stats = await self.admin_repo.get_analytics_overview()
         return PlatformAnalyticsOverview(**stats)
+
+    async def list_staff_users(
+        self,
+        roles: list[str] | None = None,
+        q: str | None = None,
+        is_active: bool | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[AdminUserResponse]:
+        wanted = self._normalize_staff_roles(roles)
+        stmt = self._staff_user_query().where(User.role.in_(wanted))
+        if q:
+            stmt = stmt.where(func.lower(User.email).contains(q.strip().lower()))
+        if is_active is not None:
+            stmt = stmt.where(User.is_active.is_(is_active))
+        stmt = stmt.order_by(User.created_at.desc()).offset(offset).limit(limit)
+        rows = (await self.session.execute(stmt)).all()
+        return self._dedupe_staff_rows(rows)
+
+    async def get_staff_user(self, user_id: uuid.UUID) -> AdminUserResponse:
+        stmt = self._staff_user_query().where(User.id == user_id)
+        row = (await self.session.execute(stmt)).first()
+        if not row:
+            raise EntityNotFoundError(
+                message="User not found.",
+                error_code="USER_NOT_FOUND",
+            )
+        return self._to_staff_user_response(*row)
+
+    async def create_staff_user(
+        self,
+        admin_user_id: uuid.UUID,
+        req: AdminUserCreateRequest,
+        ip_address: str = "127.0.0.1",
+    ) -> AdminUserResponse:
+        role = self._require_staff_role(req.role)
+        email = req.email.strip().lower()
+        existing = await self.session.execute(
+            select(User.id).where(
+                func.lower(User.email) == email, User.deleted_at.is_(None)
+            )
+        )
+        if existing.first():
+            raise ConflictError(
+                message="User with this email already exists.",
+                error_code="EMAIL_ALREADY_EXISTS",
+            )
+
+        branch_id = None
+        if role == "BranchManager":
+            if req.branch_id is None:
+                raise DomainInvariantError(
+                    message="branch_id is required for a BranchManager.",
+                    error_code="BRANCH_ID_REQUIRED",
+                )
+            branch = await self._get_active_branch(req.branch_id)
+            branch_id = branch.id
+        elif req.branch_id is not None:
+            branch = await self._get_active_branch(req.branch_id)
+            branch_id = branch.id
+
+        user = User(
+            email=email,
+            password_hash=hash_password(req.password),
+            role=role,
+            branch_id=branch_id,
+            is_active=req.is_active,
+            is_verified=True,
+        )
+        self.session.add(user)
+        await self.session.flush()
+        await self._write_audit_log(
+            admin_user_id=admin_user_id,
+            action="STAFF_USER_CREATED",
+            target_entity="users",
+            target_entity_id=user.id,
+            changes_payload={
+                "email": email,
+                "role": role,
+                "branch_id": str(branch_id) if branch_id else None,
+                "is_active": req.is_active,
+            },
+            ip_address=ip_address,
+        )
+        await self.session.commit()
+        return await self.get_staff_user(user.id)
+
+    async def update_staff_user(
+        self,
+        admin_user_id: uuid.UUID,
+        user_id: uuid.UUID,
+        req: AdminUserUpdateRequest,
+        ip_address: str = "127.0.0.1",
+    ) -> AdminUserResponse:
+        res = await self.session.execute(
+            select(User).where(User.id == user_id, User.deleted_at.is_(None))
+        )
+        user = res.scalars().first()
+        if not user:
+            raise EntityNotFoundError(
+                message="User not found.",
+                error_code="USER_NOT_FOUND",
+            )
+
+        changing_role = req.role is not None and req.role != user.role
+        deactivating = req.is_active is False and user.is_active
+        next_role = (
+            self._require_staff_role(req.role) if req.role is not None else user.role
+        )
+        losing_admin = user.role == "PlatformAdmin" and (
+            (req.role is not None and next_role != "PlatformAdmin") or deactivating
+        )
+        if losing_admin:
+            await self._ensure_another_platform_admin(user.id)
+        if user.id == admin_user_id and changing_role:
+            raise DomainInvariantError(
+                message="You cannot change your own role.",
+                error_code="CANNOT_MODIFY_OWN_ROLE",
+            )
+        if user.id == admin_user_id and deactivating:
+            raise DomainInvariantError(
+                message="You cannot deactivate your own account.",
+                error_code="CANNOT_DEACTIVATE_SELF",
+            )
+
+        changes: dict[str, Any] = {}
+        if req.email is not None:
+            email = req.email.strip().lower()
+            if email != user.email.lower():
+                clash = await self.session.execute(
+                    select(User.id).where(
+                        func.lower(User.email) == email,
+                        User.deleted_at.is_(None),
+                        User.id != user.id,
+                    )
+                )
+                if clash.first():
+                    raise ConflictError(
+                        message="User with this email already exists.",
+                        error_code="EMAIL_ALREADY_EXISTS",
+                    )
+                changes["email"] = {"old": user.email, "new": email}
+                user.email = email
+
+        if req.password is not None:
+            user.password_hash = hash_password(req.password)
+            changes["password"] = "rotated"
+
+        if req.role is not None and next_role != user.role:
+            changes["role"] = {"old": user.role, "new": next_role}
+            user.role = next_role
+
+        if user.role == "BranchManager":
+            branch_id = req.branch_id if req.branch_id is not None else user.branch_id
+            if branch_id is None:
+                raise DomainInvariantError(
+                    message="branch_id is required for a BranchManager.",
+                    error_code="BRANCH_ID_REQUIRED",
+                )
+            if branch_id != user.branch_id:
+                branch = await self._get_active_branch(branch_id)
+                changes["branch_id"] = {
+                    "old": str(user.branch_id) if user.branch_id else None,
+                    "new": str(branch.id),
+                }
+                user.branch_id = branch.id
+        elif req.branch_id is not None:
+            branch = await self._get_active_branch(req.branch_id)
+            changes["branch_id"] = {
+                "old": str(user.branch_id) if user.branch_id else None,
+                "new": str(branch.id),
+            }
+            user.branch_id = branch.id
+        elif req.role is not None and next_role != "BranchManager" and user.branch_id:
+            changes["branch_id"] = {"old": str(user.branch_id), "new": None}
+            user.branch_id = None
+
+        if req.is_active is not None and req.is_active != user.is_active:
+            changes["is_active"] = {"old": user.is_active, "new": req.is_active}
+            user.is_active = req.is_active
+
+        if req.is_verified is not None and req.is_verified != user.is_verified:
+            changes["is_verified"] = {"old": user.is_verified, "new": req.is_verified}
+            user.is_verified = req.is_verified
+
+        if not changes:
+            return await self.get_staff_user(user.id)
+
+        await self.session.flush()
+        await self._write_audit_log(
+            admin_user_id=admin_user_id,
+            action="STAFF_USER_UPDATED",
+            target_entity="users",
+            target_entity_id=user.id,
+            changes_payload=changes,
+            ip_address=ip_address,
+        )
+        await self.session.commit()
+        return await self.get_staff_user(user.id)
+
+    def _staff_user_query(self):
+        owned = aliased(Merchant)
+        return (
+            select(User, Branch, Brand, Merchant, owned)
+            .outerjoin(
+                Branch,
+                and_(Branch.id == User.branch_id, Branch.deleted_at.is_(None)),
+            )
+            .outerjoin(
+                Brand,
+                and_(Brand.id == Branch.brand_id, Brand.deleted_at.is_(None)),
+            )
+            .outerjoin(
+                Merchant,
+                and_(Merchant.id == Brand.merchant_id, Merchant.deleted_at.is_(None)),
+            )
+            .outerjoin(
+                owned,
+                and_(
+                    owned.owner_user_id == User.id,
+                    owned.deleted_at.is_(None),
+                ),
+            )
+            .where(User.deleted_at.is_(None))
+        )
+
+    @staticmethod
+    def _normalize_staff_roles(roles: list[str] | None) -> list[str]:
+        if not roles:
+            return list(STAFF_ACCOUNT_ROLES)
+        wanted = []
+        for item in roles:
+            wanted.extend(part.strip() for part in item.split(",") if part.strip())
+        return wanted or list(STAFF_ACCOUNT_ROLES)
+
+    @staticmethod
+    def _require_staff_role(role: str) -> str:
+        if role not in STAFF_ACCOUNT_ROLES:
+            raise DomainInvariantError(
+                message=(
+                    "Role must be PlatformAdmin, Admin, MerchantOwner, or BranchManager."
+                ),
+                error_code="INVALID_STAFF_ROLE",
+            )
+        return role
+
+    async def _ensure_another_platform_admin(self, user_id: uuid.UUID) -> None:
+        stmt = (
+            select(func.count())
+            .select_from(User)
+            .where(
+                User.role == "PlatformAdmin",
+                User.is_active.is_(True),
+                User.deleted_at.is_(None),
+                User.id != user_id,
+            )
+        )
+        remaining = (await self.session.execute(stmt)).scalar_one()
+        if remaining < 1:
+            raise DomainInvariantError(
+                message=(
+                    "The last active PlatformAdmin cannot be deactivated or demoted."
+                ),
+                error_code="LAST_PLATFORM_ADMIN",
+            )
+
+    def _dedupe_staff_rows(self, rows) -> list[AdminUserResponse]:
+        seen: set[uuid.UUID] = set()
+        out: list[AdminUserResponse] = []
+        for row in rows:
+            user = row[0]
+            if user.id in seen:
+                continue
+            seen.add(user.id)
+            out.append(self._to_staff_user_response(*row))
+        return out
+
+    @staticmethod
+    def _to_staff_user_response(
+        user: User,
+        branch: Branch | None,
+        brand: Brand | None,
+        branch_merchant: Merchant | None,
+        owned_merchant: Merchant | None,
+    ) -> AdminUserResponse:
+        merchant = (
+            owned_merchant
+            if user.role == "MerchantOwner" and owned_merchant is not None
+            else branch_merchant
+        )
+        return AdminUserResponse(
+            id=user.id,
+            email=user.email,
+            role=user.role,
+            branch_id=user.branch_id,
+            is_active=user.is_active,
+            is_verified=user.is_verified,
+            created_at=user.created_at,
+            updated_at=user.updated_at,
+            branch_name=branch.name if branch is not None else None,
+            brand_id=brand.id if brand is not None else None,
+            brand_name=brand.name if brand is not None else None,
+            merchant_id=merchant.id if merchant is not None else None,
+            merchant_name=merchant.business_name if merchant is not None else None,
+        )
 
     async def set_user_password(
         self,

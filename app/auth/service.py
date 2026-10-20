@@ -12,7 +12,12 @@ from app.auth.schemas import (
     UserRegisterRequest,
     UserResponse,
 )
-from app.core.exceptions import ConflictError, EntityNotFoundError, UnauthorizedError
+from app.core.exceptions import (
+    ConflictError,
+    EntityNotFoundError,
+    ForbiddenError,
+    UnauthorizedError,
+)
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -74,6 +79,14 @@ class AuthService(AuthServiceInterface):
         )
 
     async def register_user(self, req: UserRegisterRequest) -> TokenResponse:
+        if req.role != "Customer":
+            raise ForbiddenError(
+                message=(
+                    "Public registration can only create Customer accounts. "
+                    "Staff and restaurant logins are created by a PlatformAdmin."
+                ),
+                error_code="PUBLIC_REGISTER_ROLE_FORBIDDEN",
+            )
         # Domain Invariant INV-AUTH-001: Unique case-insensitive email
         existing_user = await self.user_repo.get_by_email(req.email)
         if existing_user:

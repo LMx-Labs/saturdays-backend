@@ -1,19 +1,18 @@
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from tests.conftest import seed_user_login
 
 
 @pytest.mark.asyncio
-async def test_merchant_onboarding_and_profile_flow(client: AsyncClient):
-    # 1. Register a MerchantOwner user
-    user_payload = {
-        "email": "owner1@saturdays.com",
-        "password": "Password123!",
-        "role": "MerchantOwner",
-    }
-    user_res = await client.post("/api/v1/auth/register", json=user_payload)
-    assert user_res.status_code == 201
-    access_token = user_res.json()["access_token"]
-    headers = {"Authorization": f"Bearer {access_token}"}
+async def test_merchant_onboarding_and_profile_flow(
+    client: AsyncClient, db_session: AsyncSession
+):
+    seeded = await seed_user_login(
+        client, db_session, email="owner1@saturdays.com", role="MerchantOwner"
+    )
+    headers = seeded["headers"]
 
     # 2. Onboard merchant profile
     onboard_payload = {
@@ -49,15 +48,13 @@ async def test_merchant_onboarding_and_profile_flow(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_merchant_validation_and_duplicate_checks(client: AsyncClient):
-    user_payload = {
-        "email": "owner2@saturdays.com",
-        "password": "Password123!",
-        "role": "MerchantOwner",
-    }
-    user_res = await client.post("/api/v1/auth/register", json=user_payload)
-    access_token = user_res.json()["access_token"]
-    headers = {"Authorization": f"Bearer {access_token}"}
+async def test_merchant_validation_and_duplicate_checks(
+    client: AsyncClient, db_session: AsyncSession
+):
+    seeded = await seed_user_login(
+        client, db_session, email="owner2@saturdays.com", role="MerchantOwner"
+    )
+    headers = seeded["headers"]
 
     # Invalid FSSAI license number (must be 14 digits)
     invalid_fssai_payload = {
@@ -90,14 +87,10 @@ async def test_merchant_validation_and_duplicate_checks(client: AsyncClient):
     assert res_dup_user.json()["error_code"] == "MERCHANT_ALREADY_EXISTS"
 
     # Duplicate GSTIN check for another user
-    user2_payload = {
-        "email": "owner3@saturdays.com",
-        "password": "Password123!",
-        "role": "MerchantOwner",
-    }
-    user2_res = await client.post("/api/v1/auth/register", json=user2_payload)
-    access_token2 = user2_res.json()["access_token"]
-    headers2 = {"Authorization": f"Bearer {access_token2}"}
+    user2 = await seed_user_login(
+        client, db_session, email="owner3@saturdays.com", role="MerchantOwner"
+    )
+    headers2 = user2["headers"]
 
     dup_gstin_payload = {
         "business_name": "Another Store",
@@ -113,23 +106,17 @@ async def test_merchant_validation_and_duplicate_checks(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_merchant_status_lifecycle_and_rbac(client: AsyncClient):
-    # Register admin and merchant owner
-    admin_payload = {
-        "email": "admin@saturdays.com",
-        "password": "Password123!",
-        "role": "PlatformAdmin",
-    }
-    admin_res = await client.post("/api/v1/auth/register", json=admin_payload)
-    admin_headers = {"Authorization": f"Bearer {admin_res.json()['access_token']}"}
-
-    owner_payload = {
-        "email": "owner4@saturdays.com",
-        "password": "Password123!",
-        "role": "MerchantOwner",
-    }
-    owner_res = await client.post("/api/v1/auth/register", json=owner_payload)
-    owner_headers = {"Authorization": f"Bearer {owner_res.json()['access_token']}"}
+async def test_merchant_status_lifecycle_and_rbac(
+    client: AsyncClient, db_session: AsyncSession
+):
+    admin = await seed_user_login(
+        client, db_session, email="admin@saturdays.com", role="PlatformAdmin"
+    )
+    admin_headers = admin["headers"]
+    owner = await seed_user_login(
+        client, db_session, email="owner4@saturdays.com", role="MerchantOwner"
+    )
+    owner_headers = owner["headers"]
 
     customer_payload = {
         "email": "customer1@saturdays.com",

@@ -14,6 +14,9 @@ from app.admin.schemas import (
     AdminSetPasswordResponse,
     AdminSubscriptionModifyRequest,
     AdminSubscriptionResponse,
+    AdminUserCreateRequest,
+    AdminUserResponse,
+    AdminUserUpdateRequest,
     BannerCreate,
     BannerResponse,
     BranchManagerAssignRequest,
@@ -434,6 +437,89 @@ async def get_analytics_overview(
     admin_service: AdminServiceInterface = Depends(get_admin_service),
 ) -> PlatformAnalyticsOverview:
     return await admin_service.get_analytics_overview()
+
+
+@router.get(
+    "/users",
+    response_model=list[AdminUserResponse],
+    status_code=status.HTTP_200_OK,
+    summary="List staff and restaurant login accounts",
+)
+async def list_staff_users(
+    role: list[str] | None = Query(
+        default=None,
+        description="Filter by role. Repeatable or comma-separated. Defaults to PlatformAdmin,Admin,MerchantOwner,BranchManager.",
+    ),
+    q: str | None = Query(default=None, description="Case-insensitive email search"),
+    is_active: bool | None = Query(default=None),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    current_user: UserClaims = Depends(require_role(["PlatformAdmin"])),
+    admin_service: AdminServiceInterface = Depends(get_admin_service),
+) -> list[AdminUserResponse]:
+    return await admin_service.list_staff_users(
+        roles=role,
+        q=q,
+        is_active=is_active,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.post(
+    "/users",
+    response_model=AdminUserResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a staff or restaurant login (no JWT issued)",
+)
+async def create_staff_user(
+    req: AdminUserCreateRequest,
+    request: Request,
+    current_user: UserClaims = Depends(require_role(["PlatformAdmin"])),
+    admin_service: AdminServiceInterface = Depends(get_admin_service),
+) -> AdminUserResponse:
+    ip = request.client.host if request.client else "127.0.0.1"
+    return await admin_service.create_staff_user(
+        admin_user_id=uuid.UUID(current_user.sub),
+        req=req,
+        ip_address=ip,
+    )
+
+
+@router.get(
+    "/users/{user_id}",
+    response_model=AdminUserResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get one staff or restaurant login",
+)
+async def get_staff_user(
+    user_id: uuid.UUID,
+    current_user: UserClaims = Depends(require_role(["PlatformAdmin"])),
+    admin_service: AdminServiceInterface = Depends(get_admin_service),
+) -> AdminUserResponse:
+    return await admin_service.get_staff_user(user_id)
+
+
+@router.patch(
+    "/users/{user_id}",
+    response_model=AdminUserResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Update staff email, password, role, branch, or active status",
+)
+async def update_staff_user(
+    user_id: uuid.UUID,
+    req: AdminUserUpdateRequest,
+    request: Request,
+    current_user: UserClaims = Depends(require_role(["PlatformAdmin"])),
+    admin_service: AdminServiceInterface = Depends(get_admin_service),
+) -> AdminUserResponse:
+    ip = request.client.host if request.client else "127.0.0.1"
+    return await admin_service.update_staff_user(
+        admin_user_id=uuid.UUID(current_user.sub),
+        user_id=user_id,
+        req=req,
+        ip_address=ip,
+    )
 
 
 @router.post(

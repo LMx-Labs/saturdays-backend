@@ -12,7 +12,11 @@ class UserRegisterRequest(BaseModel):
     )
     role: str = Field(
         default="Customer",
-        description="User role (Customer, KitchenStaff, BranchManager, MerchantOwner, PlatformAdmin)",
+        description=(
+            "Public register accepts Customer only. Staff and restaurant roles "
+            "(Admin, PlatformAdmin, MerchantOwner, BranchManager, KitchenStaff) "
+            "are created via /admin/users or onboard routes."
+        ),
     )
 
 

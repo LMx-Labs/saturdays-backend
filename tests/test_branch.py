@@ -1,19 +1,16 @@
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from tests.conftest import seed_user_login
 
 
 @pytest.mark.asyncio
-async def test_branch_crud_flow(client: AsyncClient):
-    # 1. Register merchant owner
-    user_payload = {
-        "email": "branchowner@saturdays.com",
-        "password": "Password123!",
-        "role": "MerchantOwner",
-    }
-    user_res = await client.post("/api/v1/auth/register", json=user_payload)
-    assert user_res.status_code == 201
-    access_token = user_res.json()["access_token"]
-    headers = {"Authorization": f"Bearer {access_token}"}
+async def test_branch_crud_flow(client: AsyncClient, db_session: AsyncSession):
+    seeded = await seed_user_login(
+        client, db_session, email="branchowner@saturdays.com", role="MerchantOwner"
+    )
+    headers = seeded["headers"]
 
     # 2. Onboard merchant & brand
     merchant_res = await client.post(
@@ -95,7 +92,9 @@ async def test_branch_crud_flow(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_branch_invariants_and_rbac(client: AsyncClient):
+async def test_branch_invariants_and_rbac(
+    client: AsyncClient, db_session: AsyncSession
+):
     # Customer tries to create branch -> 403 Forbidden
     cust_payload = {
         "email": "custbranch@saturdays.com",
@@ -117,13 +116,10 @@ async def test_branch_invariants_and_rbac(client: AsyncClient):
     assert res_cust.status_code == 403
 
     # BranchManager tries to create branch under non-existent brand (INV-BRANCH-001)
-    mgr_payload = {
-        "email": "mgrbranch@saturdays.com",
-        "password": "Password123!",
-        "role": "BranchManager",
-    }
-    mgr_res = await client.post("/api/v1/auth/register", json=mgr_payload)
-    mgr_headers = {"Authorization": f"Bearer {mgr_res.json()['access_token']}"}
+    mgr = await seed_user_login(
+        client, db_session, email="mgrbranch@saturdays.com", role="BranchManager"
+    )
+    mgr_headers = mgr["headers"]
 
     res_orphan = await client.post(
         "/api/v1/branches",

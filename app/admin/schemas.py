@@ -236,6 +236,49 @@ class AdminCustomerDetailResponse(AdminCustomerResponse):
     total_spent: float = 0.0
 
 
+STAFF_ACCOUNT_ROLES = (
+    "PlatformAdmin",
+    "Admin",
+    "MerchantOwner",
+    "BranchManager",
+)
+
+
+class AdminUserResponse(BaseModel):
+    """Staff or restaurant login as shown on the Accounts page."""
+
+    id: uuid.UUID
+    email: str
+    role: str
+    branch_id: uuid.UUID | None = None
+    is_active: bool
+    is_verified: bool
+    created_at: datetime
+    updated_at: datetime
+    branch_name: str | None = None
+    brand_id: uuid.UUID | None = None
+    brand_name: str | None = None
+    merchant_id: uuid.UUID | None = None
+    merchant_name: str | None = None
+
+
+class AdminUserCreateRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(..., min_length=8, max_length=128)
+    role: str
+    branch_id: uuid.UUID | None = None
+    is_active: bool = True
+
+
+class AdminUserUpdateRequest(BaseModel):
+    email: EmailStr | None = None
+    password: str | None = Field(default=None, min_length=8, max_length=128)
+    role: str | None = None
+    branch_id: uuid.UUID | None = None
+    is_active: bool | None = None
+    is_verified: bool | None = None
+
+
 class AdminCustomerUpdateRequest(BaseModel):
     full_name: str | None = Field(None, min_length=1, max_length=100)
     phone_number: str | None = Field(None, max_length=20)

@@ -101,7 +101,6 @@ from app.checkout.router import router as checkout_router
 from app.coupon.router import router as coupon_router
 from app.credit.router import router as credit_router
 from app.customer.router import router as customer_router
-from app.garba.router import router as garba_router
 from app.inventory.router import router as inventory_router
 from app.kitchen.router import router as kitchen_router
 from app.menu.router import router as menu_router
@@ -123,7 +122,6 @@ app.include_router(checkout_router, prefix=settings.API_V1_STR)
 app.include_router(coupon_router, prefix=settings.API_V1_STR)
 app.include_router(credit_router, prefix=settings.API_V1_STR)
 app.include_router(customer_router, prefix=settings.API_V1_STR)
-app.include_router(garba_router, prefix=settings.API_V1_STR)
 app.include_router(inventory_router, prefix=settings.API_V1_STR)
 app.include_router(kitchen_router, prefix=settings.API_V1_STR)
 app.include_router(notification_router, prefix=settings.API_V1_STR)
