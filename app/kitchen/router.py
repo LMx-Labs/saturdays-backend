@@ -1,6 +1,9 @@
+import uuid
+
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.access import require_branch_access, require_kitchen_access
 from app.auth.router import require_role
 from app.auth.schemas import UserClaims
 from app.branch.repository import BranchRepository, BranchRepositoryInterface
@@ -74,8 +77,10 @@ async def list_branch_kitchens(
             ["KitchenStaff", "BranchManager", "MerchantOwner", "PlatformAdmin"]
         )
     ),
+    session: AsyncSession = Depends(get_db_session),
     kitchen_service: KitchenServiceInterface = Depends(get_kitchen_service),
 ) -> list[KitchenResponse]:
+    await require_branch_access(session, current_user, uuid.UUID(branch_id))
     return await kitchen_service.list_branch_kitchens(
         branch_id=branch_id,
         user_id=current_user.sub,
@@ -97,8 +102,10 @@ async def create_kitchen(
     current_user: UserClaims = Depends(
         require_role(["BranchManager", "MerchantOwner", "PlatformAdmin"])
     ),
+    session: AsyncSession = Depends(get_db_session),
     kitchen_service: KitchenServiceInterface = Depends(get_kitchen_service),
 ) -> KitchenResponse:
+    await require_branch_access(session, current_user, uuid.UUID(req.branch_id))
     return await kitchen_service.create_kitchen(
         user_id=current_user.sub, role=current_user.role, req=req
     )
@@ -118,8 +125,10 @@ async def get_kitchen_by_id(
             ["KitchenStaff", "BranchManager", "MerchantOwner", "PlatformAdmin"]
         )
     ),
+    session: AsyncSession = Depends(get_db_session),
     kitchen_service: KitchenServiceInterface = Depends(get_kitchen_service),
 ) -> KitchenResponse:
+    await require_kitchen_access(session, current_user, uuid.UUID(kitchen_id))
     return await kitchen_service.get_kitchen_by_id(
         kitchen_id=kitchen_id, user_id=current_user.sub, role=current_user.role
     )
@@ -138,8 +147,10 @@ async def update_kitchen(
     current_user: UserClaims = Depends(
         require_role(["BranchManager", "MerchantOwner", "PlatformAdmin"])
     ),
+    session: AsyncSession = Depends(get_db_session),
     kitchen_service: KitchenServiceInterface = Depends(get_kitchen_service),
 ) -> KitchenResponse:
+    await require_kitchen_access(session, current_user, uuid.UUID(kitchen_id))
     return await kitchen_service.update_kitchen(
         kitchen_id=kitchen_id, user_id=current_user.sub, role=current_user.role, req=req
     )
@@ -156,8 +167,10 @@ async def delete_kitchen(
     current_user: UserClaims = Depends(
         require_role(["BranchManager", "MerchantOwner", "PlatformAdmin"])
     ),
+    session: AsyncSession = Depends(get_db_session),
     kitchen_service: KitchenServiceInterface = Depends(get_kitchen_service),
 ) -> None:
+    await require_kitchen_access(session, current_user, uuid.UUID(kitchen_id))
     await kitchen_service.delete_kitchen(
         kitchen_id=kitchen_id, user_id=current_user.sub, role=current_user.role
     )

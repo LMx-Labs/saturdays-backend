@@ -210,7 +210,7 @@ async def test_coupon_user_redemption_limit(
 
 
 @pytest.mark.asyncio
-async def test_create_and_list_coupons(client: AsyncClient):
+async def test_create_and_list_coupons(client: AsyncClient, provision_role):
     # Create new coupon
     create_payload = {
         "code": "NEWYEAR2026",
@@ -222,7 +222,12 @@ async def test_create_and_list_coupons(client: AsyncClient):
         "valid_until": (datetime.now(UTC) + timedelta(days=30)).isoformat(),
         "is_active": True,
     }
-    create_resp = await client.post("/api/v1/coupons", json=create_payload)
+    admin_headers = await provision_role(
+        client, "coupon-admin@example.com", "PlatformAdmin"
+    )
+    create_resp = await client.post(
+        "/api/v1/coupons", json=create_payload, headers=admin_headers
+    )
     assert create_resp.status_code == 201
     created_data = create_resp.json()
     assert created_data["code"] == "NEWYEAR2026"

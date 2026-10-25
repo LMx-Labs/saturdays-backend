@@ -42,6 +42,7 @@ class OrderResponse(BaseModel):
     customer_profile_id: uuid.UUID
     branch_id: uuid.UUID
     total_amount: float
+    price_breakdown_snapshot: dict[str, str] | None = None
     store_credit_applied: float = 0.0
     status: str
     delivery_address_snapshot: Any

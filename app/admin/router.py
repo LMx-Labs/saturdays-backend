@@ -1,8 +1,10 @@
 import uuid
 
 from fastapi import APIRouter, Depends, Query, Request, status
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.admin.models import AdminAuditLog
 from app.admin.repository import AdminRepository, AdminRepositoryInterface
 from app.admin.schemas import (
     AdminAuditLogResponse,
@@ -28,18 +30,149 @@ from app.admin.schemas import (
     PlatformAnalyticsOverview,
     RefundOverrideRequest,
     RefundOverrideResponse,
+    StaffAccountCreateRequest,
+    StaffAccountResponse,
 )
 from app.admin.service import AdminService, AdminServiceInterface
+from app.auth.models import User
 from app.auth.router import require_role
 from app.auth.schemas import UserClaims
+from app.branch.models import Branch
 from app.core.database import get_db_session
+from app.core.exceptions import ConflictError, EntityNotFoundError
+from app.core.security import hash_password
 from app.coupon.repository import CouponRepository
 from app.coupon.schemas import CouponCreate, CouponResponse
 from app.coupon.service import CouponService
 from app.customer.repository import CustomerRepository
 from app.merchant.repository import MerchantRepository, MerchantRepositoryInterface
+from app.merchant.schemas import MerchantOnboardRequest, MerchantResponse
+from app.merchant.service import MerchantService
 
 router = APIRouter(prefix="/admin", tags=["Admin Subsystem"])
+
+
+@router.get("/staff-accounts/lookup", response_model=StaffAccountResponse)
+async def lookup_staff_account(
+    email: str,
+    _admin: UserClaims = Depends(require_role(["PlatformAdmin"])),
+    session: AsyncSession = Depends(get_db_session),
+) -> StaffAccountResponse:
+    user = await session.scalar(
+        select(User).where(
+            func.lower(User.email) == email.strip().lower(), User.deleted_at.is_(None)
+        )
+    )
+    if user is None or user.role not in {
+        "MerchantOwner",
+        "BranchManager",
+        "KitchenStaff",
+    }:
+        raise EntityNotFoundError("Staff account not found.", "STAFF_ACCOUNT_NOT_FOUND")
+    return StaffAccountResponse(
+        user_id=user.id,
+        email=user.email,
+        role=user.role,
+        branch_id=user.branch_id,
+        is_active=user.is_active,
+    )
+
+
+@router.get("/merchant-for-owner/{owner_user_id}", response_model=MerchantResponse)
+async def get_merchant_for_owner(
+    owner_user_id: uuid.UUID,
+    _admin: UserClaims = Depends(require_role(["PlatformAdmin"])),
+    session: AsyncSession = Depends(get_db_session),
+) -> MerchantResponse:
+    return await MerchantService(
+        session, MerchantRepository(session)
+    ).get_current_merchant_profile(str(owner_user_id))
+
+
+@router.post(
+    "/merchant-for-owner/{owner_user_id}",
+    response_model=MerchantResponse,
+    status_code=201,
+)
+async def onboard_merchant_for_owner(
+    owner_user_id: uuid.UUID,
+    req: MerchantOnboardRequest,
+    _admin: UserClaims = Depends(require_role(["PlatformAdmin"])),
+    session: AsyncSession = Depends(get_db_session),
+) -> MerchantResponse:
+    owner = await session.get(User, owner_user_id)
+    if (
+        owner is None
+        or owner.deleted_at is not None
+        or not owner.is_active
+        or owner.role != "MerchantOwner"
+    ):
+        raise EntityNotFoundError(
+            "Active merchant owner not found.", "MERCHANT_OWNER_NOT_FOUND"
+        )
+    return await MerchantService(session, MerchantRepository(session)).onboard_merchant(
+        str(owner_user_id), req
+    )
+
+
+@router.post("/staff-accounts", response_model=StaffAccountResponse, status_code=201)
+async def create_staff_account(
+    req: StaffAccountCreateRequest,
+    request: Request,
+    current_user: UserClaims = Depends(require_role(["PlatformAdmin"])),
+    session: AsyncSession = Depends(get_db_session),
+) -> StaffAccountResponse:
+    """Authorized provisioning of restaurant identities, without public role selection."""
+    email = req.email.strip().lower()
+    existing = await session.scalar(
+        select(User.id).where(
+            func.lower(User.email) == email, User.deleted_at.is_(None)
+        )
+    )
+    if existing is not None:
+        raise ConflictError(
+            "User with this email already exists.", "EMAIL_ALREADY_EXISTS"
+        )
+    if req.branch_id is not None:
+        branch = await session.scalar(
+            select(Branch.id).where(
+                Branch.id == req.branch_id, Branch.deleted_at.is_(None)
+            )
+        )
+        if branch is None:
+            raise EntityNotFoundError("Branch not found.", "BRANCH_NOT_FOUND")
+    user = User(
+        email=email,
+        password_hash=hash_password(req.password),
+        role=req.role,
+        branch_id=req.branch_id,
+        is_active=True,
+        is_verified=True,
+    )
+    session.add(user)
+    await session.flush()
+    session.add(
+        AdminAuditLog(
+            admin_user_id=uuid.UUID(current_user.sub),
+            action="STAFF_ACCOUNT_CREATED",
+            target_entity="users",
+            target_entity_id=user.id,
+            changes_payload={
+                "email": email,
+                "role": user.role,
+                "branch_id": str(user.branch_id) if user.branch_id else None,
+            },
+            ip_address=request.client.host if request.client else "unknown",
+        )
+    )
+    await session.commit()
+    return StaffAccountResponse(
+        user_id=user.id,
+        email=user.email,
+        role=user.role,
+        branch_id=user.branch_id,
+        is_active=user.is_active,
+    )
 
 
 def get_admin_repository(
@@ -313,6 +446,7 @@ async def delete_banner(
     summary="Get system feature flags & operational throttles",
 )
 async def get_feature_flags(
+    _current_user: UserClaims = Depends(require_role(["PlatformAdmin"])),
     admin_service: AdminServiceInterface = Depends(get_admin_service),
 ) -> list[FeatureFlagResponse]:
     return await admin_service.get_feature_flags()
@@ -603,4 +737,3 @@ async def update_customer(
         admin_user_id=uuid.UUID(current_user.sub),
         ip_address=ip,
     )
-

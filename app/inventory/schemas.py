@@ -24,12 +24,18 @@ class InventoryItemResponse(BaseModel):
     menu_item_id: uuid.UUID
     quantity: int
     is_in_stock: bool
+    is_paused: bool
     created_at: datetime
     updated_at: datetime
 
 
 class StockUpdateRequest(BaseModel):
-    quantity: int = Field(..., description="Target stock quantity, must be >= 0")
+    quantity: int = Field(
+        ..., description="Target unreserved stock quantity, must be >= 0"
+    )
+    expected_quantity: int = Field(
+        ..., ge=0, description="Last count displayed before this edit"
+    )
     is_in_stock: bool | None = None
     reason: str = Field(default="MERCHANT_RESTOCK", max_length=100)
 

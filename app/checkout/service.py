@@ -1,10 +1,13 @@
 import uuid
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime
+from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.admin.models import SystemFeatureFlag
 from app.checkout.repository import CheckoutRepositoryInterface
 from app.checkout.schemas import (
     CheckoutIssue,
@@ -12,11 +15,12 @@ from app.checkout.schemas import (
     CheckoutValidateRequest,
     CheckoutValidationResponse,
 )
+from app.core.config import get_settings
 from app.coupon.repository import CouponRepository, CouponRepositoryInterface
-from app.coupon.schemas import CouponValidateRequest as CouponCodeValidateRequest
 from app.coupon.service import CouponService, CouponServiceInterface
 from app.customer.repository import CustomerRepository
 from app.menu.models import MenuItem
+from app.order.pricing import PriceLine, calculate_price
 
 
 class CheckoutServiceInterface(ABC):
@@ -83,8 +87,28 @@ class CheckoutService(CheckoutServiceInterface):
                 CheckoutIssue(code="CART_EMPTY", message="Cart is empty or not found.")
             )
             return self._build_empty_response(req.cart_id, issues, cust_id)
+        if str(cart.customer_profile_id) != cust_id:
+            issues.append(
+                CheckoutIssue(
+                    code="CART_ACCESS_FORBIDDEN",
+                    message="Cart does not belong to this customer.",
+                )
+            )
+            return self._build_empty_response(req.cart_id, issues, cust_id)
 
         branch_uuid = cart.branch_id
+        maintenance = await self.session.get(
+            SystemFeatureFlag, "EMERGENCY_MAINTENANCE_MODE"
+        )
+        if get_settings().EMERGENCY_MAINTENANCE_MODE or (
+            maintenance and maintenance.enabled
+        ):
+            issues.append(
+                CheckoutIssue(
+                    code="MAINTENANCE_MODE",
+                    message="Checkout is paused for maintenance.",
+                )
+            )
         branch = await self.checkout_repo.get_branch(branch_uuid)
 
         # 3. Validate Branch & Restaurant Availability (INV-CHK-001)
@@ -107,8 +131,23 @@ class CheckoutService(CheckoutServiceInterface):
                 )
 
             # Operating hours check
-            current_time = datetime.now(UTC).time()
-            if current_time < branch.opening_time or current_time > branch.closing_time:
+            current_time = (
+                datetime.now(UTC)
+                .astimezone(ZoneInfo(branch.timezone_name))
+                .time()
+                .replace(tzinfo=None)
+            )
+            opening, closing = branch.opening_time, branch.closing_time
+            is_open = (
+                True
+                if opening == closing
+                else (
+                    opening <= current_time <= closing
+                    if opening < closing
+                    else current_time >= opening or current_time <= closing
+                )
+            )
+            if not is_open:
                 issues.append(
                     CheckoutIssue(
                         code="BRANCH_CLOSED",
@@ -129,7 +168,7 @@ class CheckoutService(CheckoutServiceInterface):
 
         # 5. Inventory Availability Verification (INV-0005) & Subtotal Math
         item_summaries: list[CheckoutItemSummary] = []
-        subtotal = 0.0
+        price_lines: list[PriceLine] = []
 
         for cart_item in cart.items:
             # Fetch menu item details
@@ -169,7 +208,11 @@ class CheckoutService(CheckoutServiceInterface):
                     )
 
             line_subtotal = round(unit_price * cart_item.quantity, 2)
-            subtotal += line_subtotal
+            price_lines.append(
+                PriceLine(
+                    unit_price=Decimal(str(unit_price)), quantity=cart_item.quantity
+                )
+            )
 
             item_summaries.append(
                 CheckoutItemSummary(
@@ -183,35 +226,23 @@ class CheckoutService(CheckoutServiceInterface):
             )
 
         # 6. Validate Coupon & Discount Amount
-        discount_amount = 0.0
+        price = calculate_price(price_lines)
+        subtotal = float(price.subtotal)
+        discount_amount = float(price.discount)
         if req.coupon_code:
-            try:
-                c_req = CouponCodeValidateRequest(
-                    code=req.coupon_code,
-                    order_amount=subtotal,
-                    branch_id=branch_uuid,
+            issues.append(
+                CheckoutIssue(
+                    code="COUPON_NOT_SUPPORTED",
+                    message="Coupon checkout is unavailable until discounts are applied to saved orders.",
                 )
-                coupon_val = await self.coupon_service.validate_coupon(
-                    user_id=user_uuid,
-                    req=c_req,
-                )
-                discount_amount = min(coupon_val.discount_amount, subtotal)
-            except Exception as exc:  # noqa: BLE001
-                issues.append(
-                    CheckoutIssue(
-                        code="INVALID_COUPON",
-                        message=getattr(
-                            exc, "message", "Coupon code is invalid or expired."
-                        ),
-                    )
-                )
+            )
 
         # 7. Financial Calculations (Tax, Delivery Fee, Final Payable)
-        tax_amount = round(subtotal * 0.05, 2)  # 5% GST tax
-        delivery_fee = 30.00  # Flat standard delivery fee
-        final_payable = round(
-            max(0.0, subtotal + tax_amount + delivery_fee - discount_amount), 2
-        )
+        # The production order persists item subtotal only. No tax or fee policy
+        # has been configured, so a quote must not advertise extra charges.
+        tax_amount = float(price.tax)
+        delivery_fee = float(price.delivery_fee)
+        final_payable = float(price.total)
 
         is_valid = len(issues) == 0
 

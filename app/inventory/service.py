@@ -74,6 +74,7 @@ class InventoryService(InventoryServiceInterface):
         item = await self.inventory_repo.update_item_stock(
             inventory_item_id=inventory_item_id,
             new_quantity=req.quantity,
+            expected_quantity=req.expected_quantity,
             reason=req.reason,
             is_in_stock=req.is_in_stock,
         )

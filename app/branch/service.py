@@ -18,6 +18,8 @@ from app.core.exceptions import (
     EntityNotFoundError,
     ForbiddenError,
 )
+from app.kitchen.models import Kitchen
+from app.menu.models import Menu
 from app.merchant.repository import MerchantRepositoryInterface
 
 
@@ -123,6 +125,10 @@ class BranchService(BranchServiceInterface):
         )
 
         saved = await self.branch_repo.create(branch)
+        self.session.add(Menu(branch_id=saved.id, name="Main Menu", is_active=True))
+        self.session.add(
+            Kitchen(branch_id=saved.id, name="Main Kitchen", is_active=True)
+        )
         await self.session.commit()
         return self._to_response(saved)
 

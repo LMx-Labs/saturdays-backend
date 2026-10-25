@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.models import User
 from app.branch.models import Branch
 from app.brand.models import Brand
-from app.core.security import hash_password
+from app.core.security import create_access_token, hash_password
 from app.customer.models import CustomerProfile
 from app.merchant.models import Merchant
 from app.order.models import Order
@@ -21,6 +21,9 @@ async def setup_review_fixture(db_session: AsyncSession):
         is_active=True,
     )
     db_session.add(user)
+    owner = User(email="review_owner@example.com", role="MerchantOwner", is_active=True)
+    admin = User(email="review_admin@example.com", role="PlatformAdmin", is_active=True)
+    db_session.add_all([owner, admin])
     await db_session.flush()
 
     profile = CustomerProfile(user_id=user.id, full_name="Reviewer User")
@@ -29,7 +32,7 @@ async def setup_review_fixture(db_session: AsyncSession):
 
     # Merchant & Brand & Branch
     merchant = Merchant(
-        owner_user_id=user.id,
+        owner_user_id=owner.id,
         business_name="Review Store",
         legal_entity_name="Review Store LLC",
         fssai_license_number="12345678901234",
@@ -68,6 +71,8 @@ async def setup_review_fixture(db_session: AsyncSession):
 
     return {
         "user": user,
+        "owner": owner,
+        "admin": admin,
         "profile": profile,
         "branch": branch,
         "completed_order": completed_order,
@@ -152,10 +157,19 @@ async def test_review_reply_moderation_and_summary(
     assert review_resp.status_code == 201
     review_id = review_resp.json()["id"]
 
-    # Merchant reply
+    # Anonymous writes are rejected; the branch owner can reply.
+    anonymous_reply = await client.post(
+        f"/api/v1/reviews/{review_id}/reply",
+        json={"merchant_reply": "Unauthorized"},
+    )
+    assert anonymous_reply.status_code == 401
+    owner_token = create_access_token(
+        subject=str(fixture["owner"].id), role="MerchantOwner"
+    )
     reply_resp = await client.post(
         f"/api/v1/reviews/{review_id}/reply",
         json={"merchant_reply": "Thank you for dining with us!"},
+        headers={"Authorization": f"Bearer {owner_token}"},
     )
     assert reply_resp.status_code == 200
     assert reply_resp.json()["merchant_reply"] == "Thank you for dining with us!"
@@ -170,8 +184,13 @@ async def test_review_reply_moderation_and_summary(
     assert summary["rating_distribution"]["4"] == 1
 
     # Moderate review (Hide)
+    admin_token = create_access_token(
+        subject=str(fixture["admin"].id), role="PlatformAdmin"
+    )
     mod_resp = await client.put(
-        f"/api/v1/reviews/{review_id}/moderate", json={"is_hidden": True}
+        f"/api/v1/reviews/{review_id}/moderate",
+        json={"is_hidden": True},
+        headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert mod_resp.status_code == 200
     assert mod_resp.json()["is_hidden"] is True

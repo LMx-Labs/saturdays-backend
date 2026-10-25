@@ -44,13 +44,9 @@ async def test_subscription_lifecycle(client: AsyncClient, setup_sub_fixture: di
     fixture = setup_sub_fixture
     headers = await get_headers(client, fixture["user"].email)
 
-    # Get subscription (Auto-initializes to BASIC)
+    # No subscription or invoice is fabricated before a real payment path exists.
     sub_resp = await client.get("/api/v1/merchants/me/subscription", headers=headers)
-    assert sub_resp.status_code == 200
-    data = sub_resp.json()
-    assert data["plan_tier"] == "BASIC"
-    assert data["commission_rate_percentage"] == 5.0
-    assert data["max_branches"] == 1
+    assert sub_resp.status_code == 404
 
     # Upgrade to PROFESSIONAL
     up_resp = await client.post(
@@ -58,11 +54,8 @@ async def test_subscription_lifecycle(client: AsyncClient, setup_sub_fixture: di
         headers=headers,
         json={"plan_tier": "PROFESSIONAL", "billing_cycle": "MONTHLY"},
     )
-    assert up_resp.status_code == 201
-    up_data = up_resp.json()
-    assert up_data["plan_tier"] == "PROFESSIONAL"
-    assert up_data["commission_rate_percentage"] == 3.5
-    assert up_data["max_branches"] == 5
+    assert up_resp.status_code == 503
+    assert up_resp.json()["error_code"] == "PAYMENT_COLLECTION_UNAVAILABLE"
 
     # Renew subscription
     renew_resp = await client.post(
@@ -70,12 +63,10 @@ async def test_subscription_lifecycle(client: AsyncClient, setup_sub_fixture: di
         headers=headers,
         json={"duration_months": 3},
     )
-    assert renew_resp.status_code == 200
-    assert renew_resp.json()["plan_tier"] == "PROFESSIONAL"
+    assert renew_resp.status_code == 503
 
     # Get invoices
     inv_resp = await client.get("/api/v1/merchants/me/invoices", headers=headers)
     assert inv_resp.status_code == 200
     invoices = inv_resp.json()
-    assert len(invoices) >= 1
-    assert invoices[0]["amount"] == 1999.0
+    assert invoices == []

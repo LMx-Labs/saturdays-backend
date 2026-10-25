@@ -23,6 +23,7 @@ from app.merchant.models import Merchant
 from app.order.models import Order
 from app.payment.models import Payment, PaymentTransaction
 from app.payment.razorpay_adapter import RazorpayAdapter
+from app.payment.service import ensure_collection_ready
 from app.payout.gateway import PayoutGatewayError, RazorpayXClient
 from app.payout.models import (
     PAYOUT_FAILED,
@@ -93,6 +94,7 @@ class PayoutService:
         merchant_id: uuid.UUID | None = None,
         dry_run: bool = False,
     ) -> PayoutRunResponse:
+        ensure_collection_ready()
         """Pay every approved merchant what they earned from completed orders.
 
         Safe to call repeatedly / from several workers: an advisory lock serialises
@@ -624,6 +626,7 @@ class PayoutService:
         return {"status": "processed", "payout_status": payout.status}
 
     async def retry_payout(self, payout_id: uuid.UUID) -> PayoutDetailResponse:
+        ensure_collection_ready()
         payout = await self._get_payout(payout_id, for_update=True)
         if payout.status not in (PAYOUT_FAILED, PAYOUT_PENDING):
             raise DomainInvariantError(

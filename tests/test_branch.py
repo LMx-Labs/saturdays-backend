@@ -130,5 +130,4 @@ async def test_branch_invariants_and_rbac(
         },
         headers=mgr_headers,
     )
-    assert res_orphan.status_code == 404
-    assert res_orphan.json()["error_code"] == "BRAND_NOT_FOUND"
+    assert res_orphan.status_code == 403

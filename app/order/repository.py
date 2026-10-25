@@ -36,7 +36,11 @@ class OrderRepositoryInterface(ABC):
 
     @abstractmethod
     async def get_branch_orders(
-        self, branch_id: uuid.UUID, status: str | None = None
+        self,
+        branch_id: uuid.UUID,
+        status: str | None = None,
+        skip: int = 0,
+        limit: int = 50,
     ) -> Sequence[Order]:
         pass
 
@@ -106,6 +110,7 @@ class OrderRepository(OrderRepositoryInterface):
                 selectinload(Order.status_logs),
             )
             .with_for_update()
+            .execution_options(populate_existing=True)
         )
         res = await self.session.execute(stmt)
         return res.scalars().first()
@@ -126,7 +131,11 @@ class OrderRepository(OrderRepositoryInterface):
         return res.scalars().all()
 
     async def get_branch_orders(
-        self, branch_id: uuid.UUID, status: str | None = None
+        self,
+        branch_id: uuid.UUID,
+        status: str | None = None,
+        skip: int = 0,
+        limit: int = 50,
     ) -> Sequence[Order]:
         stmt = (
             select(Order)
@@ -138,7 +147,11 @@ class OrderRepository(OrderRepositoryInterface):
         )
         if status:
             stmt = stmt.where(Order.status == status)
-        stmt = stmt.order_by(Order.created_at.desc())
+        stmt = (
+            stmt.order_by(Order.created_at.desc(), Order.id.desc())
+            .offset(skip)
+            .limit(limit)
+        )
 
         res = await self.session.execute(stmt)
         return res.scalars().all()

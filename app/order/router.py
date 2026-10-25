@@ -3,14 +3,15 @@ import uuid
 from fastapi import (
     APIRouter,
     Depends,
+    Header,
     Query,
     WebSocket,
-    WebSocketDisconnect,
     status,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.router import get_current_user
+from app.auth.access import require_branch_access
+from app.auth.router import get_current_user, require_role
 from app.auth.schemas import UserClaims
 from app.core.database import get_db_session
 from app.core.exceptions import EntityNotFoundError, ForbiddenError
@@ -22,7 +23,6 @@ from app.order.schemas import (
     OrderStatusUpdateRequest,
 )
 from app.order.service import OrderService, OrderServiceInterface
-from app.order.websocket_manager import ws_manager
 
 router = APIRouter(prefix="", tags=["Order"])
 
@@ -31,21 +31,7 @@ STAFF_ROLES = {
     "BranchManager",
     "MerchantOwner",
     "PlatformAdmin",
-    "Admin",
 }
-
-
-def _assert_staff_branch_access(user: UserClaims, branch_id: uuid.UUID) -> None:
-    """Staff bound to a branch (token carries branch_id) may only act on that branch."""
-    if (
-        user.role in {"KitchenStaff", "BranchManager"}
-        and user.branch_id
-        and user.branch_id != str(branch_id)
-    ):
-        raise ForbiddenError(
-            message="You can only manage orders of your own branch.",
-            error_code="ORDER_BRANCH_FORBIDDEN",
-        )
 
 
 async def _assert_customer_owns_order(
@@ -81,7 +67,10 @@ def get_order_service(
 )
 async def create_order(
     req: OrderCreateRequest,
-    current_user: UserClaims = Depends(get_current_user),
+    idempotency_key: str = Header(
+        ..., min_length=8, max_length=128, alias="Idempotency-Key"
+    ),
+    current_user: UserClaims = Depends(require_role(["Customer"])),
     session: AsyncSession = Depends(get_db_session),
     order_service: OrderServiceInterface = Depends(get_order_service),
 ) -> OrderResponse:
@@ -94,6 +83,7 @@ async def create_order(
         user_id=uuid.UUID(current_user.sub),
         customer_profile_id=profile.id,
         req=req,
+        idempotency_key=idempotency_key,
     )
     return OrderResponse.model_validate(order)
 
@@ -108,18 +98,17 @@ async def create_order(
 async def list_orders(
     branch_id: uuid.UUID | None = Query(None),
     order_status: str | None = Query(None, alias="status"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
     current_user: UserClaims = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
     order_service: OrderServiceInterface = Depends(get_order_service),
 ) -> list[OrderResponse]:
-    if branch_id and current_user.role in [
-        "KitchenStaff",
-        "BranchManager",
-        "MerchantOwner",
-        "Admin",
-    ]:
-        _assert_staff_branch_access(current_user, branch_id)
-        orders = await order_service.get_branch_orders(branch_id, status=order_status)
+    if branch_id and current_user.role in STAFF_ROLES:
+        await require_branch_access(session, current_user, branch_id)
+        orders = await order_service.get_branch_orders(
+            branch_id, status=order_status, skip=skip, limit=limit
+        )
     else:
         cust_repo = CustomerRepository(session)
         profile = await cust_repo.get_by_user_id(uuid.UUID(current_user.sub))
@@ -149,7 +138,9 @@ async def get_order(
             session, current_user, order.customer_profile_id
         )
     elif current_user.role in STAFF_ROLES:
-        _assert_staff_branch_access(current_user, order.branch_id)
+        await require_branch_access(session, current_user, order.branch_id)
+    else:
+        raise ForbiddenError("Order access denied.", "ORDER_ACCESS_FORBIDDEN")
     return OrderResponse.model_validate(order)
 
 
@@ -169,7 +160,7 @@ async def update_order_status(
 ) -> OrderResponse:
     existing = await order_service.get_order(id)
     if current_user.role in STAFF_ROLES:
-        _assert_staff_branch_access(current_user, existing.branch_id)
+        await require_branch_access(session, current_user, existing.branch_id)
     elif not (req.status == "CANCELLED" and current_user.role == "Customer"):
         # Only staff drive the kitchen workflow (and trigger merchant payouts);
         # customers may only cancel their own order.
@@ -208,7 +199,7 @@ async def cancel_order(
             session, current_user, existing.customer_profile_id
         )
     elif current_user.role in STAFF_ROLES:
-        _assert_staff_branch_access(current_user, existing.branch_id)
+        await require_branch_access(session, current_user, existing.branch_id)
     else:
         raise ForbiddenError(
             message="You do not have access to this order.",
@@ -226,11 +217,5 @@ async def websocket_branch_orders(
     websocket: WebSocket,
     branch_id: uuid.UUID,
 ):
-    """Real-time WebSocket endpoint for DineGuru kitchen terminals (ADR-0010)."""
-    await ws_manager.connect(branch_id, websocket)
-    try:
-        while True:
-            # Keep connection alive until client disconnects
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        ws_manager.disconnect(branch_id, websocket)
+    """Closed until authenticated, branch-scoped WebSocket sessions are supported."""
+    await websocket.close(code=1008)

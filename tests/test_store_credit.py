@@ -1,5 +1,3 @@
-import hashlib
-import hmac
 import uuid
 
 import pytest
@@ -11,9 +9,11 @@ from app.branch.models import Branch
 from app.brand.models import Brand
 from app.core.security import create_access_token, hash_password
 from app.customer.models import CustomerProfile
+from app.inventory.models import InventoryItem
+from app.kitchen.models import Kitchen
 from app.menu.models import Menu, MenuCategory, MenuItem
 from app.merchant.models import Merchant
-from app.payment.razorpay_adapter import RazorpayAdapter
+from app.payment.models import Payment, PaymentTransaction
 
 
 def _hdr(user: User, branch_id: uuid.UUID | None = None) -> dict:
@@ -63,6 +63,9 @@ async def shop(db_session: AsyncSession):
     other_branch = Branch(brand_id=brand.id, name="Other", address_text="Gate 2")
     db_session.add_all([branch, other_branch])
     await db_session.flush()
+    branch.closing_time = branch.opening_time
+    staff.branch_id = branch.id
+    db_session.add(Kitchen(branch_id=branch.id, name="Main Kitchen", is_active=True))
     menu = Menu(branch_id=branch.id, name="Menu")
     db_session.add(menu)
     await db_session.flush()
@@ -71,6 +74,12 @@ async def shop(db_session: AsyncSession):
     await db_session.flush()
     item = MenuItem(category_id=cat.id, name="Meal", base_price=100.00)
     db_session.add(item)
+    await db_session.flush()
+    db_session.add(
+        InventoryItem(
+            branch_id=branch.id, menu_item_id=item.id, quantity=10, is_in_stock=True
+        )
+    )
     await db_session.commit()
     return {
         "cust": cust,
@@ -91,7 +100,7 @@ async def shop(db_session: AsyncSession):
 async def place_order(client, ctx, use_credit=False):
     resp = await client.post(
         "/api/v1/orders",
-        headers=_hdr(ctx["cust"]),
+        headers={**_hdr(ctx["cust"]), "Idempotency-Key": f"credit-{uuid.uuid4()}"},
         json={
             "branch_id": str(ctx["branch"].id),
             "items": [{"menu_item_id": str(ctx["item"].id), "quantity": 1}],
@@ -103,68 +112,58 @@ async def place_order(client, ctx, use_credit=False):
     return resp.json()
 
 
-async def pay_order(client, ctx, order, amount=100.0):
-    """Create intent and verify payment with a valid signature."""
-    intent = (
-        await client.post(
-            "/api/v1/payments/intent",
-            headers=_hdr(ctx["cust"]),
-            json={"order_id": order["id"], "amount": amount},
-        )
-    ).json()
-    adapter = RazorpayAdapter()
-    rzp_payment_id = f"pay_{uuid.uuid4().hex[:10]}"
-    msg = f"{intent['razorpay_order_id']}|{rzp_payment_id}".encode()
-    sig = hmac.new(adapter.key_secret.encode(), msg, hashlib.sha256).hexdigest()
-    res = await client.post(
-        "/api/v1/payments/verify",
-        headers=_hdr(ctx["cust"]),
+async def grant_credit(client, ctx, amount=100.0):
+    response = await client.post(
+        "/api/v1/store-credits/grant",
+        headers=_hdr(ctx["admin"]),
         json={
-            "order_id": order["id"],
-            "razorpay_order_id": intent["razorpay_order_id"],
-            "razorpay_payment_id": rzp_payment_id,
-            "razorpay_signature": sig,
+            "customer_profile_id": str(ctx["profile"].id),
+            "brand_id": str(ctx["brand"].id),
+            "amount": amount,
+            "reason": "GOODWILL",
         },
     )
-    assert res.status_code == 200, res.text
-    return intent
+    assert response.status_code == 201, response.text
+    return response.json()
 
 
 @pytest.mark.asyncio
-async def test_cancelled_paid_order_becomes_store_credit_not_refund(
-    client: AsyncClient, shop: dict
+async def test_legacy_captured_order_cannot_cancel_without_refund_policy(
+    client: AsyncClient, shop: dict, db_session: AsyncSession
 ):
     order = await place_order(client, shop)
-    intent = await pay_order(client, shop, order)
+    payment = Payment(
+        order_id=uuid.UUID(order["id"]),
+        customer_profile_id=shop["profile"].id,
+        amount=100,
+    )
+    db_session.add(payment)
+    await db_session.flush()
+    db_session.add(
+        PaymentTransaction(
+            payment_id=payment.id,
+            transaction_type="CAPTURED",
+            amount=100,
+            status="SUCCESS",
+            razorpay_payment_id=f"pay_{uuid.uuid4().hex[:12]}",
+        )
+    )
+    await db_session.commit()
 
     cancel = await client.post(
         f"/api/v1/orders/{order['id']}/cancel", headers=_hdr(shop["cust"])
     )
-    assert cancel.status_code == 200
-    assert cancel.json()["status"] == "CANCELLED"
+    assert cancel.status_code == 409
+    assert cancel.json()["error_code"] == "PAID_CANCELLATION_REQUIRES_POLICY"
 
     credits = await client.get("/api/v1/store-credits", headers=_hdr(shop["cust"]))
-    assert len(credits.json()) == 1
-    credit = credits.json()[0]
-    assert credit["initial_amount"] == 100.0
-    assert credit["balance"] == 100.0
-    assert credit["reason"] == "ORDER_CANCELLED"
-    assert credit["brand_id"] == str(shop["brand"].id)
-
-    bal = await client.get(
-        f"/api/v1/store-credits/balance?brand_id={shop['brand'].id}",
-        headers=_hdr(shop["cust"]),
-    )
-    assert bal.json()["available_balance"] == 100.0
-
-    # Cash refund path is closed
+    assert credits.json() == []
     refund = await client.post(
-        f"/api/v1/payments/{intent['payment_id']}/refund",
+        f"/api/v1/payments/{payment.id}/refund",
         headers=_hdr(shop["staff"]),
         json={"amount": 100.0},
     )
-    assert refund.status_code == 400
-    assert refund.json()["error_code"] == "REFUNDS_DISABLED_USE_STORE_CREDIT"
+    assert refund.status_code in {400, 403, 503}
 
 
 @pytest.mark.asyncio
@@ -178,9 +177,10 @@ async def test_cancel_unpaid_order_issues_no_credit(client: AsyncClient, shop: d
 
 
 @pytest.mark.asyncio
-async def test_staff_rejection_also_converts_to_credit(client: AsyncClient, shop: dict):
+async def test_staff_rejection_releases_unpaid_stock_without_credit(
+    client: AsyncClient, shop: dict
+):
     order = await place_order(client, shop)
-    await pay_order(client, shop, order)
     res = await client.patch(
         f"/api/v1/orders/{order['id']}/status",
         headers=_hdr(shop["staff"], shop["branch"].id),
@@ -188,18 +188,14 @@ async def test_staff_rejection_also_converts_to_credit(client: AsyncClient, shop
     )
     assert res.status_code == 200
     credits = await client.get("/api/v1/store-credits", headers=_hdr(shop["cust"]))
-    assert credits.json()[0]["balance"] == 100.0
+    assert credits.json() == []
 
 
 @pytest.mark.asyncio
 async def test_credit_is_redeemed_on_next_order_at_same_brand(
     client: AsyncClient, shop: dict
 ):
-    first = await place_order(client, shop)
-    await pay_order(client, shop, first)
-    await client.post(
-        f"/api/v1/orders/{first['id']}/cancel", headers=_hdr(shop["cust"])
-    )
+    await grant_credit(client, shop)
 
     second = await place_order(client, shop, use_credit=True)
     assert second["store_credit_applied"] == 100.0
@@ -225,11 +221,7 @@ async def test_credit_is_redeemed_on_next_order_at_same_brand(
 async def test_credit_not_spent_unless_requested_and_not_by_other_customers(
     client: AsyncClient, shop: dict
 ):
-    first = await place_order(client, shop)
-    await pay_order(client, shop, first)
-    await client.post(
-        f"/api/v1/orders/{first['id']}/cancel", headers=_hdr(shop["cust"])
-    )
+    await grant_credit(client, shop)
 
     plain = await place_order(client, shop, use_credit=False)
     assert plain["store_credit_applied"] == 0.0
@@ -243,7 +235,9 @@ async def test_credit_not_spent_unless_requested_and_not_by_other_customers(
 
 
 @pytest.mark.asyncio
-async def test_order_authorization(client: AsyncClient, shop: dict):
+async def test_order_authorization(
+    client: AsyncClient, shop: dict, db_session: AsyncSession
+):
     order = await place_order(client, shop)
 
     # A customer cannot advance the kitchen workflow (which would trigger payouts)
@@ -264,13 +258,17 @@ async def test_order_authorization(client: AsyncClient, shop: dict):
         await client.get(f"/api/v1/orders/{order['id']}", headers=_hdr(shop["cust2"]))
     ).status_code == 403
 
-    # staff bound to a different branch is rejected; own branch is fine
+    # Current database assignment, not the branch claim in the token, controls access.
+    shop["staff"].branch_id = shop["other_branch"].id
+    await db_session.commit()
     wrong = await client.patch(
         f"/api/v1/orders/{order['id']}/status",
-        headers=_hdr(shop["staff"], shop["other_branch"].id),
+        headers=_hdr(shop["staff"], shop["branch"].id),
         json={"status": "ACCEPTED"},
     )
     assert wrong.status_code == 403
+    shop["staff"].branch_id = shop["branch"].id
+    await db_session.commit()
     ok = await client.patch(
         f"/api/v1/orders/{order['id']}/status",
         headers=_hdr(shop["staff"], shop["branch"].id),

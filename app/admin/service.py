@@ -7,7 +7,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from app.admin.models import AdminAuditLog, Banner
+from app.admin.models import AdminAuditLog, Banner, SystemFeatureFlag
 from app.admin.repository import AdminRepositoryInterface
 from app.admin.schemas import (
     STAFF_ACCOUNT_ROLES,
@@ -61,7 +61,7 @@ from app.subscription.repository import (
 )
 from app.subscription.service import PLAN_DETAILS
 
-# In-memory operational system feature flags
+# Defaults for durable operational system feature flags.
 SYSTEM_FEATURE_FLAGS: dict[str, dict[str, Any]] = {
     "EMERGENCY_MAINTENANCE_MODE": {
         "enabled": False,
@@ -269,9 +269,7 @@ class AdminServiceInterface(ABC):
         pass
 
     @abstractmethod
-    async def get_customer(
-        self, customer_id: uuid.UUID
-    ) -> AdminCustomerDetailResponse:
+    async def get_customer(self, customer_id: uuid.UUID) -> AdminCustomerDetailResponse:
         pass
 
     @abstractmethod
@@ -459,8 +457,16 @@ class AdminService(AdminServiceInterface):
         await self.session.commit()
 
     async def get_feature_flags(self) -> list[FeatureFlagResponse]:
+        stored = {
+            flag.flag_key: flag
+            for flag in (await self.session.scalars(select(SystemFeatureFlag))).all()
+        }
         return [
-            FeatureFlagResponse(flag_key=k, enabled=v["enabled"], value=v.get("value"))
+            FeatureFlagResponse(
+                flag_key=k,
+                enabled=stored[k].enabled if k in stored else v["enabled"],
+                value=stored[k].value if k in stored else v.get("value"),
+            )
             for k, v in SYSTEM_FEATURE_FLAGS.items()
         ]
 
@@ -472,14 +478,15 @@ class AdminService(AdminServiceInterface):
         ip_address: str = "127.0.0.1",
     ) -> FeatureFlagResponse:
         if flag_key not in SYSTEM_FEATURE_FLAGS:
-            SYSTEM_FEATURE_FLAGS[flag_key] = {
-                "enabled": req.enabled,
-                "value": req.value,
-                "description": "Custom system feature flag",
-            }
-        else:
-            SYSTEM_FEATURE_FLAGS[flag_key]["enabled"] = req.enabled
-            SYSTEM_FEATURE_FLAGS[flag_key]["value"] = req.value
+            raise DomainInvariantError(
+                "Unknown operational flag.", "UNKNOWN_FEATURE_FLAG"
+            )
+        flag = await self.session.get(SystemFeatureFlag, flag_key)
+        if flag is None:
+            flag = SystemFeatureFlag(flag_key=flag_key)
+            self.session.add(flag)
+        flag.enabled = req.enabled
+        flag.value = req.value
 
         await self._write_audit_log(
             admin_user_id=admin_user_id,
@@ -1287,9 +1294,7 @@ class AdminService(AdminServiceInterface):
             for c in customers
         ]
 
-    async def get_customer(
-        self, customer_id: uuid.UUID
-    ) -> AdminCustomerDetailResponse:
+    async def get_customer(self, customer_id: uuid.UUID) -> AdminCustomerDetailResponse:
         customer = await self.customer_repo.get_by_id(customer_id)
         if not customer:
             raise EntityNotFoundError(
@@ -1384,4 +1389,3 @@ class AdminService(AdminServiceInterface):
         self.session.expire_all()
 
         return await self.get_customer(customer_id)
-

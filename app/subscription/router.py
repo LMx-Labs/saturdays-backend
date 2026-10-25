@@ -3,7 +3,7 @@ import uuid
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.router import get_current_user
+from app.auth.router import require_role
 from app.auth.schemas import UserClaims
 from app.core.database import get_db_session
 from app.merchant.repository import MerchantRepository, MerchantRepositoryInterface
@@ -52,7 +52,7 @@ def get_subscription_service(
     summary="Get merchant active subscription",
 )
 async def get_my_subscription(
-    current_user: UserClaims = Depends(get_current_user),
+    current_user: UserClaims = Depends(require_role(["MerchantOwner"])),
     sub_service: SubscriptionServiceInterface = Depends(get_subscription_service),
 ) -> MerchantSubscriptionResponse:
     return await sub_service.get_active_subscription(
@@ -68,7 +68,7 @@ async def get_my_subscription(
 )
 async def create_subscription(
     req: SubscriptionCreateRequest,
-    current_user: UserClaims = Depends(get_current_user),
+    current_user: UserClaims = Depends(require_role(["MerchantOwner"])),
     sub_service: SubscriptionServiceInterface = Depends(get_subscription_service),
 ) -> MerchantSubscriptionResponse:
     return await sub_service.create_subscription(
@@ -84,7 +84,7 @@ async def create_subscription(
 )
 async def renew_subscription(
     req: SubscriptionRenewalRequest,
-    current_user: UserClaims = Depends(get_current_user),
+    current_user: UserClaims = Depends(require_role(["MerchantOwner"])),
     sub_service: SubscriptionServiceInterface = Depends(get_subscription_service),
 ) -> MerchantSubscriptionResponse:
     return await sub_service.renew_subscription(
@@ -99,7 +99,7 @@ async def renew_subscription(
     summary="Get merchant platform commission ledger",
 )
 async def get_my_commissions(
-    current_user: UserClaims = Depends(get_current_user),
+    current_user: UserClaims = Depends(require_role(["MerchantOwner"])),
     sub_service: SubscriptionServiceInterface = Depends(get_subscription_service),
 ) -> list[PlatformCommissionResponse]:
     return await sub_service.get_merchant_commissions(
@@ -114,7 +114,7 @@ async def get_my_commissions(
     summary="Get merchant subscription invoices & receipts",
 )
 async def get_my_invoices(
-    current_user: UserClaims = Depends(get_current_user),
+    current_user: UserClaims = Depends(require_role(["MerchantOwner"])),
     sub_service: SubscriptionServiceInterface = Depends(get_subscription_service),
 ) -> list[SubscriptionInvoiceResponse]:
     return await sub_service.get_merchant_invoices(user_id=uuid.UUID(current_user.sub))

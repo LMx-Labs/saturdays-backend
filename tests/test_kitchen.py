@@ -127,5 +127,5 @@ async def test_kitchen_invariants_and_rbac(
         },
         headers=mgr_headers,
     )
-    assert res_orphan.status_code == 404
-    assert res_orphan.json()["error_code"] == "BRANCH_NOT_FOUND"
+    assert res_orphan.status_code == 403
+    assert res_orphan.json()["error_code"] == "BRANCH_ACCESS_FORBIDDEN"

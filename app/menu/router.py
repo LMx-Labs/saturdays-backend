@@ -4,7 +4,13 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.access import (
+    require_branch_access,
+    require_menu_category_access,
+    require_menu_item_access,
+)
 from app.auth.router import require_role
+from app.auth.schemas import UserClaims
 from app.core.database import get_db_session
 from app.menu.repository import MenuRepository, MenuRepositoryInterface
 from app.menu.schemas import (
@@ -59,11 +65,13 @@ async def get_branch_menu(
 async def create_branch_menu(
     branch_id: uuid.UUID,
     req: MenuCreate,
-    _current_user=Depends(
+    _current_user: UserClaims = Depends(
         require_role(["BranchManager", "MerchantOwner", "PlatformAdmin"])
     ),
+    session: AsyncSession = Depends(get_db_session),
     menu_service: MenuServiceInterface = Depends(get_menu_service),
 ) -> Any:
+    await require_branch_access(session, _current_user, branch_id)
     return await menu_service.create_branch_menu(branch_id, req)
 
 
@@ -77,11 +85,13 @@ async def create_branch_menu(
 async def create_category(
     branch_id: uuid.UUID,
     req: MenuCategoryCreate,
-    _current_user=Depends(
+    _current_user: UserClaims = Depends(
         require_role(["BranchManager", "MerchantOwner", "PlatformAdmin"])
     ),
+    session: AsyncSession = Depends(get_db_session),
     menu_service: MenuServiceInterface = Depends(get_menu_service),
 ) -> Any:
+    await require_branch_access(session, _current_user, branch_id)
     return await menu_service.create_category(branch_id, req)
 
 
@@ -95,11 +105,13 @@ async def create_category(
 async def update_category(
     category_id: uuid.UUID,
     req: MenuCategoryUpdate,
-    _current_user=Depends(
+    _current_user: UserClaims = Depends(
         require_role(["BranchManager", "MerchantOwner", "PlatformAdmin"])
     ),
+    session: AsyncSession = Depends(get_db_session),
     menu_service: MenuServiceInterface = Depends(get_menu_service),
 ) -> Any:
+    await require_menu_category_access(session, _current_user, category_id)
     return await menu_service.update_category(category_id, req)
 
 
@@ -115,11 +127,15 @@ async def delete_category(
         default=None,
         description="Optional fallback category ID to reassign dishes before deleting.",
     ),
-    _current_user=Depends(
+    _current_user: UserClaims = Depends(
         require_role(["BranchManager", "MerchantOwner", "PlatformAdmin"])
     ),
+    session: AsyncSession = Depends(get_db_session),
     menu_service: MenuServiceInterface = Depends(get_menu_service),
 ) -> None:
+    await require_menu_category_access(session, _current_user, category_id)
+    if fallback_category_id is not None:
+        await require_menu_category_access(session, _current_user, fallback_category_id)
     await menu_service.delete_category(category_id, fallback_category_id)
 
 
@@ -133,11 +149,13 @@ async def delete_category(
 async def create_menu_item(
     branch_id: uuid.UUID,
     req: MenuItemCreate,
-    _current_user=Depends(
+    _current_user: UserClaims = Depends(
         require_role(["BranchManager", "MerchantOwner", "PlatformAdmin"])
     ),
+    session: AsyncSession = Depends(get_db_session),
     menu_service: MenuServiceInterface = Depends(get_menu_service),
 ) -> Any:
+    await require_branch_access(session, _current_user, branch_id)
     return await menu_service.create_menu_item(branch_id, req)
 
 
@@ -165,9 +183,11 @@ async def get_menu_item(
 async def update_menu_item(
     item_id: uuid.UUID,
     req: MenuItemUpdate,
-    _current_user=Depends(
+    _current_user: UserClaims = Depends(
         require_role(["BranchManager", "MerchantOwner", "PlatformAdmin"])
     ),
+    session: AsyncSession = Depends(get_db_session),
     menu_service: MenuServiceInterface = Depends(get_menu_service),
 ) -> Any:
+    await require_menu_item_access(session, _current_user, item_id)
     return await menu_service.update_menu_item(item_id, req)

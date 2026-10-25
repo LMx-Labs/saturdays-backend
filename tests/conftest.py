@@ -55,6 +55,31 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     fastapi_app.dependency_overrides.clear()
 
 
+@pytest_asyncio.fixture
+def provision_role(db_session: AsyncSession):
+    """Create a privileged test identity through a trusted setup path."""
+
+    async def provision(client: AsyncClient, email: str, role: str) -> dict[str, str]:
+        db_session.add(
+            User(
+                email=email,
+                password_hash=hash_password("Password123!"),
+                role=role,
+                is_active=True,
+                is_verified=True,
+            )
+        )
+        await db_session.commit()
+        response = await client.post(
+            "/api/v1/auth/login",
+            json={"email": email, "password": "Password123!"},
+        )
+        assert response.status_code == 200, response.text
+        return {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+    return provision
+
+
 async def seed_user_login(
     client: AsyncClient,
     db_session: AsyncSession,

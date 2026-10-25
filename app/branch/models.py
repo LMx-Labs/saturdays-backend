@@ -41,6 +41,12 @@ class Branch(Base, TimestampMixin):
     closing_time: Mapped[time] = mapped_column(
         Time, nullable=False, default=time(23, 0, 0)
     )
+    timezone_name: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="Asia/Kolkata",
+        server_default="Asia/Kolkata",
+    )
 
     # Relationships
     brand: Mapped["Brand"] = relationship("Brand", back_populates="branches")

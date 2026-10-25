@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
@@ -10,12 +11,11 @@ class UserRegisterRequest(BaseModel):
     password: str = Field(
         ..., min_length=8, description="Plaintext password (minimum 8 characters)"
     )
-    role: str = Field(
+    role: Literal["Customer"] = Field(
         default="Customer",
         description=(
-            "Public register accepts Customer only. Staff and restaurant roles "
-            "(Admin, PlatformAdmin, MerchantOwner, BranchManager, KitchenStaff) "
-            "are created via /admin/users or onboard routes."
+            "Public registration creates Customer accounts only. Admin users "
+            "provision staff and restaurant roles via authorized Admin routes."
         ),
     )
 

@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.exceptions import DomainInvariantError, EntityNotFoundError
+from app.core.exceptions import AppException, DomainInvariantError, EntityNotFoundError
 from app.payment.models import Payment, PaymentTransaction
 from app.payment.razorpay_adapter import RazorpayAdapter
 from app.payment.repository import PaymentRepositoryInterface
@@ -22,8 +22,18 @@ from app.payment.schemas import (
 logger = structlog.get_logger()
 
 
+def ensure_collection_ready() -> None:
+    """Fail closed until a real provider or staff-recorded payment flow is selected."""
+    raise AppException(
+        message="Payment collection is unavailable pending production payment configuration.",
+        error_code="PAYMENT_COLLECTION_UNAVAILABLE",
+        status_code=503,
+    )
+
+
 def ensure_refunds_enabled() -> None:
-    """Cash refunds are disabled by policy; cancelled orders earn store credit."""
+    """Keep legacy refund handling closed until payment and refund policy is set."""
+    ensure_collection_ready()
     if not settings.REFUNDS_ENABLED:
         raise DomainInvariantError(
             message=(
@@ -84,6 +94,7 @@ class PaymentService(PaymentServiceInterface):
         amount: float,
         currency: str = "INR",
     ) -> PaymentIntentResponse:
+        ensure_collection_ready()
         # Create Razorpay order intent via adapter
         rzp_order = await self.razorpay_adapter.create_order(
             amount=amount, currency=currency, receipt=str(order_id)
@@ -111,6 +122,7 @@ class PaymentService(PaymentServiceInterface):
         )
 
     async def verify_payment(self, req: PaymentVerifyRequest) -> PaymentVerifyResponse:
+        ensure_collection_ready()
         payment = await self.payment_repo.get_by_order_id(req.order_id)
         if not payment:
             raise EntityNotFoundError(
@@ -183,6 +195,7 @@ class PaymentService(PaymentServiceInterface):
     async def process_webhook(
         self, raw_body: str | bytes, signature: str
     ) -> dict[str, Any]:
+        ensure_collection_ready()
         # Validate webhook signature
         is_valid = self.razorpay_adapter.verify_webhook_signature(raw_body, signature)
         if not is_valid:
@@ -268,6 +281,7 @@ class PaymentService(PaymentServiceInterface):
     async def refund_payment(
         self, payment_id: uuid.UUID, req: RefundCreateRequest
     ) -> PaymentTransaction:
+        ensure_collection_ready()
         ensure_refunds_enabled()
         payment = await self.payment_repo.get_by_id(payment_id)
         if not payment:
@@ -280,13 +294,22 @@ class PaymentService(PaymentServiceInterface):
         txs = payment.transactions
         rzp_pay_id = None
         for tx in txs:
-            if tx.razorpay_payment_id:
+            if (
+                tx.transaction_type == "CAPTURED"
+                and tx.status == "SUCCESS"
+                and tx.razorpay_payment_id
+            ):
                 rzp_pay_id = tx.razorpay_payment_id
                 break
 
+        if rzp_pay_id is None:
+            raise DomainInvariantError(
+                "No captured provider payment is available for refund.",
+                "CAPTURED_PAYMENT_NOT_FOUND",
+            )
         # Execute refund via Razorpay adapter
         refund_res = self.razorpay_adapter.create_refund(
-            razorpay_payment_id=rzp_pay_id or "dummy_pay_id",
+            razorpay_payment_id=rzp_pay_id,
             amount=req.amount,
         )
 

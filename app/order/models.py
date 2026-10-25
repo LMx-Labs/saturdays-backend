@@ -43,6 +43,11 @@ class Order(Base):
         UUID(as_uuid=True), ForeignKey("branches.id"), nullable=False
     )
     total_amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+    price_breakdown_snapshot: Mapped[Any | None] = mapped_column(
+        JSONB().with_variant(JSON, "sqlite"), nullable=True
+    )
+    idempotency_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    request_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # Portion of total_amount paid with brand store credit instead of money.
     store_credit_applied: Mapped[float] = mapped_column(
         Numeric(10, 2), nullable=False, default=0, server_default="0"
@@ -82,6 +87,12 @@ class Order(Base):
     )
 
     __table_args__ = (
+        Index(
+            "uq_orders_customer_idempotency",
+            customer_profile_id,
+            idempotency_key,
+            unique=True,
+        ),
         CheckConstraint(
             "total_amount >= 0", name="ck_orders_total_amount_non_negative"
         ),
@@ -148,3 +159,28 @@ class OrderStatusLog(Base):
     # Relationships
     order: Mapped["Order"] = relationship("Order", back_populates="status_logs")
     changed_by_user: Mapped["User"] = relationship("User")
+
+
+class OrderReservation(Base):
+    """Count-based stock held by a new order; legacy orders have no rows."""
+
+    __tablename__ = "order_reservations"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid7
+    )
+    order_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("orders.id"), nullable=False
+    )
+    inventory_item_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("inventory_items.id"), nullable=False
+    )
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    released_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    __table_args__ = (
+        CheckConstraint("quantity > 0", name="ck_order_reservations_quantity_positive"),
+        Index("uq_order_reservation_item", order_id, inventory_item_id, unique=True),
+    )

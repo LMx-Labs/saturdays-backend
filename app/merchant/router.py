@@ -1,9 +1,14 @@
+import uuid
+
 from fastapi import APIRouter, Depends, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.router import get_current_user, require_role
 from app.auth.schemas import UserClaims
 from app.core.database import get_db_session
+from app.core.exceptions import ForbiddenError
+from app.merchant.models import Merchant
 from app.merchant.repository import MerchantRepository, MerchantRepositoryInterface
 from app.merchant.schemas import (
     MerchantOnboardRequest,
@@ -74,8 +79,21 @@ async def onboard_merchant(
 async def get_merchant_by_id(
     merchant_id: str,
     current_user: UserClaims = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
     merchant_service: MerchantServiceInterface = Depends(get_merchant_service),
 ) -> MerchantResponse:
+    if current_user.role != "PlatformAdmin":
+        try:
+            requested_id = uuid.UUID(merchant_id)
+        except ValueError:
+            raise ForbiddenError("Merchant access denied.", "MERCHANT_ACCESS_FORBIDDEN")
+        owner_id = await session.scalar(
+            select(Merchant.owner_user_id).where(Merchant.id == requested_id)
+        )
+        if current_user.role != "MerchantOwner" or owner_id != uuid.UUID(
+            current_user.sub
+        ):
+            raise ForbiddenError("Merchant access denied.", "MERCHANT_ACCESS_FORBIDDEN")
     return await merchant_service.get_merchant_by_id(merchant_id)
 
 

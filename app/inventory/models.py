@@ -38,6 +38,7 @@ class InventoryItem(Base, TimestampMixin):
     )
     quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     is_in_stock: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    is_paused: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     # Relationships
     branch: Mapped["Branch"] = relationship("Branch", back_populates="inventory_items")

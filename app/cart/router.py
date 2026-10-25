@@ -3,7 +3,7 @@ import uuid
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.router import get_current_user
+from app.auth.router import get_current_user, require_role
 from app.auth.schemas import UserClaims
 from app.cart.repository import CartRepository, CartRepositoryInterface
 from app.cart.schemas import (
@@ -133,6 +133,7 @@ async def validate_cart(
 )
 async def purge_expired_carts(
     max_age_days: int = Query(7, ge=1, le=30),
+    _current_user: UserClaims = Depends(require_role(["PlatformAdmin"])),
     cart_service: CartServiceInterface = Depends(get_cart_service),
 ) -> dict:
     purged_count = await cart_service.purge_expired_carts(max_age_days=max_age_days)

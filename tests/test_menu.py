@@ -46,6 +46,7 @@ async def setup_branch_and_manager(db_session: AsyncSession):
     )
     db_session.add(branch)
     await db_session.flush()
+    manager.branch_id = branch.id
 
     menu = Menu(branch_id=branch.id, name="Main Menu", is_active=True)
     db_session.add(menu)
@@ -76,6 +77,22 @@ async def test_get_branch_menu_not_found(client: AsyncClient):
     assert response.status_code == 404
     data = response.json()
     assert data["error_code"] == "MENU_NOT_FOUND"
+
+
+@pytest.mark.asyncio
+async def test_unassigned_manager_cannot_edit_other_branch_menu(
+    client: AsyncClient, setup_branch_and_manager: dict, db_session: AsyncSession
+):
+    ctx = setup_branch_and_manager
+    other = Branch(brand_id=ctx["brand"].id, name="Other", address_text="Elsewhere")
+    db_session.add(other)
+    await db_session.commit()
+    denied = await client.post(
+        f"/api/v1/branches/{other.id}/menus",
+        json={"name": "Unauthorized"},
+        headers=ctx["headers"],
+    )
+    assert denied.status_code == 403
 
 
 @pytest.mark.asyncio
@@ -420,7 +437,7 @@ async def test_delete_category_fallback_not_found(
         headers=headers,
     )
     assert del_res.status_code == 404
-    assert del_res.json()["error_code"] == "FALLBACK_CATEGORY_NOT_FOUND"
+    assert del_res.json()["error_code"] == "CATEGORY_NOT_FOUND"
 
 
 @pytest.mark.asyncio
@@ -453,13 +470,13 @@ async def test_delete_category_fallback_different_menu(
         f"/api/v1/menu/categories/{category_id}?fallback_category_id={cat_other.id}",
         headers=headers,
     )
-    assert del_res.status_code == 400
-    assert del_res.json()["error_code"] == "INVALID_FALLBACK_CATEGORY"
+    assert del_res.status_code == 403
+    assert del_res.json()["error_code"] == "BRANCH_ACCESS_FORBIDDEN"
 
 
 @pytest.mark.asyncio
 async def test_category_endpoints_rbac(
-    client: AsyncClient, setup_branch_and_manager: dict
+    client: AsyncClient, setup_branch_and_manager: dict, db_session: AsyncSession
 ):
     ctx = setup_branch_and_manager
     category_id = ctx["category"].id
@@ -478,7 +495,10 @@ async def test_category_endpoints_rbac(
     assert del_res.status_code == 401
 
     # Customer role (forbidden)
-    cust_token = create_access_token(subject=str(uuid.uuid4()), role="Customer")
+    customer = User(email="menu_customer@example.com", role="Customer", is_active=True)
+    db_session.add(customer)
+    await db_session.commit()
+    cust_token = create_access_token(subject=str(customer.id), role="Customer")
     cust_headers = {"Authorization": f"Bearer {cust_token}"}
 
     patch_cust = await client.patch(

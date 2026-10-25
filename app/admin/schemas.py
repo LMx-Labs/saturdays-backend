@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
@@ -101,6 +101,31 @@ class BranchManagerCreateRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8, max_length=128)
     branch_id: uuid.UUID
+
+
+class StaffAccountCreateRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(..., min_length=8, max_length=128)
+    role: Literal["MerchantOwner", "BranchManager", "KitchenStaff"]
+    branch_id: uuid.UUID | None = None
+
+    @model_validator(mode="after")
+    def validate_assignment(self):
+        if self.role == "MerchantOwner" and self.branch_id is not None:
+            raise ValueError(
+                "Merchant owners are assigned through their merchant hierarchy"
+            )
+        if self.role in {"BranchManager", "KitchenStaff"} and self.branch_id is None:
+            raise ValueError("Branch staff require a branch assignment")
+        return self
+
+
+class StaffAccountResponse(BaseModel):
+    user_id: uuid.UUID
+    email: str
+    role: str
+    branch_id: uuid.UUID | None
+    is_active: bool
 
 
 class BranchManagerAssignRequest(BaseModel):
@@ -284,4 +309,3 @@ class AdminCustomerUpdateRequest(BaseModel):
     phone_number: str | None = Field(None, max_length=20)
     is_active: bool | None = None
     is_verified: bool | None = None
-

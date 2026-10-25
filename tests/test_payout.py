@@ -28,6 +28,16 @@ from app.subscription.models import PlatformCommission
 TODAY = datetime.now(UTC).date()
 
 
+@pytest.fixture(autouse=True)
+def exercise_payout_mechanics_behind_production_gate(monkeypatch):
+    """Keep the old gateway mechanics covered while initiation is disabled.
+
+    The production gate is tested separately in test_payout_gate.py; this
+    fixture only lifts it inside this legacy payout unit-test module.
+    """
+    monkeypatch.setattr("app.payout.service.ensure_collection_ready", lambda: None)
+
+
 def hdr(user: User) -> dict:
     return {
         "Authorization": "Bearer "
@@ -392,9 +402,10 @@ async def test_merchant_sees_only_own_payouts_and_non_admin_cannot_run(
 
 
 @pytest.mark.asyncio
-async def test_simulated_gateway_default_moves_no_money(
-    db_session: AsyncSession, world: dict
+async def test_explicit_simulated_gateway_moves_no_money(
+    db_session: AsyncSession, world: dict, monkeypatch
 ):
+    monkeypatch.setattr("app.payout.gateway.settings.RAZORPAY_SIMULATE", True)
     await add_order(db_session, world)
     result = await PayoutService(db_session).run_daily_payouts()
     assert result.payouts[0].status == "PROCESSED"

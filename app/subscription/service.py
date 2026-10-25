@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import EntityNotFoundError, UnprocessableEntityError
 from app.merchant.repository import MerchantRepositoryInterface
+from app.payment.service import ensure_collection_ready
 from app.subscription.models import MerchantSubscription, PlatformCommission
 from app.subscription.repository import SubscriptionRepositoryInterface
 from app.subscription.schemas import (
@@ -107,24 +108,16 @@ class SubscriptionService(SubscriptionServiceInterface):
         merchant = await self._get_merchant_by_user_id(user_id)
         sub = await self.sub_repo.get_active_subscription(merchant.id)
         if not sub:
-            # Auto-initialize default BASIC subscription
-            now = datetime.now(UTC)
-            sub = MerchantSubscription(
-                merchant_id=merchant.id,
-                plan_tier="BASIC",
-                billing_cycle="MONTHLY",
-                status="ACTIVE",
-                commission_rate_percentage=5.00,
-                valid_until=now + timedelta(days=3650),  # 10 year default
+            raise EntityNotFoundError(
+                "Subscription is not configured.", "SUBSCRIPTION_NOT_CONFIGURED"
             )
-            sub = await self.sub_repo.create_subscription(sub)
-            await self.session.commit()
 
         return self._to_sub_response(sub)
 
     async def create_subscription(
         self, user_id: uuid.UUID, req: SubscriptionCreateRequest
     ) -> MerchantSubscriptionResponse:
+        ensure_collection_ready()
         merchant = await self._get_merchant_by_user_id(user_id)
         tier = req.plan_tier.upper()
 
@@ -164,6 +157,7 @@ class SubscriptionService(SubscriptionServiceInterface):
     async def renew_subscription(
         self, user_id: uuid.UUID, req: SubscriptionRenewalRequest
     ) -> MerchantSubscriptionResponse:
+        ensure_collection_ready()
         merchant = await self._get_merchant_by_user_id(user_id)
         sub = await self.sub_repo.get_active_subscription(merchant.id)
 

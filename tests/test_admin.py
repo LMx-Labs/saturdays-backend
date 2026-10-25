@@ -82,6 +82,104 @@ async def test_admin_merchant_approval_and_audit(
 
 
 @pytest.mark.asyncio
+async def test_admin_provisions_merchant_owner_without_public_registration(
+    client: AsyncClient, setup_admin_fixture: dict
+):
+    headers = await get_admin_headers(client, setup_admin_fixture["admin_user"].email)
+    payload = {
+        "email": "new_owner@example.com",
+        "password": "FirstPassword123!",
+        "role": "MerchantOwner",
+    }
+    assert (await client.post("/api/v1/auth/register", json=payload)).status_code == 422
+    assert (
+        await client.post("/api/v1/admin/staff-accounts", json=payload)
+    ).status_code == 401
+    created = await client.post(
+        "/api/v1/admin/staff-accounts", json=payload, headers=headers
+    )
+    assert created.status_code == 201
+    assert created.json()["role"] == "MerchantOwner"
+    assert "password" not in created.json()
+    login = await client.post(
+        "/api/v1/auth/login",
+        json={
+            "email": payload["email"],
+            "password": payload["password"],
+        },
+    )
+    assert login.status_code == 200
+    assert login.json()["user"]["role"] == "MerchantOwner"
+    staff_without_branch = await client.post(
+        "/api/v1/admin/staff-accounts",
+        json={
+            "email": "unassigned@example.com",
+            "password": "FirstPassword123!",
+            "role": "KitchenStaff",
+        },
+        headers=headers,
+    )
+    assert staff_without_branch.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_admin_onboards_merchant_for_owner_without_impersonation(
+    client: AsyncClient, setup_admin_fixture: dict
+):
+    admin_headers = await get_admin_headers(
+        client, setup_admin_fixture["admin_user"].email
+    )
+    created = await client.post(
+        "/api/v1/admin/staff-accounts",
+        json={
+            "email": "gui-owner@example.com",
+            "password": "FirstPassword123!",
+            "role": "MerchantOwner",
+        },
+        headers=admin_headers,
+    )
+    assert created.status_code == 201, created.text
+    owner_id = created.json()["user_id"]
+    lookup = await client.get(
+        "/api/v1/admin/staff-accounts/lookup",
+        params={"email": "GUI-OWNER@example.com"},
+        headers=admin_headers,
+    )
+    assert lookup.status_code == 200 and lookup.json()["user_id"] == owner_id
+    assert "password" not in lookup.json()
+    request = {
+        "business_name": "GUI Restaurant",
+        "legal_entity_name": "GUI Restaurant Ltd",
+        "fssai_license_number": "12345678901234",
+    }
+    assert (
+        await client.post(f"/api/v1/admin/merchant-for-owner/{owner_id}", json=request)
+    ).status_code == 401
+    merchant = await client.post(
+        f"/api/v1/admin/merchant-for-owner/{owner_id}",
+        json=request,
+        headers=admin_headers,
+    )
+    assert merchant.status_code == 201, merchant.text
+    assert merchant.json()["owner_user_id"] == owner_id
+    again = await client.get(
+        f"/api/v1/admin/merchant-for-owner/{owner_id}", headers=admin_headers
+    )
+    assert again.status_code == 200 and again.json()["id"] == merchant.json()["id"]
+    owner_login = await client.post(
+        "/api/v1/auth/login",
+        json={"email": "gui-owner@example.com", "password": "FirstPassword123!"},
+    )
+    assert owner_login.status_code == 200
+    owner_headers = {"Authorization": f"Bearer {owner_login.json()['access_token']}"}
+    owner_profile = await client.get("/api/v1/merchants/me", headers=owner_headers)
+    assert (
+        owner_profile.status_code == 200
+        and owner_profile.json()["id"] == merchant.json()["id"]
+    )
+
+
+@pytest.mark.asyncio
 async def test_admin_banner_cms_and_feature_flags(
     client: AsyncClient, setup_admin_fixture: dict
 ):
@@ -145,8 +243,8 @@ async def test_admin_refund_and_analytics(
     ref_resp = await client.post(
         "/api/v1/admin/refunds/override", headers=headers, json=ref_payload
     )
-    assert ref_resp.status_code == 200
-    assert ref_resp.json()["status"] == "PROCESSED"
+    assert ref_resp.status_code == 503
+    assert ref_resp.json()["error_code"] == "PAYMENT_COLLECTION_UNAVAILABLE"
 
     # Analytics overview
     analytics_resp = await client.get(
@@ -168,8 +266,8 @@ async def test_admin_refund_override_blocked_by_policy(
         headers=headers,
         json={"payment_id": str(uuid.uuid4()), "amount": 10.0, "reason": "x"},
     )
-    assert resp.status_code == 400
-    assert resp.json()["error_code"] == "REFUNDS_DISABLED_USE_STORE_CREDIT"
+    assert resp.status_code == 503
+    assert resp.json()["error_code"] == "PAYMENT_COLLECTION_UNAVAILABLE"
 
 
 @pytest.mark.asyncio
@@ -680,9 +778,7 @@ async def test_admin_customer_crud_and_status_management(
     assert any(c["id"] == cust1_profile_id for c in inactive_list)
 
     # 7. Non-admin RBAC check
-    forbidden_list = await client.get(
-        "/api/v1/admin/customers", headers=cust2_headers
-    )
+    forbidden_list = await client.get("/api/v1/admin/customers", headers=cust2_headers)
     assert forbidden_list.status_code == 403
 
     forbidden_detail = await client.get(
@@ -704,4 +800,3 @@ async def test_admin_customer_crud_and_status_management(
     )
     assert not_found_res.status_code == 404
     assert not_found_res.json()["error_code"] == "CUSTOMER_NOT_FOUND"
-

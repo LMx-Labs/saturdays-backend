@@ -78,8 +78,8 @@ async def test_public_register_rejects_staff_roles(client: AsyncClient):
             "role": "PlatformAdmin",
         },
     )
-    assert resp.status_code == 403
-    assert resp.json()["error_code"] == "PUBLIC_REGISTER_ROLE_FORBIDDEN"
+    # The request schema rejects privileged roles before reaching the service.
+    assert resp.status_code == 422
 
 
 @pytest.mark.asyncio

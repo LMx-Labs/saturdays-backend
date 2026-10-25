@@ -43,6 +43,7 @@ async def setup_inventory_fixture(db_session: AsyncSession):
     )
     db_session.add(branch)
     await db_session.flush()
+    kitchen_staff.branch_id = branch.id
 
     menu = Menu(branch_id=branch.id, name="Main Menu")
     db_session.add(menu)
@@ -106,6 +107,7 @@ async def test_update_stock_quantity(
 
     payload = {
         "quantity": 50,
+        "expected_quantity": 10,
         "reason": "MERCHANT_RESTOCK",
     }
     response = await client.patch(
@@ -129,6 +131,7 @@ async def test_negative_stock_quantity_invariant(
 
     payload = {
         "quantity": -5,
+        "expected_quantity": 10,
         "reason": "INVALID_ADJUSTMENT",
     }
     response = await client.patch(
@@ -137,6 +140,20 @@ async def test_negative_stock_quantity_invariant(
         headers=headers,
     )
     assert response.status_code in (400, 422)
+
+
+@pytest.mark.asyncio
+async def test_stale_stock_edit_rejected(
+    client: AsyncClient, setup_inventory_fixture: dict
+):
+    ctx = setup_inventory_fixture
+    response = await client.patch(
+        f"/api/v1/inventory/{ctx['inventory_item'].id}/stock",
+        json={"quantity": 50, "expected_quantity": 9, "reason": "MERCHANT_RESTOCK"},
+        headers=ctx["headers"],
+    )
+    assert response.status_code == 409
+    assert response.json()["error_code"] == "STALE_STOCK_COUNT"
 
 
 @pytest.mark.asyncio

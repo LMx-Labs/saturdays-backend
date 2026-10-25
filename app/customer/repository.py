@@ -136,7 +136,9 @@ class CustomerRepository(CustomerRepositoryInterface):
                     User.email.ilike(search_pattern),
                 )
             )
-        stmt = stmt.order_by(CustomerProfile.created_at.desc()).offset(skip).limit(limit)
+        stmt = (
+            stmt.order_by(CustomerProfile.created_at.desc()).offset(skip).limit(limit)
+        )
         res = await self.session.execute(stmt)
         return res.scalars().all()
 

@@ -4,11 +4,13 @@ from typing import Any
 from fastapi import APIRouter, Depends, Header, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.access import require_branch_access
 from app.auth.router import get_current_user, require_role
 from app.auth.schemas import UserClaims
 from app.core.database import get_db_session
-from app.core.exceptions import EntityNotFoundError
+from app.core.exceptions import EntityNotFoundError, ForbiddenError
 from app.customer.repository import CustomerRepository
+from app.order.models import Order
 from app.payment.repository import PaymentRepository, PaymentRepositoryInterface
 from app.payment.schemas import (
     PaymentIntentCreateRequest,
@@ -119,8 +121,22 @@ async def refund_payment(
 )
 async def get_payment(
     id: uuid.UUID,
-    _current_user: UserClaims = Depends(get_current_user),
+    current_user: UserClaims = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
     payment_service: PaymentServiceInterface = Depends(get_payment_service),
 ) -> PaymentResponse:
     payment = await payment_service.get_payment_history(id)
+    if current_user.role == "Customer":
+        profile = await CustomerRepository(session).get_by_user_id(
+            uuid.UUID(current_user.sub)
+        )
+        if profile is None or profile.id != payment.customer_profile_id:
+            raise ForbiddenError("Payment access denied.", "PAYMENT_ACCESS_FORBIDDEN")
+    elif current_user.role in {"BranchManager", "MerchantOwner", "PlatformAdmin"}:
+        order = await session.get(Order, payment.order_id)
+        if order is None:
+            raise EntityNotFoundError("Order not found.", "ORDER_NOT_FOUND")
+        await require_branch_access(session, current_user, order.branch_id)
+    else:
+        raise ForbiddenError("Payment access denied.", "PAYMENT_ACCESS_FORBIDDEN")
     return PaymentResponse.model_validate(payment)

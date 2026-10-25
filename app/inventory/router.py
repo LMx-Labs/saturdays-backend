@@ -3,7 +3,13 @@ import uuid
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.access import (
+    require_branch_access,
+    require_inventory_access,
+    require_menu_item_in_branch,
+)
 from app.auth.router import require_role
+from app.auth.schemas import UserClaims
 from app.core.database import get_db_session
 from app.inventory.repository import (
     InventoryRepository,
@@ -44,11 +50,15 @@ def get_inventory_service(
 )
 async def get_branch_inventory(
     branch_id: uuid.UUID,
-    _current_user=Depends(
-        require_role(["KitchenStaff", "BranchManager", "MerchantOwner", "Admin"])
+    _current_user: UserClaims = Depends(
+        require_role(
+            ["KitchenStaff", "BranchManager", "MerchantOwner", "PlatformAdmin"]
+        )
     ),
+    session: AsyncSession = Depends(get_db_session),
     inventory_service: InventoryServiceInterface = Depends(get_inventory_service),
 ) -> list[InventoryItemResponse]:
+    await require_branch_access(session, _current_user, branch_id)
     items = await inventory_service.get_branch_inventory(branch_id)
     return [InventoryItemResponse.model_validate(item) for item in items]
 
@@ -63,11 +73,18 @@ async def get_branch_inventory(
 async def create_inventory_item(
     branch_id: uuid.UUID,
     req: InventoryItemCreateRequest,
-    _current_user=Depends(
-        require_role(["KitchenStaff", "BranchManager", "MerchantOwner", "Admin"])
+    _current_user: UserClaims = Depends(
+        require_role(
+            ["KitchenStaff", "BranchManager", "MerchantOwner", "PlatformAdmin"]
+        )
     ),
+    session: AsyncSession = Depends(get_db_session),
     inventory_service: InventoryServiceInterface = Depends(get_inventory_service),
 ) -> InventoryItemResponse:
+    await require_branch_access(session, _current_user, branch_id)
+    await require_menu_item_in_branch(
+        session, _current_user, req.menu_item_id, branch_id
+    )
     item = await inventory_service.create_inventory_item(branch_id, req)
     return InventoryItemResponse.model_validate(item)
 
@@ -82,10 +99,14 @@ async def create_inventory_item(
 async def update_stock(
     id: uuid.UUID,
     req: StockUpdateRequest,
-    _current_user=Depends(
-        require_role(["KitchenStaff", "BranchManager", "MerchantOwner", "Admin"])
+    _current_user: UserClaims = Depends(
+        require_role(
+            ["KitchenStaff", "BranchManager", "MerchantOwner", "PlatformAdmin"]
+        )
     ),
+    session: AsyncSession = Depends(get_db_session),
     inventory_service: InventoryServiceInterface = Depends(get_inventory_service),
 ) -> InventoryItemResponse:
+    await require_inventory_access(session, _current_user, id)
     item = await inventory_service.update_stock(id, req)
     return InventoryItemResponse.model_validate(item)

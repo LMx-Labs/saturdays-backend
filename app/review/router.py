@@ -3,9 +3,11 @@ import uuid
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.router import get_current_user
+from app.auth.access import require_review_access
+from app.auth.router import get_current_user, require_role
 from app.auth.schemas import UserClaims
 from app.core.database import get_db_session
+from app.core.exceptions import EntityNotFoundError
 from app.customer.repository import CustomerRepository, CustomerRepositoryInterface
 from app.review.repository import ReviewRepository, ReviewRepositoryInterface
 from app.review.schemas import (
@@ -70,7 +72,7 @@ async def list_branch_reviews(
     review_service: ReviewServiceInterface = Depends(get_review_service),
 ) -> list[ReviewResponse]:
     return await review_service.get_branch_reviews(
-        branch_id=branch_id, include_hidden=include_hidden
+        branch_id=branch_id, include_hidden=False
     )
 
 
@@ -97,7 +99,10 @@ async def get_review(
     review_id: uuid.UUID,
     review_service: ReviewServiceInterface = Depends(get_review_service),
 ) -> ReviewResponse:
-    return await review_service.get_review(review_id=review_id)
+    review = await review_service.get_review(review_id=review_id)
+    if review.is_hidden:
+        raise EntityNotFoundError("Review not found.", "REVIEW_NOT_FOUND")
+    return review
 
 
 @router.post(
@@ -109,8 +114,13 @@ async def get_review(
 async def reply_to_review(
     review_id: uuid.UUID,
     req: ReviewReply,
+    current_user: UserClaims = Depends(
+        require_role(["MerchantOwner", "BranchManager", "PlatformAdmin"])
+    ),
+    session: AsyncSession = Depends(get_db_session),
     review_service: ReviewServiceInterface = Depends(get_review_service),
 ) -> ReviewResponse:
+    await require_review_access(session, current_user, review_id)
     return await review_service.reply_to_review(review_id=review_id, req=req)
 
 
@@ -123,6 +133,7 @@ async def reply_to_review(
 async def moderate_review(
     review_id: uuid.UUID,
     req: ReviewModerateRequest,
+    _current_user: UserClaims = Depends(require_role(["PlatformAdmin"])),
     review_service: ReviewServiceInterface = Depends(get_review_service),
 ) -> ReviewResponse:
     return await review_service.moderate_review(review_id=review_id, req=req)
@@ -135,6 +146,7 @@ async def moderate_review(
 )
 async def delete_review(
     review_id: uuid.UUID,
+    _current_user: UserClaims = Depends(require_role(["PlatformAdmin"])),
     review_service: ReviewServiceInterface = Depends(get_review_service),
 ) -> None:
     await review_service.delete_review(review_id=review_id)

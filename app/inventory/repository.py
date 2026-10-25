@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import DomainInvariantError, EntityNotFoundError
+from app.core.exceptions import ConflictError, DomainInvariantError, EntityNotFoundError
 from app.inventory.models import InventoryItem, InventoryLog
 
 
@@ -37,6 +37,7 @@ class InventoryRepositoryInterface(ABC):
         self,
         inventory_item_id: uuid.UUID,
         new_quantity: int,
+        expected_quantity: int,
         reason: str,
         is_in_stock: bool | None = None,
     ) -> InventoryItem:
@@ -120,6 +121,7 @@ class InventoryRepository(InventoryRepositoryInterface):
         self,
         inventory_item_id: uuid.UUID,
         new_quantity: int,
+        expected_quantity: int,
         reason: str,
         is_in_stock: bool | None = None,
     ) -> InventoryItem:
@@ -147,13 +149,18 @@ class InventoryRepository(InventoryRepositoryInterface):
                 error_code="INVENTORY_ITEM_NOT_FOUND",
             )
 
+        if item.quantity != expected_quantity:
+            raise ConflictError(
+                "Stock changed since it was displayed. Refresh and retry.",
+                "STALE_STOCK_COUNT",
+            )
+
         prev_qty = item.quantity
         change_amount = new_quantity - prev_qty
         item.quantity = new_quantity
         if is_in_stock is not None:
-            item.is_in_stock = is_in_stock
-        else:
-            item.is_in_stock = new_quantity > 0
+            item.is_paused = not is_in_stock
+        item.is_in_stock = new_quantity > 0 and not item.is_paused
 
         log = InventoryLog(
             inventory_item_id=item.id,

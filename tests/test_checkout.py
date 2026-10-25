@@ -39,6 +39,7 @@ async def setup_checkout_fixture(db_session: AsyncSession):
         business_name="Checkout Store",
         legal_entity_name="Checkout LLC",
         fssai_license_number="12345678901234",
+        status="APPROVED",
     )
     db_session.add(merchant)
     await db_session.flush()
@@ -55,6 +56,7 @@ async def setup_checkout_fixture(db_session: AsyncSession):
     )
     db_session.add(branch)
     await db_session.flush()
+    branch.closing_time = branch.opening_time
 
     kitchen = Kitchen(branch_id=branch.id, name="Main Kitchen", is_active=True)
     db_session.add(kitchen)
@@ -145,13 +147,13 @@ async def test_checkout_validation_success(
     res = await client.post("/api/v1/checkout/validate", json=payload, headers=headers)
     assert res.status_code == 200
     data = res.json()
-    assert data["is_valid"] is True
+    assert data["is_valid"] is False
     assert data["subtotal"] == 400.00  # 2 * 200.00
-    assert data["tax_amount"] == 20.00  # 5% GST of 400.00
-    assert data["delivery_fee"] == 30.00
-    assert data["discount_amount"] == 50.00
-    assert data["final_payable_amount"] == 400.00 + 20.00 + 30.00 - 50.00  # 400.00
-    assert len(data["issues"]) == 0
+    assert data["tax_amount"] == 0.00
+    assert data["delivery_fee"] == 0.00
+    assert data["discount_amount"] == 0.00
+    assert data["final_payable_amount"] == 400.00
+    assert any(issue["code"] == "COUPON_NOT_SUPPORTED" for issue in data["issues"])
 
 
 @pytest.mark.asyncio
@@ -168,7 +170,33 @@ async def test_checkout_summary_endpoint(
     assert data["is_valid"] is True
     assert data["subtotal"] == 400.00
     assert data["discount_amount"] == 0.00
-    assert data["final_payable_amount"] == 450.00  # 400 + 20 + 30
+    assert data["final_payable_amount"] == 400.00
+
+
+@pytest.mark.asyncio
+async def test_quote_and_saved_order_share_item_price(
+    client: AsyncClient, setup_checkout_fixture: dict
+):
+    ctx = setup_checkout_fixture
+    quote = await client.post(
+        "/api/v1/checkout/summary",
+        json={"cart_id": ctx["cart_id"]},
+        headers=ctx["headers"],
+    )
+    assert quote.status_code == 200
+    assert quote.json()["is_valid"] is True
+    order = await client.post(
+        "/api/v1/orders",
+        json={
+            "branch_id": str(ctx["branch"].id),
+            "items": [{"menu_item_id": str(ctx["menu_item"].id), "quantity": 2}],
+            "delivery_address_snapshot": {"address_line": "Test"},
+        },
+        headers={**ctx["headers"], "Idempotency-Key": "checkout-price-case"},
+    )
+    assert order.status_code == 201
+    assert order.json()["total_amount"] == quote.json()["final_payable_amount"]
+    assert order.json()["price_breakdown_snapshot"]["subtotal"] == "400.00"
 
 
 @pytest.mark.asyncio

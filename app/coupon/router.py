@@ -3,7 +3,7 @@ import uuid
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.router import get_current_user
+from app.auth.router import get_current_user, require_role
 from app.auth.schemas import UserClaims
 from app.core.database import get_db_session
 from app.coupon.repository import CouponRepository, CouponRepositoryInterface
@@ -65,6 +65,7 @@ async def validate_coupon(
 )
 async def create_coupon(
     req: CouponCreate,
+    _current_user: UserClaims = Depends(require_role(["PlatformAdmin"])),
     coupon_service: CouponServiceInterface = Depends(get_coupon_service),
 ) -> CouponResponse:
     return await coupon_service.create_coupon(req=req)

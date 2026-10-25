@@ -1,8 +1,13 @@
+import uuid
+
 from fastapi import APIRouter, Depends, Query, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.access import require_branch_access
 from app.auth.router import require_role
 from app.auth.schemas import UserClaims
+from app.branch.models import Branch
 from app.branch.repository import BranchRepository, BranchRepositoryInterface
 from app.branch.schemas import (
     BranchCreateRequest,
@@ -13,9 +18,53 @@ from app.branch.schemas import (
 from app.branch.service import BranchService, BranchServiceInterface
 from app.brand.repository import BrandRepository, BrandRepositoryInterface
 from app.core.database import get_db_session
+from app.core.exceptions import EntityNotFoundError
+from app.kitchen.models import Kitchen
+from app.menu.models import Menu
 from app.merchant.repository import MerchantRepository, MerchantRepositoryInterface
 
 router = APIRouter(prefix="/branches", tags=["Branch"])
+
+
+@router.post("/{branch_id}/workspace/initialize", status_code=200)
+async def initialize_branch_workspace(
+    branch_id: uuid.UUID,
+    current_user: UserClaims = Depends(
+        require_role(["BranchManager", "MerchantOwner", "PlatformAdmin"])
+    ),
+    session: AsyncSession = Depends(get_db_session),
+) -> dict[str, str]:
+    """Repair an existing incomplete branch without creating duplicate units or stock."""
+    await require_branch_access(session, current_user, branch_id)
+    branch = await session.scalar(
+        select(Branch)
+        .where(Branch.id == branch_id, Branch.deleted_at.is_(None))
+        .with_for_update()
+    )
+    if branch is None:
+        raise EntityNotFoundError("Branch not found.", "BRANCH_NOT_FOUND")
+    menu = await session.scalar(
+        select(Menu)
+        .where(Menu.branch_id == branch_id, Menu.deleted_at.is_(None))
+        .limit(1)
+    )
+    if menu is None:
+        menu = Menu(branch_id=branch_id, name="Main Menu", is_active=True)
+        session.add(menu)
+    kitchen = await session.scalar(
+        select(Kitchen)
+        .where(Kitchen.branch_id == branch_id, Kitchen.deleted_at.is_(None))
+        .limit(1)
+    )
+    if kitchen is None:
+        kitchen = Kitchen(branch_id=branch_id, name="Main Kitchen", is_active=True)
+        session.add(kitchen)
+    await session.commit()
+    return {
+        "branch_id": str(branch_id),
+        "menu_id": str(menu.id),
+        "kitchen_id": str(kitchen.id),
+    }
 
 
 def get_branch_repository(
@@ -76,7 +125,7 @@ async def list_branches(
 async def create_branch(
     req: BranchCreateRequest,
     current_user: UserClaims = Depends(
-        require_role(["BranchManager", "MerchantOwner", "PlatformAdmin"])
+        require_role(["MerchantOwner", "PlatformAdmin"])
     ),
     branch_service: BranchServiceInterface = Depends(get_branch_service),
 ) -> BranchResponse:
@@ -113,9 +162,11 @@ async def update_branch(
     current_user: UserClaims = Depends(
         require_role(["BranchManager", "MerchantOwner", "PlatformAdmin"])
     ),
+    session: AsyncSession = Depends(get_db_session),
     branch_service: BranchServiceInterface = Depends(get_branch_service),
 ) -> BranchResponse:
-    is_admin = current_user.role == "PlatformAdmin"
+    await require_branch_access(session, current_user, uuid.UUID(branch_id))
+    is_admin = current_user.role in {"PlatformAdmin", "BranchManager"}
     return await branch_service.update_branch(
         branch_id=branch_id, user_id=current_user.sub, is_admin=is_admin, req=req
     )
@@ -134,9 +185,11 @@ async def update_branch_status(
     current_user: UserClaims = Depends(
         require_role(["BranchManager", "MerchantOwner", "PlatformAdmin"])
     ),
+    session: AsyncSession = Depends(get_db_session),
     branch_service: BranchServiceInterface = Depends(get_branch_service),
 ) -> BranchResponse:
-    is_admin = current_user.role == "PlatformAdmin"
+    await require_branch_access(session, current_user, uuid.UUID(branch_id))
+    is_admin = current_user.role in {"PlatformAdmin", "BranchManager"}
     return await branch_service.update_branch_status(
         branch_id=branch_id, user_id=current_user.sub, is_admin=is_admin, req=req
     )

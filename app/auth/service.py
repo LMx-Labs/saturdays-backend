@@ -101,7 +101,7 @@ class AuthService(AuthServiceInterface):
         user = User(
             email=req.email.strip().lower(),
             password_hash=hashed_pwd,
-            role=req.role,
+            role="Customer",
             is_active=True,
             is_verified=False,
         )

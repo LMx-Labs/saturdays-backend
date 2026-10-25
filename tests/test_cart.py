@@ -226,7 +226,10 @@ async def test_cart_availability_checks_and_validation(
 
 @pytest.mark.asyncio
 async def test_cart_expiry_and_purge(
-    client: AsyncClient, setup_cart_fixture: dict, db_session: AsyncSession
+    client: AsyncClient,
+    setup_cart_fixture: dict,
+    db_session: AsyncSession,
+    provision_role,
 ):
     fixture = setup_cart_fixture
     headers = await get_headers(client, fixture["cust_user"].email)
@@ -243,8 +246,15 @@ async def test_cart_expiry_and_purge(
     await db_session.commit()
 
     # Call purge endpoint
+    denied = await client.delete(
+        "/api/v1/cart/purge-expired", params={"max_age_days": 7}, headers=headers
+    )
+    assert denied.status_code == 403
+    admin_headers = await provision_role(
+        client, "purge-admin@example.com", "PlatformAdmin"
+    )
     purge_resp = await client.delete(
-        "/api/v1/cart/purge-expired", params={"max_age_days": 7}
+        "/api/v1/cart/purge-expired", params={"max_age_days": 7}, headers=admin_headers
     )
     assert purge_resp.status_code == 200
     assert purge_resp.json()["purged_count"] >= 1

@@ -1,3 +1,5 @@
+import uuid
+
 from fastapi import APIRouter, Depends, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -37,8 +39,11 @@ def get_auth_service(
     )
 
 
-def get_current_user(token: str = Depends(oauth2_scheme)) -> UserClaims:
-    """Dependency for extracting and validating JWT bearer tokens."""
+async def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    session: AsyncSession = Depends(get_db_session),
+) -> UserClaims:
+    """Validate the token against the current account on every protected request."""
     try:
         payload = decode_token(token)
     except ValueError:
@@ -55,16 +60,41 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> UserClaims:
 
     sub = payload.get("sub")
     role = payload.get("role")
-    email = payload.get("email", "")
 
-    if not sub or not role:
+    if not sub or role not in {
+        "Customer",
+        "KitchenStaff",
+        "BranchManager",
+        "MerchantOwner",
+        "Admin",
+        "PlatformAdmin",
+    }:
         raise UnauthorizedError(
             message="Malformed token payload.",
             error_code="INVALID_ACCESS_TOKEN",
         )
 
+    try:
+        user_id = uuid.UUID(sub)
+    except (ValueError, TypeError):
+        raise UnauthorizedError("Malformed token subject.", "INVALID_ACCESS_TOKEN")
+    user = await UserRepository(session).get_by_id(user_id)
+    if user is None or not user.is_active:
+        raise UnauthorizedError("User account is inactive.", "USER_INACTIVE")
+    if user.role not in {
+        "Customer",
+        "KitchenStaff",
+        "BranchManager",
+        "MerchantOwner",
+        "Admin",
+        "PlatformAdmin",
+    }:
+        raise UnauthorizedError("User role is not supported.", "INVALID_USER_ROLE")
     return UserClaims(
-        sub=sub, email=email, role=role, branch_id=payload.get("branch_id")
+        sub=str(user.id),
+        email=user.email,
+        role=user.role,
+        branch_id=str(user.branch_id) if user.branch_id else None,
     )
 
 

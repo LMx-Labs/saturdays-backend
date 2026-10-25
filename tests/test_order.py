@@ -7,6 +7,8 @@ from app.branch.models import Branch
 from app.brand.models import Brand
 from app.core.security import create_access_token, hash_password
 from app.customer.models import CustomerProfile
+from app.inventory.models import InventoryItem
+from app.kitchen.models import Kitchen
 from app.menu.models import Menu, MenuCategory, MenuItem
 from app.merchant.models import Merchant
 
@@ -42,6 +44,7 @@ async def setup_order_fixture(db_session: AsyncSession):
         business_name="Order Merchant",
         legal_entity_name="Order Merchant LLC",
         fssai_license_number="11223344556677",
+        status="APPROVED",
     )
     db_session.add(merchant)
     await db_session.flush()
@@ -58,6 +61,8 @@ async def setup_order_fixture(db_session: AsyncSession):
     )
     db_session.add_all([branch, branch_other])
     await db_session.flush()
+    branch.closing_time = branch.opening_time
+    staff_user.branch_id = branch.id
 
     menu = Menu(branch_id=branch.id, name="Main Menu")
     menu_other = Menu(branch_id=branch_other.id, name="Other Menu")
@@ -75,6 +80,24 @@ async def setup_order_fixture(db_session: AsyncSession):
         category_id=category_other.id, name="Foreign Cookie", base_price=50.00
     )
     db_session.add_all([item_1, item_2, item_other])
+    await db_session.flush()
+    db_session.add(Kitchen(branch_id=branch.id, name="Main Kitchen", is_active=True))
+    db_session.add_all(
+        [
+            InventoryItem(
+                branch_id=branch.id,
+                menu_item_id=item_1.id,
+                quantity=10,
+                is_in_stock=True,
+            ),
+            InventoryItem(
+                branch_id=branch.id,
+                menu_item_id=item_2.id,
+                quantity=10,
+                is_in_stock=True,
+            ),
+        ]
+    )
     await db_session.commit()
 
     cust_token = create_access_token(subject=str(cust_user.id), role=cust_user.role)
@@ -89,7 +112,10 @@ async def setup_order_fixture(db_session: AsyncSession):
         "item_1": item_1,
         "item_2": item_2,
         "item_other": item_other,
-        "cust_headers": {"Authorization": f"Bearer {cust_token}"},
+        "cust_headers": {
+            "Authorization": f"Bearer {cust_token}",
+            "Idempotency-Key": "order-fixture-key",
+        },
         "staff_headers": {"Authorization": f"Bearer {staff_token}"},
     }
 
@@ -248,3 +274,80 @@ async def test_order_cancellation(client: AsyncClient, setup_order_fixture: dict
     cancel_res = await client.post(f"/api/v1/orders/{order_id}/cancel", headers=headers)
     assert cancel_res.status_code == 200
     assert cancel_res.json()["status"] == "CANCELLED"
+
+
+@pytest.mark.asyncio
+async def test_retry_is_same_order_and_changed_payload_conflicts(
+    client: AsyncClient, setup_order_fixture: dict, db_session: AsyncSession
+):
+    ctx = setup_order_fixture
+    payload = {
+        "branch_id": str(ctx["branch"].id),
+        "items": [{"menu_item_id": str(ctx["item_1"].id), "quantity": 1}],
+        "delivery_address_snapshot": {"address_line": "Hostel 2"},
+    }
+    first = await client.post(
+        "/api/v1/orders", json=payload, headers=ctx["cust_headers"]
+    )
+    retry = await client.post(
+        "/api/v1/orders", json=payload, headers=ctx["cust_headers"]
+    )
+    assert first.status_code == retry.status_code == 201
+    assert first.json()["id"] == retry.json()["id"]
+    from sqlalchemy import select
+
+    stock = await db_session.scalar(
+        select(InventoryItem.quantity).where(
+            InventoryItem.branch_id == ctx["branch"].id,
+            InventoryItem.menu_item_id == ctx["item_1"].id,
+        )
+    )
+    assert stock == 9
+    payload["items"][0]["quantity"] = 2
+    changed = await client.post(
+        "/api/v1/orders", json=payload, headers=ctx["cust_headers"]
+    )
+    assert changed.status_code == 409
+    assert changed.json()["error_code"] == "IDEMPOTENCY_CONFLICT"
+
+
+@pytest.mark.asyncio
+async def test_last_unit_and_cancellation_release_once(
+    client: AsyncClient, setup_order_fixture: dict, db_session: AsyncSession
+):
+    from sqlalchemy import select
+
+    ctx = setup_order_fixture
+    inventory = await db_session.scalar(
+        select(InventoryItem).where(
+            InventoryItem.branch_id == ctx["branch"].id,
+            InventoryItem.menu_item_id == ctx["item_1"].id,
+        )
+    )
+    inventory.quantity = 1
+    await db_session.commit()
+    payload = {
+        "branch_id": str(ctx["branch"].id),
+        "items": [{"menu_item_id": str(ctx["item_1"].id), "quantity": 1}],
+        "delivery_address_snapshot": {"address_line": "Hostel 2"},
+    }
+    first = await client.post(
+        "/api/v1/orders", json=payload, headers=ctx["cust_headers"]
+    )
+    assert first.status_code == 201
+    headers = {**ctx["cust_headers"], "Idempotency-Key": "different-order-key"}
+    second = await client.post("/api/v1/orders", json=payload, headers=headers)
+    assert second.status_code == 400
+    assert second.json()["error_code"] == "INSUFFICIENT_STOCK"
+    await db_session.refresh(inventory)
+    assert inventory.quantity == 0
+    cancelled = await client.post(
+        f"/api/v1/orders/{first.json()['id']}/cancel", headers=ctx["cust_headers"]
+    )
+    assert cancelled.status_code == 200
+    repeated = await client.post(
+        f"/api/v1/orders/{first.json()['id']}/cancel", headers=ctx["cust_headers"]
+    )
+    assert repeated.status_code == 400
+    await db_session.refresh(inventory)
+    assert inventory.quantity == 1

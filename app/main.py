@@ -2,7 +2,7 @@ import asyncio
 from contextlib import asynccontextmanager
 
 import structlog
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,21 +25,23 @@ def _validate_production_settings() -> None:
     if not settings.is_production:
         return
     problems: list[str] = []
-    if settings.JWT_SECRET_KEY == _INSECURE_DEFAULT_SECRET:
-        problems.append("JWT_SECRET_KEY is the publicly known default")
+    if (
+        len(settings.JWT_SECRET_KEY) < 32
+        or settings.JWT_SECRET_KEY == _INSECURE_DEFAULT_SECRET
+    ):
+        problems.append(
+            "JWT_SECRET_KEY must be a unique secret of at least 32 characters"
+        )
     if "*" in settings.CORS_ORIGINS:
         problems.append("CORS_ORIGINS must list explicit origins, not '*'")
     if settings.RAZORPAY_SIMULATE:
+        problems.append("RAZORPAY_SIMULATE must be false")
+    # Collection and payout initiation are unconditionally gated at their
+    # endpoints. Offline startup needs no provider credentials. Do not run a
+    # scheduler for a payout path that cannot settle money.
+    if settings.PAYOUT_SCHEDULER_ENABLED:
         problems.append(
-            "RAZORPAY_SIMULATE must be false (payouts would not move money)"
-        )
-    elif not (
-        settings.RAZORPAY_KEY_ID
-        and settings.RAZORPAY_KEY_SECRET
-        and settings.RAZORPAYX_ACCOUNT_NUMBER
-    ):
-        problems.append(
-            "RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET and RAZORPAYX_ACCOUNT_NUMBER are required"
+            "PAYOUT_SCHEDULER_ENABLED must be false while payouts are gated"
         )
     if problems:
         raise RuntimeError("Unsafe production configuration: " + "; ".join(problems))
@@ -152,6 +154,8 @@ async def readiness_check(session: AsyncSession = Depends(get_db_session)):
     try:
         await session.execute(text("SELECT 1"))
         return {"status": "ready", "database": "connected"}
-    except Exception as e:  # noqa: BLE001
-        logger.error("Readiness check database connection failure", error=str(e))
-        return {"status": "not_ready", "database": "disconnected"}
+    except Exception as e:
+        logger.error(
+            "Readiness check database connection failure", error_type=type(e).__name__
+        )
+        raise HTTPException(status_code=503, detail="Database unavailable") from e

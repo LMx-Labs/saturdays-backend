@@ -45,7 +45,9 @@ async def test_provider_abstraction():
 
 
 @pytest.mark.asyncio
-async def test_send_and_list_notifications(client: AsyncClient, setup_notif_user: User):
+async def test_send_and_list_notifications(
+    client: AsyncClient, setup_notif_user: User, provision_role
+):
     user = setup_notif_user
     headers = await get_headers(client, user.email)
 
@@ -56,8 +58,15 @@ async def test_send_and_list_notifications(client: AsyncClient, setup_notif_user
         "channel": "EMAIL",
     }
 
-    send_resp = await client.post(
+    denied = await client.post(
         "/api/v1/notifications/send", headers=headers, json=send_payload
+    )
+    assert denied.status_code == 403
+    admin_headers = await provision_role(
+        client, "notification-admin@example.com", "PlatformAdmin"
+    )
+    send_resp = await client.post(
+        "/api/v1/notifications/send", headers=admin_headers, json=send_payload
     )
     assert send_resp.status_code == 202
     data = send_resp.json()
@@ -65,7 +74,7 @@ async def test_send_and_list_notifications(client: AsyncClient, setup_notif_user
     assert data["recipient"] == user.email
     assert data["vendor_message_id"] is not None
 
-    list_resp = await client.get("/api/v1/notifications/me", headers=headers)
+    list_resp = await client.get("/api/v1/notifications/me", headers=admin_headers)
     assert list_resp.status_code == 200
     notifs = list_resp.json()
     assert len(notifs) >= 1

@@ -1,6 +1,10 @@
+import uuid
+
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.models import User
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -135,3 +139,49 @@ async def test_me_endpoint_flow(client: AsyncClient):
     assert res.status_code == 200
     user_data = res.json()
     assert user_data["email"] == "meuser@saturdays.com"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "role",
+    [
+        "PlatformAdmin",
+        "MerchantOwner",
+        "BranchManager",
+        "KitchenStaff",
+        "Admin",
+        "Unknown",
+    ],
+)
+async def test_public_registration_rejects_privileged_roles(
+    client: AsyncClient, role: str
+):
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": f"{role.lower()}@example.com",
+            "password": "Password123!",
+            "role": role,
+        },
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_deactivated_user_loses_existing_access_token(
+    client: AsyncClient, db_session: AsyncSession
+):
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={"email": "revoked@example.com", "password": "Password123!"},
+    )
+    assert response.status_code == 201
+    token = response.json()["access_token"]
+    user = await db_session.get(User, uuid.UUID(response.json()["user"]["id"]))
+    user.is_active = False
+    await db_session.commit()
+    denied = await client.get(
+        "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert denied.status_code == 401
+    assert denied.json()["error_code"] == "USER_INACTIVE"
