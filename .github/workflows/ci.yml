@@ -80,6 +80,9 @@ jobs:
         run: |
           python scripts/verify_migrations.py --mode fresh --destructive-guard
 
+      - name: Verify First-Admin Bootstrap and Repeat Refusal
+        run: python scripts/verify_bootstrap.py
+
       - name: Assert PostgreSQL Tests Collected (Fail on Silent Skips)
         run: |
           TEST_COUNT=$(pytest tests/test_order_postgres.py --collect-only -q | grep -c "::test_" || true)

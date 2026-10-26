@@ -1,5 +1,6 @@
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
@@ -11,6 +12,7 @@ from app.inventory.models import InventoryItem
 from app.kitchen.models import Kitchen
 from app.menu.models import Menu, MenuCategory, MenuItem
 from app.merchant.models import Merchant
+from app.order.models import Order, OrderReservation
 
 
 @pytest.fixture
@@ -551,3 +553,56 @@ async def test_staff_can_cancel_placed_order(
         )
     )
     assert stock_after == stock_before + 1
+
+
+@pytest.mark.asyncio
+async def test_direct_order_rejects_soft_deleted_menu_without_reserving_stock(
+    client: AsyncClient, setup_order_fixture: dict, db_session: AsyncSession
+):
+    ctx = setup_order_fixture
+    category = await db_session.get(MenuCategory, ctx["item_1"].category_id)
+    menu = await db_session.get(Menu, category.menu_id)
+    from datetime import UTC, datetime
+
+    menu.deleted_at = datetime.now(UTC)
+    await db_session.commit()
+
+    stock_before = await db_session.scalar(
+        select(InventoryItem.quantity).where(
+            InventoryItem.branch_id == ctx["branch"].id,
+            InventoryItem.menu_item_id == ctx["item_1"].id,
+        )
+    )
+    orders_before = await db_session.scalar(select(func.count()).select_from(Order))
+    reservations_before = await db_session.scalar(
+        select(func.count()).select_from(OrderReservation)
+    )
+
+    response = await client.post(
+        "/api/v1/orders",
+        json={
+            "branch_id": str(ctx["branch"].id),
+            "items": [{"menu_item_id": str(ctx["item_1"].id), "quantity": 1}],
+            "delivery_address_snapshot": {"address_line": "Room 402"},
+        },
+        headers=ctx["cust_headers"],
+    )
+    assert response.status_code == 400, response.text
+    assert response.json()["error_code"] == "ITEM_UNAVAILABLE"
+    assert (
+        await db_session.scalar(select(func.count()).select_from(Order))
+        == orders_before
+    )
+    assert (
+        await db_session.scalar(select(func.count()).select_from(OrderReservation))
+        == reservations_before
+    )
+    assert (
+        await db_session.scalar(
+            select(InventoryItem.quantity).where(
+                InventoryItem.branch_id == ctx["branch"].id,
+                InventoryItem.menu_item_id == ctx["item_1"].id,
+            )
+        )
+        == stock_before
+    )

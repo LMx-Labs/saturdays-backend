@@ -252,6 +252,7 @@ class OrderService(OrderServiceInterface):
             if (
                 not menu_item.is_available
                 or menu_item.category.deleted_at is not None
+                or menu_item.category.menu.deleted_at is not None
                 or not menu_item.category.menu.is_active
             ):
                 raise DomainInvariantError(

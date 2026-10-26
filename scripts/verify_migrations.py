@@ -26,6 +26,15 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+FINAL_SCHEMA_COLUMNS = {
+    "orders": {"idempotency_key", "price_breakdown_snapshot"},
+    "branches": {"timezone_name"},
+    "inventory_items": {"is_paused"},
+    "reviews": {"is_hidden"},
+    "order_reservations": {"order_id", "inventory_item_id", "released_at"},
+    "banners": {"id"},
+    "system_feature_flags": {"flag_key", "enabled", "value"},
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -120,16 +129,7 @@ async def verify_head_and_columns(url: str) -> None:
                 raise RuntimeError(
                     f"Expected one final migration head; found {versions}"
                 )
-        expected = {
-            "orders": {"idempotency_key", "price_breakdown_snapshot"},
-            "branches": {"timezone_name"},
-            "inventory_items": {"is_paused"},
-            "reviews": {"is_hidden"},
-            "order_reservations": {"order_id", "inventory_item_id", "released_at"},
-            "banners": {"id"},
-            "system_feature_flags": {"id"},
-        }
-        for table_name, columns in expected.items():
+        for table_name, columns in FINAL_SCHEMA_COLUMNS.items():
             actual = await get_table_columns(engine, table_name)
             if not columns.issubset(actual):
                 raise RuntimeError(f"Missing {table_name} columns: {columns - actual}")
@@ -332,11 +332,20 @@ async def run_upgrade_mode(url: str, repo_root: Path) -> None:
 
             # Order survived
             o_res = await conn.execute(
-                text("SELECT id, total_amount, status FROM orders WHERE id = :id"),
+                text(
+                    "SELECT id, total_amount, status, price_breakdown_snapshot, idempotency_key "
+                    "FROM orders WHERE id = :id"
+                ),
                 {"id": order_id},
             )
             o_row = o_res.fetchone()
-            if not o_row or float(o_row[1]) != 150.00 or o_row[2] != "PLACED":
+            if (
+                not o_row
+                or float(o_row[1]) != 150.00
+                or o_row[2] != "PLACED"
+                or o_row[3] is not None
+                or o_row[4] is not None
+            ):
                 raise RuntimeError(
                     "Verification failed: order row did not survive upgrade"
                 )
@@ -344,24 +353,32 @@ async def run_upgrade_mode(url: str, repo_root: Path) -> None:
             # Inventory items survived and migration 04 update logic took effect
             inv_res = await conn.execute(
                 text(
-                    "SELECT id, is_in_stock, is_paused FROM inventory_items "
+                    "SELECT id, quantity, is_in_stock, is_paused FROM inventory_items "
                     "WHERE id IN (:id1, :id2)"
                 ),
                 {"id1": inv1_id, "id2": inv2_id},
             )
-            inv_map = {row[0]: (row[1], row[2]) for row in inv_res.fetchall()}
+            inv_map = {row[0]: (row[1], row[2], row[3]) for row in inv_res.fetchall()}
             if inv1_id not in inv_map or inv2_id not in inv_map:
                 raise RuntimeError(
                     "Verification failed: inventory items did not survive upgrade"
                 )
 
-            if inv_map[inv1_id] != (True, False):
+            if inv_map[inv1_id] != (10, True, False):
                 raise RuntimeError(
                     f"Verification failed: in-stock item unexpected state {inv_map[inv1_id]}"
                 )
-            if inv_map[inv2_id] != (False, True):
+            if inv_map[inv2_id] != (0, False, True):
                 raise RuntimeError(
                     f"Verification failed: out-of-stock item unexpected state {inv_map[inv2_id]}"
+                )
+            reservation_count = await conn.scalar(
+                text("SELECT count(*) FROM order_reservations WHERE order_id = :id"),
+                {"id": order_id},
+            )
+            if reservation_count != 0:
+                raise RuntimeError(
+                    "Verification failed: historical order gained a reservation"
                 )
     finally:
         await verify_engine.dispose()

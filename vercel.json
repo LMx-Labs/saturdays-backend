@@ -3,7 +3,8 @@
   "framework": null,
   "git": {
     "deploymentEnabled": {
-      "review/dineguru-final-20261026": false
+      "review/dineguru-final-20261026": false,
+      "dineguru-updated": false
     }
   },
   "rewrites": [
