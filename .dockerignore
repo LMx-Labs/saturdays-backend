@@ -12,9 +12,13 @@ __pycache__/
 venv/
 tests/
 scripts/
+!scripts/
+scripts/*
+!scripts/bootstrap_admin.py
 architecture/
 prompts/
 *.log
 *.zip
 *.tar
 *.tar.gz
+.DS_Store

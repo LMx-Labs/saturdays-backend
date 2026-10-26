@@ -86,6 +86,7 @@ class CheckoutRepository(CheckoutRepositoryInterface):
         stmt = select(InventoryItem).where(
             InventoryItem.branch_id == branch_id,
             InventoryItem.menu_item_id == menu_item_id,
+            InventoryItem.deleted_at.is_(None),
         )
         res = await self.session.execute(stmt)
         return res.scalar_one_or_none()

@@ -33,11 +33,13 @@ venv.bak/
 .env.*.local
 .vercel/
 
-# IDEs
+# IDEs & OS Files
 .idea/
 .vscode/
 *.swp
 *.swo
+.DS_Store
+Thumbs.db
 
 # Testing & Coverage
 .pytest_cache/
@@ -47,3 +49,6 @@ htmlcov/
 # Database & Storage
 *.sqlite3
 *.db
+
+# AI Prompts (archived outside repository)
+prompts/

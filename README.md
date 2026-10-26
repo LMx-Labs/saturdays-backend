@@ -1,80 +1,32 @@
-# Saturdays Monolithic Platform
+# Saturdays backend
 
-This repository contains the backend implementation and canonical engineering architecture specification for Saturdays and DineGuru.
+FastAPI and PostgreSQL backend for Saturdays and DineGuru. The current DineGuru integration branch contains restaurant onboarding, menu and inventory management, authenticated ordering, stock reservations, and staff order actions. The `architecture/` tree records design intent; use the application code and [deployment runbook](docs/deployment.md) for current operations.
 
----
+## Local development
 
-## Repository Structure
+Use Python 3.11+ and PostgreSQL. Copy `.env.example` to `.env`, set a local `DATABASE_URL` and a unique `JWT_SECRET_KEY`, then run:
 
-- `app/` — FastAPI application backend source code (Core Infrastructure, Config, Database, Middleware, Logging)
-- `alembic/` & `alembic.ini` — PostgreSQL schema migrations
-- `architecture/` — Canonical 15-year engineering architecture specification (116 files)
-- `prompts/` — Governing prompt specifications and documentation rules
-- `.github/workflows/` — CI/CD automation pipeline
-
----
-
-## Payouts, Store Credit & Branch Managers
-
-- **Daily payouts** — `POST /api/v1/payouts/run` (PlatformAdmin; `dry_run` to preview) or
-  `PAYOUT_SCHEDULER_ENABLED=true`, or cron `python -m app.payout.scheduler`. Pays each
-  approved merchant, from the platform RazorpayX account, the net of completed, fully-paid
-  orders (gross − commission). Idempotent; failures are retried; RazorpayX webhook
-  `POST /api/v1/payouts/webhook` (`payout.processed|failed|reversed`) updates status.
-  Merchants see their own via `GET /payouts/me`. Needs `RAZORPAY_KEY_ID/SECRET`,
-  `RAZORPAYX_ACCOUNT_NUMBER`, `RAZORPAY_SIMULATE=false`.
-- **No cash refunds** — cancelling or rejecting a paid order issues brand-scoped store credit
-  (`/store-credits`, spend it with `use_store_credit` on `POST /orders`). Cash-refund endpoints
-  return `REFUNDS_DISABLED_USE_STORE_CREDIT` unless `REFUNDS_ENABLED=true`.
-- **BranchManager ↔ branch** — onboard with `POST /admin/branch-managers {email, password,
-  branch_id}`; `branch_id` is returned on login, `/auth/me` and in the JWT. Reassign with
-  `PUT /admin/branch-managers/{user_id}/branch`.
-
----
-
-## Local Setup & Quickstart
-
-### Prerequisites
-- Python 3.11+
-- PostgreSQL 16+ (or Docker)
-
-### Environment Configuration
-Copy the sample environment file:
-```bash
-cp .env.example .env
+```sh
+pip install -r requirements.txt
+pip install -e '.[dev]'
+alembic upgrade head
+uvicorn app.main:app --reload
 ```
 
-### Installation
-Install dependencies:
-```bash
-make install
-# Or: pip install -r requirements.txt && pip install -e .[dev]
+API documentation: `/api/v1/docs` and `/api/v1/redoc`. Health checks: `/health`, `/health/live`, `/health/ready`.
+
+Public registration creates Customer accounts only. A PlatformAdmin provisions MerchantOwner and branch staff accounts; see the runbook for the first-admin procedure. The DineGuru frontend must use the backend's `/api/v1` routes and an explicitly trusted CORS origin.
+
+## Payment boundary
+
+Payment collection, verification, webhooks, refunds, and payout initiation remain gated with HTTP 503 pending product policy and provider integration. Setting `REFUNDS_ENABLED` or provider credentials does not enable them. Keep `PAYOUT_SCHEDULER_ENABLED=false` in production. No `REGISTRATION_OPEN` switch or `provider_order_id` uniqueness guarantee exists in this code.
+
+## Checks
+
+```sh
+ruff check app tests scripts
+black --check app tests scripts
+pytest
 ```
 
-### Running Local Development Server
-Start the FastAPI server:
-```bash
-make run
-# Or: uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-API Documentation available at:
-- Swagger UI: `http://localhost:8000/docs`
-- ReDoc: `http://localhost:8000/redoc`
-- Health Checks: `http://localhost:8000/health`, `/health/ready`, `/health/live`
-
-### Docker Setup
-Run the full stack via Docker Compose:
-```bash
-make docker-run
-# Or: docker-compose up --build
-```
-
-### Testing & Code Quality
-```bash
-# Run Pytest suite
-make test
-
-# Code formatting & linting
-make format
-make lint
-```
+CI separately runs native PostgreSQL tests and both disposable migration paths. `pytest` alone skips native tests when `TEST_POSTGRES_URL` is unset. See [deployment runbook](docs/deployment.md) for the guarded migration verification commands and production gates.

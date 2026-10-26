@@ -14,10 +14,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.admin.models import SystemFeatureFlag
+from app.auth.models import User
 from app.branch.models import Branch
 from app.brand.models import Brand
 from app.core.config import get_settings
-from app.core.exceptions import ConflictError, DomainInvariantError, EntityNotFoundError
+from app.core.exceptions import (
+    ConflictError,
+    DomainInvariantError,
+    EntityNotFoundError,
+    ForbiddenError,
+)
 from app.credit.service import StoreCreditService
 from app.customer.models import CustomerProfile
 from app.inventory.models import InventoryItem, InventoryLog
@@ -50,6 +56,7 @@ class OrderServiceInterface(ABC):
         order_id: uuid.UUID,
         changed_by_user_id: uuid.UUID,
         target_status: str,
+        actor_role: str | None = None,
     ) -> Order:
         pass
 
@@ -59,6 +66,7 @@ class OrderServiceInterface(ABC):
         order_id: uuid.UUID,
         user_id: uuid.UUID,
         reason: str | None = None,
+        actor_role: str | None = None,
     ) -> Order:
         pass
 
@@ -284,7 +292,6 @@ class OrderService(OrderServiceInterface):
         for menu_item, quantity, modifiers_snapshot, unit_price in sorted(
             admitted_items, key=lambda line: str(inventory_by_menu[line[0].id])
         ):
-
             result = await self.session.execute(
                 update(InventoryItem)
                 .where(
@@ -397,6 +404,7 @@ class OrderService(OrderServiceInterface):
         order_id: uuid.UUID,
         changed_by_user_id: uuid.UUID,
         target_status: str,
+        actor_role: str | None = None,
     ) -> Order:
         order = await self.order_repo.get_by_id_for_update(order_id)
         if not order:
@@ -414,6 +422,26 @@ class OrderService(OrderServiceInterface):
                 message=f"Illegal order status transition from '{current_status}' to '{target_status}'.",
                 error_code="ILLEGAL_STATUS_TRANSITION",
             )
+
+        # Resolve actor role if not explicitly provided
+        if actor_role is None:
+            user = await self.session.get(User, changed_by_user_id)
+            if user:
+                actor_role = user.role
+
+        # Enforce Customer cancellation only while PLACED (inside transaction after locking order row)
+        if target_status == "CANCELLED" and actor_role == "Customer":
+            if current_status != "PLACED":
+                raise DomainInvariantError(
+                    message="Customers may only cancel orders in PLACED status prior to merchant acceptance.",
+                    error_code="CUSTOMER_CANCELLATION_WINDOW_EXPIRED",
+                )
+        elif actor_role == "Customer" and target_status != "CANCELLED":
+            raise ForbiddenError(
+                message=f"Role 'Customer' cannot set status '{target_status}'.",
+                error_code="ORDER_STATUS_FORBIDDEN",
+            )
+
         if target_status == "CANCELLED":
             settled = await StoreCreditService(self.session).net_captured_amount(
                 order_id
@@ -507,11 +535,13 @@ class OrderService(OrderServiceInterface):
         order_id: uuid.UUID,
         user_id: uuid.UUID,
         reason: str | None = None,
+        actor_role: str | None = None,
     ) -> Order:
         return await self.update_order_status(
             order_id=order_id,
             changed_by_user_id=user_id,
             target_status="CANCELLED",
+            actor_role=actor_role,
         )
 
     async def get_order(self, order_id: uuid.UUID) -> Order:

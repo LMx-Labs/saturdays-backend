@@ -351,3 +351,203 @@ async def test_last_unit_and_cancellation_release_once(
     assert repeated.status_code == 400
     await db_session.refresh(inventory)
     assert inventory.quantity == 1
+
+
+@pytest.mark.asyncio
+async def test_customer_cannot_cancel_accepted_order_via_post_cancel(
+    client: AsyncClient, setup_order_fixture: dict, db_session: AsyncSession
+):
+    from sqlalchemy import select
+
+    ctx = setup_order_fixture
+    create_res = await client.post(
+        "/api/v1/orders",
+        json={
+            "branch_id": str(ctx["branch"].id),
+            "items": [{"menu_item_id": str(ctx["item_1"].id), "quantity": 1}],
+            "delivery_address_snapshot": {"address_line": "Hostel 2"},
+        },
+        headers=ctx["cust_headers"],
+    )
+    assert create_res.status_code == 201
+    order_id = create_res.json()["id"]
+
+    # Staff marks ACCEPTED
+    accept_res = await client.patch(
+        f"/api/v1/orders/{order_id}/status",
+        json={"status": "ACCEPTED"},
+        headers=ctx["staff_headers"],
+    )
+    assert accept_res.status_code == 200
+    assert accept_res.json()["status"] == "ACCEPTED"
+
+    # Record stock level before cancel attempt
+    stock_before = await db_session.scalar(
+        select(InventoryItem.quantity).where(
+            InventoryItem.branch_id == ctx["branch"].id,
+            InventoryItem.menu_item_id == ctx["item_1"].id,
+        )
+    )
+
+    # Customer attempts POST cancel on ACCEPTED order
+    cancel_res = await client.post(
+        f"/api/v1/orders/{order_id}/cancel",
+        headers=ctx["cust_headers"],
+    )
+    assert cancel_res.status_code == 400
+    assert cancel_res.json()["error_code"] == "CUSTOMER_CANCELLATION_WINDOW_EXPIRED"
+
+    # Stock must remain unchanged
+    stock_after = await db_session.scalar(
+        select(InventoryItem.quantity).where(
+            InventoryItem.branch_id == ctx["branch"].id,
+            InventoryItem.menu_item_id == ctx["item_1"].id,
+        )
+    )
+    assert stock_after == stock_before
+
+
+@pytest.mark.asyncio
+async def test_customer_cannot_cancel_accepted_order_via_patch_status(
+    client: AsyncClient, setup_order_fixture: dict, db_session: AsyncSession
+):
+    from sqlalchemy import select
+
+    ctx = setup_order_fixture
+    create_res = await client.post(
+        "/api/v1/orders",
+        json={
+            "branch_id": str(ctx["branch"].id),
+            "items": [{"menu_item_id": str(ctx["item_1"].id), "quantity": 1}],
+            "delivery_address_snapshot": {"address_line": "Hostel 2"},
+        },
+        headers=ctx["cust_headers"],
+    )
+    assert create_res.status_code == 201
+    order_id = create_res.json()["id"]
+
+    # Staff marks ACCEPTED
+    accept_res = await client.patch(
+        f"/api/v1/orders/{order_id}/status",
+        json={"status": "ACCEPTED"},
+        headers=ctx["staff_headers"],
+    )
+    assert accept_res.status_code == 200
+
+    stock_before = await db_session.scalar(
+        select(InventoryItem.quantity).where(
+            InventoryItem.branch_id == ctx["branch"].id,
+            InventoryItem.menu_item_id == ctx["item_1"].id,
+        )
+    )
+
+    # Customer attempts PATCH status -> CANCELLED
+    patch_cancel = await client.patch(
+        f"/api/v1/orders/{order_id}/status",
+        json={"status": "CANCELLED"},
+        headers=ctx["cust_headers"],
+    )
+    assert patch_cancel.status_code == 400
+    assert patch_cancel.json()["error_code"] == "CUSTOMER_CANCELLATION_WINDOW_EXPIRED"
+
+    # Stock must remain unchanged
+    stock_after = await db_session.scalar(
+        select(InventoryItem.quantity).where(
+            InventoryItem.branch_id == ctx["branch"].id,
+            InventoryItem.menu_item_id == ctx["item_1"].id,
+        )
+    )
+    assert stock_after == stock_before
+
+
+@pytest.mark.asyncio
+async def test_staff_can_cancel_accepted_order(
+    client: AsyncClient, setup_order_fixture: dict, db_session: AsyncSession
+):
+    from sqlalchemy import select
+
+    ctx = setup_order_fixture
+    create_res = await client.post(
+        "/api/v1/orders",
+        json={
+            "branch_id": str(ctx["branch"].id),
+            "items": [{"menu_item_id": str(ctx["item_1"].id), "quantity": 1}],
+            "delivery_address_snapshot": {"address_line": "Hostel 2"},
+        },
+        headers=ctx["cust_headers"],
+    )
+    order_id = create_res.json()["id"]
+
+    # Staff marks ACCEPTED
+    await client.patch(
+        f"/api/v1/orders/{order_id}/status",
+        json={"status": "ACCEPTED"},
+        headers=ctx["staff_headers"],
+    )
+
+    stock_before = await db_session.scalar(
+        select(InventoryItem.quantity).where(
+            InventoryItem.branch_id == ctx["branch"].id,
+            InventoryItem.menu_item_id == ctx["item_1"].id,
+        )
+    )
+
+    # Staff cancels ACCEPTED order
+    cancel_res = await client.post(
+        f"/api/v1/orders/{order_id}/cancel",
+        headers=ctx["staff_headers"],
+    )
+    assert cancel_res.status_code == 200
+    assert cancel_res.json()["status"] == "CANCELLED"
+
+    # Stock released exactly once
+    stock_after = await db_session.scalar(
+        select(InventoryItem.quantity).where(
+            InventoryItem.branch_id == ctx["branch"].id,
+            InventoryItem.menu_item_id == ctx["item_1"].id,
+        )
+    )
+    assert stock_after == stock_before + 1
+
+
+@pytest.mark.asyncio
+async def test_staff_can_cancel_placed_order(
+    client: AsyncClient, setup_order_fixture: dict, db_session: AsyncSession
+):
+    from sqlalchemy import select
+
+    ctx = setup_order_fixture
+    create_res = await client.post(
+        "/api/v1/orders",
+        json={
+            "branch_id": str(ctx["branch"].id),
+            "items": [{"menu_item_id": str(ctx["item_1"].id), "quantity": 1}],
+            "delivery_address_snapshot": {"address_line": "Hostel 2"},
+        },
+        headers=ctx["cust_headers"],
+    )
+    order_id = create_res.json()["id"]
+
+    stock_before = await db_session.scalar(
+        select(InventoryItem.quantity).where(
+            InventoryItem.branch_id == ctx["branch"].id,
+            InventoryItem.menu_item_id == ctx["item_1"].id,
+        )
+    )
+
+    # Staff cancels PLACED order
+    cancel_res = await client.post(
+        f"/api/v1/orders/{order_id}/cancel",
+        headers=ctx["staff_headers"],
+    )
+    assert cancel_res.status_code == 200
+    assert cancel_res.json()["status"] == "CANCELLED"
+
+    # Stock released exactly once
+    stock_after = await db_session.scalar(
+        select(InventoryItem.quantity).where(
+            InventoryItem.branch_id == ctx["branch"].id,
+            InventoryItem.menu_item_id == ctx["item_1"].id,
+        )
+    )
+    assert stock_after == stock_before + 1

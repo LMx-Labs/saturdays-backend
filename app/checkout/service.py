@@ -6,8 +6,10 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from app.admin.models import SystemFeatureFlag
+from app.brand.models import Brand
 from app.checkout.repository import CheckoutRepositoryInterface
 from app.checkout.schemas import (
     CheckoutIssue,
@@ -19,7 +21,8 @@ from app.core.config import get_settings
 from app.coupon.repository import CouponRepository, CouponRepositoryInterface
 from app.coupon.service import CouponService, CouponServiceInterface
 from app.customer.repository import CustomerRepository
-from app.menu.models import MenuItem
+from app.menu.models import MenuCategory, MenuItem
+from app.merchant.models import Merchant
 from app.order.pricing import PriceLine, calculate_price
 
 
@@ -155,6 +158,21 @@ class CheckoutService(CheckoutServiceInterface):
                     )
                 )
 
+        # 3b. Validate Merchant approval status
+        if branch:
+            approved = await self.session.scalar(
+                select(Merchant.id)
+                .join(Brand, Brand.merchant_id == Merchant.id)
+                .where(Brand.id == branch.brand_id, Merchant.status == "APPROVED")
+            )
+            if approved is None:
+                issues.append(
+                    CheckoutIssue(
+                        code="MERCHANT_NOT_APPROVED",
+                        message="This restaurant is not currently accepting orders.",
+                    )
+                )
+
         # 4. Validate Kitchen Station
         kitchen = await self.checkout_repo.get_kitchen_for_branch(branch_uuid)
         kitchen_id_str = str(kitchen.id) if kitchen else None
@@ -171,15 +189,27 @@ class CheckoutService(CheckoutServiceInterface):
         price_lines: list[PriceLine] = []
 
         for cart_item in cart.items:
-            # Fetch menu item details
-            stmt_menu = select(MenuItem).where(
-                MenuItem.id == cart_item.menu_item_id,
-                MenuItem.deleted_at.is_(None),
+            # Fetch menu item details with category and menu to align with final admission
+            stmt_menu = (
+                select(MenuItem)
+                .options(joinedload(MenuItem.category).joinedload(MenuCategory.menu))
+                .where(
+                    MenuItem.id == cart_item.menu_item_id,
+                    MenuItem.deleted_at.is_(None),
+                )
             )
             res_menu = await self.session.execute(stmt_menu)
             menu_item = res_menu.scalar_one_or_none()
 
-            if not menu_item or not menu_item.is_available:
+            if (
+                not menu_item
+                or not menu_item.is_available
+                or menu_item.category is None
+                or menu_item.category.deleted_at is not None
+                or menu_item.category.menu is None
+                or menu_item.category.menu.deleted_at is not None
+                or not menu_item.category.menu.is_active
+            ):
                 issues.append(
                     CheckoutIssue(
                         code="ITEM_UNAVAILABLE",
@@ -187,18 +217,44 @@ class CheckoutService(CheckoutServiceInterface):
                     )
                 )
                 unit_price = 0.0
-                item_name = "Unavailable Item"
+                item_name = menu_item.name if menu_item else "Unavailable Item"
+                is_avail = False
+            elif menu_item.category.menu.branch_id != branch_uuid:
+                issues.append(
+                    CheckoutIssue(
+                        code="CROSS_BRANCH_ORDER_VIOLATION",
+                        message=f"Menu item '{cart_item.menu_item_id}' does not belong to branch '{branch_uuid}'.",
+                    )
+                )
+                unit_price = 0.0
+                item_name = menu_item.name
                 is_avail = False
             else:
                 unit_price = float(menu_item.base_price)
                 item_name = menu_item.name
                 is_avail = True
 
-                # Check inventory stock
+                # Check inventory pause and stock status (is_paused gates before stock)
                 inv = await self.checkout_repo.get_inventory_item(
                     branch_uuid, cart_item.menu_item_id
                 )
-                if inv and (not inv.is_in_stock or inv.quantity < cart_item.quantity):
+                if inv is None:
+                    is_avail = False
+                    issues.append(
+                        CheckoutIssue(
+                            code="INSUFFICIENT_STOCK",
+                            message=f"Item '{menu_item.name}' has no inventory record or insufficient stock.",
+                        )
+                    )
+                elif inv.is_paused:
+                    is_avail = False
+                    issues.append(
+                        CheckoutIssue(
+                            code="ITEM_PAUSED",
+                            message=f"Item '{menu_item.name}' is temporarily paused and cannot be ordered.",
+                        )
+                    )
+                elif not inv.is_in_stock or inv.quantity < cart_item.quantity:
                     is_avail = False
                     issues.append(
                         CheckoutIssue(

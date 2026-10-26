@@ -21,9 +21,9 @@ jobs:
           pip install -r requirements.txt
           pip install .[dev]
       - name: Run Ruff Lint
-        run: ruff check app tests
+        run: ruff check app tests scripts
       - name: Check Formatting with Black
-        run: black --check app tests
+        run: black --check app tests scripts
 
   test:
     runs-on: ubuntu-latest
@@ -41,11 +41,74 @@ jobs:
       - name: Run Pytest Suite
         run: pytest
 
+  postgres-test:
+    needs: [lint-and-format]
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: dineguru_repair_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      TEST_POSTGRES_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/dineguru_repair_test
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/dineguru_repair_test
+      PGPASSWORD: postgres
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Dependencies & Dev Tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install .[dev]
+
+      - name: Run Fresh Migrations & Zero Drift Check
+        run: |
+          python scripts/verify_migrations.py --mode fresh --destructive-guard
+
+      - name: Assert PostgreSQL Tests Collected (Fail on Silent Skips)
+        run: |
+          TEST_COUNT=$(pytest tests/test_order_postgres.py --collect-only -q | grep -c "::test_" || true)
+          echo "Collected $TEST_COUNT PostgreSQL tests"
+          if [ "$TEST_COUNT" -lt 11 ]; then
+            echo "ERROR: tests/test_order_postgres.py was not collected or silently skipped (expected at least 11, got $TEST_COUNT)"
+            exit 1
+          fi
+
+      - name: Run PostgreSQL Integration Tests
+        run: |
+          pytest tests/test_order_postgres.py -v --tb=short --junitxml=postgres-results.xml
+          python -c "import xml.etree.ElementTree as e; r=e.parse('postgres-results.xml').getroot().find('testsuite'); assert r is not None and int(r.attrib['tests']) >= 11 and int(r.attrib['skipped']) == 0 and int(r.attrib['failures']) == 0 and int(r.attrib['errors']) == 0, r.attrib if r is not None else 'no testsuite'"
+
+      - name: Create Upgrade Verification Database
+        run: |
+          psql -h localhost -U postgres -c "CREATE DATABASE dineguru_repair_upgrade;"
+
+      - name: Run Migration Upgrade Path Verification (0006 to Head)
+        env:
+          TEST_POSTGRES_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/dineguru_repair_upgrade
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/dineguru_repair_upgrade
+        run: |
+          python scripts/verify_migrations.py --mode upgrade --destructive-guard
+
   docker-build:
-    needs: [lint-and-format, test]
+    needs: [test, postgres-test]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Build Docker Image
         run: docker build -t saturdays-app:latest .
-

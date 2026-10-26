@@ -176,6 +176,7 @@ async def update_order_status(
         order_id=id,
         changed_by_user_id=uuid.UUID(current_user.sub),
         target_status=req.status,
+        actor_role=current_user.role,
     )
     return OrderResponse.model_validate(order)
 
@@ -208,6 +209,7 @@ async def cancel_order(
     order = await order_service.cancel_order(
         order_id=id,
         user_id=uuid.UUID(current_user.sub),
+        actor_role=current_user.role,
     )
     return OrderResponse.model_validate(order)
 

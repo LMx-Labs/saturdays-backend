@@ -700,3 +700,86 @@ async def test_authenticated_admin_owner_customer_order_journey(pg_context):
             )
         ).all()
         assert len(holds) == 1 and holds[0].released_at is not None
+
+
+@pytest.mark.asyncio
+async def test_staff_acceptance_racing_customer_cancellation(pg_context):
+    """Native PostgreSQL concurrency test: staff acceptance racing customer cancellation.
+
+    Both transitions lock the order row with FOR UPDATE inside their service transactions.
+    PostgreSQL serializes the operations:
+    - If staff accepts first: status -> ACCEPTED; customer cancel sees ACCEPTED and fails
+      with CUSTOMER_CANCELLATION_WINDOW_EXPIRED (HTTP 400); stock is NOT released.
+    - If customer cancels first: status -> CANCELLED; stock is released once; staff accept
+      sees CANCELLED and fails with ILLEGAL_STATUS_TRANSITION (HTTP 400).
+
+    Asserts exact atomic outcome, no deadlock, and no duplicate/spurious stock release.
+    """
+    ctx = pg_context
+    payload = {
+        "branch_id": str(ctx["branch_id"]),
+        "items": [{"menu_item_id": str(ctx["item_ids"][0]), "quantity": 1}],
+        "delivery_address_snapshot": {"address_line": "Race Lane"},
+    }
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        # 1. Place order (status PLACED)
+        placed = await client.post(
+            "/api/v1/orders", json=payload, headers=ctx["headers"][0]
+        )
+        assert placed.status_code == 201, placed.text
+        order_id = placed.json()["id"]
+
+        # 2. Race staff acceptance against customer cancellation concurrently
+        accept_task = client.patch(
+            f"/api/v1/orders/{order_id}/status",
+            json={"status": "ACCEPTED"},
+            headers=ctx["owner_headers"],
+        )
+        cancel_task = client.post(
+            f"/api/v1/orders/{order_id}/cancel",
+            headers=ctx["headers"][0],
+        )
+
+        accept_resp, cancel_resp = await asyncio.wait_for(
+            asyncio.gather(accept_task, cancel_task),
+            timeout=10,
+        )
+
+        # 3. Exactly one succeeds with 200, the other fails with 400
+        if accept_resp.status_code == 200:
+            assert accept_resp.json()["status"] == "ACCEPTED"
+            assert cancel_resp.status_code == 400
+            assert (
+                cancel_resp.json()["error_code"]
+                == "CUSTOMER_CANCELLATION_WINDOW_EXPIRED"
+            )
+            expected_final_status = "ACCEPTED"
+            expected_released = False
+        else:
+            assert cancel_resp.status_code == 200
+            assert cancel_resp.json()["status"] == "CANCELLED"
+            assert accept_resp.status_code == 400
+            assert accept_resp.json()["error_code"] == "ILLEGAL_STATUS_TRANSITION"
+            expected_final_status = "CANCELLED"
+            expected_released = True
+
+    # 4. Verify database state
+    async with ctx["sessions"]() as session:
+        order_row = await session.get(Order, uuid.UUID(order_id))
+        assert order_row.status == expected_final_status
+        inventory = await session.get(InventoryItem, ctx["inventory_ids"][0])
+        assert inventory.quantity == (1 if expected_released else 0)
+        holds = (
+            await session.scalars(
+                select(OrderReservation).where(
+                    OrderReservation.order_id == uuid.UUID(order_id)
+                )
+            )
+        ).all()
+        assert len(holds) == 1
+        if expected_released:
+            assert holds[0].released_at is not None
+        else:
+            assert holds[0].released_at is None
