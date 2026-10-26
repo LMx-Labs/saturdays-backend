@@ -72,9 +72,7 @@ async def test_brand_crud_flow(client: AsyncClient, db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_brand_invariants_and_rbac(
-    client: AsyncClient, db_session: AsyncSession
-):
+async def test_brand_invariants_and_rbac(client: AsyncClient, db_session: AsyncSession):
     # Customer tries to create brand -> 403 Forbidden
     cust_payload = {
         "email": "custbrand@saturdays.com",

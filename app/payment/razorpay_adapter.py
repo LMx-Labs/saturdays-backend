@@ -14,7 +14,10 @@ settings = get_settings()
 
 def _amount_to_paise(amount: float) -> int:
     """Razorpay charges integer paise. 499 INR -> 49900."""
-    paise = (Decimal(str(amount)) * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    # Convert through the decimal text, not the binary float representation.
+    decimal_text = str(amount)
+    decimal_amount = Decimal(decimal_text)
+    paise = (decimal_amount * 100).quantize(Decimal(1), rounding=ROUND_HALF_UP)
     return int(paise)
 
 

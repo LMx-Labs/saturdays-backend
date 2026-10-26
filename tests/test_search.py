@@ -1,3 +1,5 @@
+from datetime import time
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -46,6 +48,8 @@ async def setup_search_fixture(db_session: AsyncSession):
         latitude=12.9716,
         longitude=77.5946,
         is_active=True,
+        opening_time=time(0, 0),
+        closing_time=time(23, 59, 59),
     )
     db_session.add(branch)
     await db_session.flush()

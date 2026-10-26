@@ -30,7 +30,6 @@ from app.menu.models import Menu, MenuCategory, MenuItem
 from app.merchant.models import Merchant
 from app.order.models import Order, OrderItem, OrderReservation
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -148,7 +147,7 @@ async def test_customer_cannot_set_order_status_to_accepted_or_preparing(
     db_session.add_all([owner, customer_user])
     await db_session.flush()
 
-    branch, item, inv = await _build_branch_with_item(db_session, owner=owner)
+    branch, item, _inv = await _build_branch_with_item(db_session, owner=owner)
 
     profile = CustomerProfile(
         user_id=customer_user.id,
@@ -216,9 +215,7 @@ async def test_order_creation_rejected_for_item_in_soft_deleted_category(
     db_session.add_all([owner, customer_user])
     await db_session.flush()
 
-    branch, item, inv = await _build_branch_with_item(
-        db_session, owner=owner, stock=10
-    )
+    branch, item, inv = await _build_branch_with_item(db_session, owner=owner, stock=10)
     initial_stock = inv.quantity
 
     # Soft-delete the category
@@ -246,19 +243,19 @@ async def test_order_creation_rejected_for_item_in_soft_deleted_category(
         headers={**cust_headers, "Idempotency-Key": "sec-c-key-001"},
     )
     # Must fail with exact 400 Bad Request and error_code ITEM_UNAVAILABLE
-    assert resp.status_code == 400, (
-        f"Expected 400 ITEM_UNAVAILABLE, got {resp.status_code}: {resp.text}"
-    )
+    assert (
+        resp.status_code == 400
+    ), f"Expected 400 ITEM_UNAVAILABLE, got {resp.status_code}: {resp.text}"
     data = resp.json()
-    assert data.get("error_code") == "ITEM_UNAVAILABLE", (
-        f"Expected error_code 'ITEM_UNAVAILABLE', got: {data}"
-    )
+    assert (
+        data.get("error_code") == "ITEM_UNAVAILABLE"
+    ), f"Expected error_code 'ITEM_UNAVAILABLE', got: {data}"
 
     # Stock must remain unchanged
     await db_session.refresh(inv)
-    assert inv.quantity == initial_stock, (
-        f"Stock changed on rejected order: expected {initial_stock}, got {inv.quantity}"
-    )
+    assert (
+        inv.quantity == initial_stock
+    ), f"Stock changed on rejected order: expected {initial_stock}, got {inv.quantity}"
 
     # No reservations or orders created
     order_count = await db_session.scalar(
@@ -292,9 +289,7 @@ async def test_double_cancel_does_not_release_stock_twice(
     db_session.add_all([owner, customer_user])
     await db_session.flush()
 
-    branch, item, inv = await _build_branch_with_item(
-        db_session, owner=owner, stock=10
-    )
+    branch, item, inv = await _build_branch_with_item(db_session, owner=owner, stock=10)
     initial_stock = inv.quantity
 
     profile = CustomerProfile(
@@ -318,25 +313,27 @@ async def test_double_cancel_does_not_release_stock_twice(
         },
         headers={**cust_headers, "Idempotency-Key": "sec-d-create-key"},
     )
-    assert create_resp.status_code == 201, (
-        f"Order creation failed: {create_resp.text}"
-    )
+    assert create_resp.status_code == 201, f"Order creation failed: {create_resp.text}"
     order_id = create_resp.json()["id"]
 
     # Verify inventory was decremented by 2
     await db_session.refresh(inv)
-    assert inv.quantity == initial_stock - 2, (
-        f"Expected stock to be {initial_stock - 2}, got {inv.quantity}"
-    )
+    assert (
+        inv.quantity == initial_stock - 2
+    ), f"Expected stock to be {initial_stock - 2}, got {inv.quantity}"
 
     # Verify active reservation exists with released_at is None
     res_before = (
-        await db_session.execute(
-            select(OrderReservation).where(
-                OrderReservation.order_id == uuid.UUID(order_id)
+        (
+            await db_session.execute(
+                select(OrderReservation).where(
+                    OrderReservation.order_id == uuid.UUID(order_id)
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(res_before) == 1
     assert res_before[0].quantity == 2
     assert res_before[0].released_at is None
@@ -346,25 +343,29 @@ async def test_double_cancel_does_not_release_stock_twice(
         f"/api/v1/orders/{order_id}/cancel",
         headers=cust_headers,
     )
-    assert cancel_resp1.status_code == 200, (
-        f"First cancel should succeed with 200, got {cancel_resp1.status_code}: {cancel_resp1.text}"
-    )
+    assert (
+        cancel_resp1.status_code == 200
+    ), f"First cancel should succeed with 200, got {cancel_resp1.status_code}: {cancel_resp1.text}"
     assert cancel_resp1.json()["status"] == "CANCELLED"
 
     # Verify stock restored to initial_stock (10)
     await db_session.refresh(inv)
-    assert inv.quantity == initial_stock, (
-        f"Expected stock restored to {initial_stock}, got {inv.quantity}"
-    )
+    assert (
+        inv.quantity == initial_stock
+    ), f"Expected stock restored to {initial_stock}, got {inv.quantity}"
 
     # Verify reservation released_at is now stamped
     res_after1 = (
-        await db_session.execute(
-            select(OrderReservation).where(
-                OrderReservation.order_id == uuid.UUID(order_id)
+        (
+            await db_session.execute(
+                select(OrderReservation).where(
+                    OrderReservation.order_id == uuid.UUID(order_id)
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(res_after1) == 1
     assert res_after1[0].released_at is not None
 
@@ -373,28 +374,32 @@ async def test_double_cancel_does_not_release_stock_twice(
         f"/api/v1/orders/{order_id}/cancel",
         headers=cust_headers,
     )
-    assert cancel_resp2.status_code == 400, (
-        f"Expected 400 on repeat cancel, got {cancel_resp2.status_code}: {cancel_resp2.text}"
-    )
+    assert (
+        cancel_resp2.status_code == 400
+    ), f"Expected 400 on repeat cancel, got {cancel_resp2.status_code}: {cancel_resp2.text}"
     data = cancel_resp2.json()
-    assert data.get("error_code") == "ILLEGAL_STATUS_TRANSITION", (
-        f"Expected ILLEGAL_STATUS_TRANSITION on repeat cancel, got: {data}"
-    )
+    assert (
+        data.get("error_code") == "ILLEGAL_STATUS_TRANSITION"
+    ), f"Expected ILLEGAL_STATUS_TRANSITION on repeat cancel, got: {data}"
 
     # Verify stock remains exactly initial_stock (NOT incremented again to 12)
     await db_session.refresh(inv)
-    assert inv.quantity == initial_stock, (
-        f"Stock double-released on repeat cancel: expected {initial_stock}, got {inv.quantity}"
-    )
+    assert (
+        inv.quantity == initial_stock
+    ), f"Stock double-released on repeat cancel: expected {initial_stock}, got {inv.quantity}"
 
     # Verify no additional reservations were created
     res_after2 = (
-        await db_session.execute(
-            select(OrderReservation).where(
-                OrderReservation.order_id == uuid.UUID(order_id)
+        (
+            await db_session.execute(
+                select(OrderReservation).where(
+                    OrderReservation.order_id == uuid.UUID(order_id)
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(res_after2) == 1
 
 
@@ -517,7 +522,7 @@ async def test_payment_history_blocked_for_foreign_customer(
     db_session.add_all([owner, cust_a, cust_b])
     await db_session.flush()
 
-    branch, item, _inv = await _build_branch_with_item(db_session, owner=owner)
+    branch, _item, _inv = await _build_branch_with_item(db_session, owner=owner)
 
     profile_a = CustomerProfile(
         user_id=cust_a.id,
@@ -614,9 +619,9 @@ async def test_payment_history_blocked_for_kitchen_staff(
 
     staff_headers = _bearer(staff)
     resp = await client.get(f"/api/v1/payments/{payment.id}", headers=staff_headers)
-    assert resp.status_code == 403, (
-        f"KitchenStaff must not access payment history, got {resp.status_code}: {resp.text}"
-    )
+    assert (
+        resp.status_code == 403
+    ), f"KitchenStaff must not access payment history, got {resp.status_code}: {resp.text}"
 
 
 # ---------------------------------------------------------------------------
@@ -640,9 +645,7 @@ async def test_same_idempotency_key_accepted_for_different_customers(
     db_session.add_all([owner, cust_a, cust_b])
     await db_session.flush()
 
-    branch, item, inv = await _build_branch_with_item(
-        db_session, owner=owner, stock=20
-    )
+    branch, item, inv = await _build_branch_with_item(db_session, owner=owner, stock=20)
     initial_stock = inv.quantity
 
     profile_a = CustomerProfile(
@@ -667,9 +670,9 @@ async def test_same_idempotency_key_accepted_for_different_customers(
         json=payload,
         headers={**_bearer(cust_a), "Idempotency-Key": shared_key},
     )
-    assert resp_a.status_code == 201, (
-        f"Customer A order with key '{shared_key}' failed: {resp_a.text}"
-    )
+    assert (
+        resp_a.status_code == 201
+    ), f"Customer A order with key '{shared_key}' failed: {resp_a.text}"
     order_a_id = uuid.UUID(resp_a.json()["id"])
 
     # 2. Place order for Customer B with identical shared_key — must also return 201
@@ -678,34 +681,42 @@ async def test_same_idempotency_key_accepted_for_different_customers(
         json=payload,
         headers={**_bearer(cust_b), "Idempotency-Key": shared_key},
     )
-    assert resp_b.status_code == 201, (
-        f"Customer B order with key '{shared_key}' failed: {resp_b.text}"
-    )
+    assert (
+        resp_b.status_code == 201
+    ), f"Customer B order with key '{shared_key}' failed: {resp_b.text}"
     order_b_id = uuid.UUID(resp_b.json()["id"])
 
     # 3. Order IDs must be distinct
-    assert order_a_id != order_b_id, (
-        f"Both orders returned identical order ID: {order_a_id}"
-    )
+    assert (
+        order_a_id != order_b_id
+    ), f"Both orders returned identical order ID: {order_a_id}"
 
     # 4. Each order must have its own separate OrderReservation record
     res_a = (
-        await db_session.execute(
-            select(OrderReservation).where(OrderReservation.order_id == order_a_id)
+        (
+            await db_session.execute(
+                select(OrderReservation).where(OrderReservation.order_id == order_a_id)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     res_b = (
-        await db_session.execute(
-            select(OrderReservation).where(OrderReservation.order_id == order_b_id)
+        (
+            await db_session.execute(
+                select(OrderReservation).where(OrderReservation.order_id == order_b_id)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
-    assert len(res_a) == 1, (
-        f"Expected exactly 1 reservation for Order A, got {len(res_a)}"
-    )
-    assert len(res_b) == 1, (
-        f"Expected exactly 1 reservation for Order B, got {len(res_b)}"
-    )
+    assert (
+        len(res_a) == 1
+    ), f"Expected exactly 1 reservation for Order A, got {len(res_a)}"
+    assert (
+        len(res_b) == 1
+    ), f"Expected exactly 1 reservation for Order B, got {len(res_b)}"
     assert res_a[0].id != res_b[0].id, "Reservations must be separate records"
     assert res_a[0].order_id == order_a_id
     assert res_b[0].order_id == order_b_id
@@ -716,6 +727,6 @@ async def test_same_idempotency_key_accepted_for_different_customers(
 
     # 5. Inventory must reflect both units held (initial 20 -> 18)
     await db_session.refresh(inv)
-    assert inv.quantity == initial_stock - 2, (
-        f"Expected stock to be {initial_stock - 2}, got {inv.quantity}"
-    )
+    assert (
+        inv.quantity == initial_stock - 2
+    ), f"Expected stock to be {initial_stock - 2}, got {inv.quantity}"

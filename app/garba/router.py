@@ -1,13 +1,5 @@
 import uuid
 
-from fastapi import APIRouter, Depends, status
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.auth.router import get_current_user, require_role
-from app.auth.schemas import UserClaims
-from app.core.database import get_db_session
-from app.core.exceptions import EntityNotFoundError
-from app.customer.repository import CustomerRepository
 from app.garba.schemas import (
     GarbaAvailabilityResponse,
     GarbaBookingCreateRequest,
@@ -20,6 +12,14 @@ from app.garba.schemas import (
     GarbaVerifyRequest,
 )
 from app.garba.service import GarbaService
+from fastapi import APIRouter, Depends, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.auth.router import get_current_user, require_role
+from app.auth.schemas import UserClaims
+from app.core.database import get_db_session
+from app.core.exceptions import EntityNotFoundError
+from app.customer.repository import CustomerRepository
 
 router = APIRouter(prefix="/events/garba", tags=["Garba"])
 
