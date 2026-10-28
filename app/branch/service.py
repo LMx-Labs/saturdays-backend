@@ -184,6 +184,22 @@ class BranchService(BranchServiceInterface):
                     error_code="BRANCH_UPDATE_FORBIDDEN",
                 )
 
+        if req.brand_id is not None:
+            try:
+                target_brand_uuid = uuid.UUID(req.brand_id)
+            except ValueError as exc:
+                raise DomainInvariantError(
+                    message="Invalid brand UUID format.",
+                    error_code="INVALID_UUID",
+                ) from exc
+            target_brand = await self.brand_repo.get_by_id(target_brand_uuid)
+            if not target_brand:
+                raise EntityNotFoundError(
+                    message=f"Brand with ID '{req.brand_id}' not found.",
+                    error_code="BRAND_NOT_FOUND",
+                )
+            branch.brand_id = target_brand.id
+
         if req.name is not None:
             branch.name = req.name
         if req.address_text is not None:

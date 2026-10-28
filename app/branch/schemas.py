@@ -47,6 +47,7 @@ class BranchCreateRequest(BaseModel):
 class BranchUpdateRequest(BaseModel):
     """Schema for updating branch details."""
 
+    brand_id: str | None = None
     name: str | None = Field(None, min_length=2, max_length=150)
     address_text: str | None = Field(None, min_length=2, max_length=255)
     latitude: float | None = Field(None, ge=-90.0, le=90.0)
