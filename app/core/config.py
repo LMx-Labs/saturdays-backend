@@ -44,11 +44,27 @@ class Settings(BaseSettings):
     CORS_ORIGINS: Annotated[list[str], NoDecode] = [
         "http://localhost:3000",
         "http://localhost:5173",
+        "http://localhost:8443",
+        "http://localhost:8444",
+        "http://localhost:8445",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5173",
+        "http://127.0.0.1:8443",
+        "http://127.0.0.1:8444",
+        "http://127.0.0.1:8445",
+        "https://saturdays.co.in",
+        "https://www.saturdays.co.in",
+        "https://saturdays-lmx.web.app",
+        "https://saturdays-admin.web.app",
+        "https://saturdays-restaurant.web.app",
+        "https://saturdays-lmx.firebaseapp.com",
+        "https://saturdays-admin.firebaseapp.com",
+        "https://saturdays-restaurant.firebaseapp.com",
     ]
-    # Preview and production apps on Vercel. Override to None to disable.
-    CORS_ORIGIN_REGEX: str | None = r"https://.*\.vercel\.app"
+    # Preview and production apps on Vercel and Firebase. Override to None to disable.
+    CORS_ORIGIN_REGEX: str | None = (
+        r"^https://.*(\.vercel\.app|\.web\.app|\.firebaseapp\.com|saturdays\.co\.in)$"
+    )
     CORS_ALLOW_CREDENTIALS: bool = True
 
     # Razorpay (collections + RazorpayX payouts)
