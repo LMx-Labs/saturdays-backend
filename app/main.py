@@ -57,6 +57,11 @@ async def lifespan(app: FastAPI):
     assert settings.DATABASE_URL is not None, "DATABASE_URL must be configured"
     assert settings.SECRET_KEY is not None, "SECRET_KEY must be configured"
     _validate_production_settings()
+    logger.info(
+        "CORS configured",
+        origins=settings.CORS_ORIGINS,
+        origin_regex=settings.CORS_ORIGIN_REGEX,
+    )
     scheduler_task = None
     if settings.PAYOUT_SCHEDULER_ENABLED:
         from app.payout.scheduler import run_daily_payout_scheduler

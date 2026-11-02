@@ -3,10 +3,13 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 
 from sqlalchemy import delete, func, or_, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.auth.models import User
+from app.core.uuidv7 import uuid7
 from app.customer.models import CustomerAddress, CustomerFavorite, CustomerProfile
 from app.order.models import Order
 
@@ -22,6 +25,12 @@ class CustomerRepositoryInterface(ABC):
 
     @abstractmethod
     async def create_profile(self, profile: CustomerProfile) -> CustomerProfile:
+        pass
+
+    @abstractmethod
+    async def get_or_create_by_user_id(
+        self, user_id: uuid.UUID, default_name: str = "Customer"
+    ) -> CustomerProfile:
         pass
 
     @abstractmethod
@@ -136,7 +145,9 @@ class CustomerRepository(CustomerRepositoryInterface):
                     User.email.ilike(search_pattern),
                 )
             )
-        stmt = stmt.order_by(CustomerProfile.created_at.desc()).offset(skip).limit(limit)
+        stmt = (
+            stmt.order_by(CustomerProfile.created_at.desc()).offset(skip).limit(limit)
+        )
         res = await self.session.execute(stmt)
         return res.scalars().all()
 
@@ -162,6 +173,35 @@ class CustomerRepository(CustomerRepositoryInterface):
         self.session.add(profile)
         await self.session.flush()
         await self.session.refresh(profile)
+        return profile
+
+    async def get_or_create_by_user_id(
+        self, user_id: uuid.UUID, default_name: str = "Customer"
+    ) -> CustomerProfile:
+        """Return the user's profile, creating it if missing.
+
+        Safe under concurrency: `user_id` is unique, so the insert is a no-op
+        when another request created the profile first (a plain get-then-add
+        raised IntegrityError, i.e. HTTP 500, for simultaneous first requests).
+        """
+        profile = await self.get_by_user_id(user_id)
+        if profile:
+            return profile
+        insert = (
+            pg_insert
+            if self.session.get_bind().dialect.name == "postgresql"
+            else sqlite_insert
+        )
+        await self.session.execute(
+            insert(CustomerProfile)
+            .values(id=uuid7(), user_id=user_id, full_name=default_name)
+            .on_conflict_do_nothing(index_elements=["user_id"])
+        )
+        profile = await self.get_by_user_id(user_id)
+        if profile is None:  # soft-deleted profile owns the unique user_id
+            raise RuntimeError(
+                f"Could not create a customer profile for user {user_id}"
+            )
         return profile
 
     async def update_profile(

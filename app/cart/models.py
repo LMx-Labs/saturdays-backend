@@ -2,7 +2,15 @@ import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import JSON, CheckConstraint, DateTime, ForeignKey, Integer, func
+from sqlalchemy import (
+    JSON,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Integer,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -17,6 +25,13 @@ if TYPE_CHECKING:
 
 class Cart(Base):
     __tablename__ = "carts"
+
+    # One active cart per customer. Without this, two simultaneous "add to
+    # cart" requests each created a cart, after which every cart request for
+    # that customer failed with MultipleResultsFound (HTTP 500).
+    __table_args__ = (
+        UniqueConstraint("customer_profile_id", name="uq_carts_customer_profile_id"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid7
@@ -95,4 +110,7 @@ class CartItem(Base):
 
     __table_args__ = (
         CheckConstraint("quantity > 0", name="ck_cart_items_quantity_positive"),
+        UniqueConstraint(
+            "cart_id", "menu_item_id", name="uq_cart_items_cart_menu_item"
+        ),
     )

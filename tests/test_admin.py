@@ -680,9 +680,7 @@ async def test_admin_customer_crud_and_status_management(
     assert any(c["id"] == cust1_profile_id for c in inactive_list)
 
     # 7. Non-admin RBAC check
-    forbidden_list = await client.get(
-        "/api/v1/admin/customers", headers=cust2_headers
-    )
+    forbidden_list = await client.get("/api/v1/admin/customers", headers=cust2_headers)
     assert forbidden_list.status_code == 403
 
     forbidden_detail = await client.get(
@@ -704,4 +702,3 @@ async def test_admin_customer_crud_and_status_management(
     )
     assert not_found_res.status_code == 404
     assert not_found_res.json()["error_code"] == "CUSTOMER_NOT_FOUND"
-

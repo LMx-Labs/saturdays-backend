@@ -87,3 +87,7 @@ async def seed_user_login(
         "access_token": token,
         "headers": {"Authorization": f"Bearer {token}"} if token else {},
     }
+
+
+# Shared with the cart robustness tests (pytest discovers fixtures in conftest).
+from tests.test_cart import setup_cart_fixture  # noqa: F401

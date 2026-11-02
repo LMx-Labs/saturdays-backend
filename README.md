@@ -62,6 +62,27 @@ API Documentation available at:
 - ReDoc: `http://localhost:8000/redoc`
 - Health Checks: `http://localhost:8000/health`, `/health/ready`, `/health/live`
 
+### Creating staff and restaurant logins
+
+Public `/auth/register` only creates Customers. Use the admin API
+(`POST /api/v1/admin/users`, PlatformAdmin only) or, for the first admin and
+for bulk/migrated owners, the CLI (reads `DATABASE_URL`):
+
+```bash
+python -m app.cli create-user --email admin@saturdays.co.in --role PlatformAdmin
+python -m app.cli create-user --email owner@diner.in --role MerchantOwner \
+    --business-name "Diner" --legal-name "Diner LLP" --fssai 12345678901234
+python -m app.cli set-password --email owner@diner.in   # reset + re-activate
+```
+
+Passwords are prompted for and never echoed. These logins work in DineGuru.
+
+### CORS
+
+Every browser frontend must match `CORS_ORIGINS` or `CORS_ORIGIN_REGEX`.
+Setting either env var replaces the default in `app/core/config.py`; it does
+not add to it. The effective values are logged at startup as `CORS configured`.
+
 ### Docker Setup
 Run the full stack via Docker Compose:
 ```bash

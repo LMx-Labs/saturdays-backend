@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.cart.models import Cart, CartItem
+from app.customer.models import CustomerProfile
 from app.menu.models import MenuItem
 
 
@@ -14,6 +15,10 @@ class CartRepositoryInterface(ABC):
     @abstractmethod
     async def get_by_customer_id(self, customer_profile_id: uuid.UUID) -> Cart | None:
         pass
+
+    @abstractmethod
+    async def lock_customer(self, customer_profile_id: uuid.UUID) -> None:
+        """Serialise cart changes for one customer until the transaction ends."""
 
     @abstractmethod
     async def get_by_id(self, cart_id: uuid.UUID) -> Cart | None:
@@ -67,14 +72,29 @@ class CartRepository(CartRepositoryInterface):
         self.session = session
 
     async def get_by_customer_id(self, customer_profile_id: uuid.UUID) -> Cart | None:
+        # Newest first and `first()` (not `one_or_none()`): databases that
+        # predate the unique constraint may still hold duplicate carts, and a
+        # read must never turn that into an HTTP 500.
         stmt = (
             select(Cart)
             .options(selectinload(Cart.items).selectinload(CartItem.menu_item))
             .execution_options(populate_existing=True)
             .where(Cart.customer_profile_id == customer_profile_id)
+            .order_by(Cart.updated_at.desc(), Cart.created_at.desc())
+            .limit(1)
         )
         res = await self.session.execute(stmt)
-        return res.scalar_one_or_none()
+        return res.scalars().first()
+
+    async def lock_customer(self, customer_profile_id: uuid.UUID) -> None:
+        # Row lock on the customer's profile: simultaneous cart mutations for
+        # the same customer queue up here instead of racing to create the cart
+        # or the cart line. Released on commit/rollback. No-op on SQLite.
+        await self.session.execute(
+            select(CustomerProfile.id)
+            .where(CustomerProfile.id == customer_profile_id)
+            .with_for_update()
+        )
 
     async def get_by_id(self, cart_id: uuid.UUID) -> Cart | None:
         stmt = (
@@ -99,9 +119,11 @@ class CartRepository(CartRepositoryInterface):
             select(CartItem)
             .options(selectinload(CartItem.menu_item))
             .where(CartItem.cart_id == cart_id, CartItem.menu_item_id == menu_item_id)
+            .order_by(CartItem.created_at)
+            .limit(1)
         )
         res = await self.session.execute(stmt)
-        return res.scalar_one_or_none()
+        return res.scalars().first()
 
     async def get_item_by_id(self, item_id: uuid.UUID) -> CartItem | None:
         stmt = (
