@@ -9,6 +9,7 @@ from app.credit.models import StoreCredit, StoreCreditTransaction
 from app.customer.models import CustomerAddress, CustomerFavorite, CustomerProfile
 from app.inventory.models import InventoryItem, InventoryLog
 from app.kitchen.models import Kitchen
+from app.media.models import MediaFile
 from app.menu.models import Menu, MenuCategory, MenuItem, MenuModifier
 from app.merchant.models import Merchant
 from app.notification.models import Notification
@@ -33,6 +34,7 @@ __all__ = [
     "InventoryItem",
     "InventoryLog",
     "Kitchen",
+    "MediaFile",
     "Menu",
     "MenuCategory",
     "MenuItem",
