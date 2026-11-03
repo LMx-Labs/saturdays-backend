@@ -76,15 +76,10 @@ class CustomerService(CustomerServiceInterface):
         self, user_id: uuid.UUID, default_name: str = "Customer"
     ) -> CustomerProfileResponse:
         # INV-CUST-001: Strict 1:1 user mapping
-        profile = await self.customer_repo.get_by_user_id(user_id)
-        if not profile:
-            profile = CustomerProfile(
-                user_id=user_id,
-                full_name=default_name,
-                phone_number=None,
-            )
-            profile = await self.customer_repo.create_profile(profile)
-            await self.session.commit()
+        profile = await self.customer_repo.get_or_create_by_user_id(
+            user_id, default_name
+        )
+        await self.session.commit()
         return CustomerProfileResponse.model_validate(profile)
 
     async def update_profile(

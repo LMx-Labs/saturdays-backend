@@ -326,9 +326,7 @@ async def test_live_razorpay_order_uses_paise_and_basic_auth(monkeypatch):
             captured["auth"] = auth
             return FakeResponse()
 
-    monkeypatch.setattr(
-        "app.payment.razorpay_adapter.httpx.AsyncClient", FakeClient
-    )
+    monkeypatch.setattr("app.payment.razorpay_adapter.httpx.AsyncClient", FakeClient)
     result = await RazorpayAdapter().create_order(499, "INR", receipt="booking-1")
     assert result["id"] == "order_live_abc"
     assert captured["url"] == "https://api.razorpay.com/v1/orders"

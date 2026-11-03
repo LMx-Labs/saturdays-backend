@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.models import User
 from app.cart.models import Cart, CartItem
 from app.cart.repository import CartRepositoryInterface
 from app.cart.schemas import (
@@ -67,13 +68,33 @@ class CartService(CartServiceInterface):
         self.customer_repo = customer_repo
 
     async def _get_customer_profile_id(self, user_id: uuid.UUID) -> uuid.UUID:
+        """Profile id for a customer, creating the profile on first use.
+
+        Registration does not create a profile, so a brand-new customer used to
+        get 404 CUSTOMER_NOT_FOUND on every cart call until some other screen
+        happened to touch /customers/me. Staff/admin accounts still get the 404.
+        """
         profile = await self.customer_repo.get_by_user_id(user_id)
-        if not profile:
-            raise EntityNotFoundError(
-                message="Customer profile not found. Please complete profile registration.",
-                error_code="CUSTOMER_NOT_FOUND",
-            )
+        if profile is None:
+            user = await self.session.get(User, user_id)
+            if user is None or user.role != "Customer" or not user.is_active:
+                raise EntityNotFoundError(
+                    message="Customer profile not found. Please complete profile registration.",
+                    error_code="CUSTOMER_NOT_FOUND",
+                )
+            profile = await self.customer_repo.get_or_create_by_user_id(user_id)
+            await self.session.commit()
         return profile.id
+
+    async def _begin_mutation(self, user_id: uuid.UUID) -> uuid.UUID:
+        """Resolve the profile and take the per-customer lock.
+
+        Every method that changes a cart goes through here, so simultaneous
+        requests from one customer run one after another.
+        """
+        profile_id = await self._get_customer_profile_id(user_id)
+        await self.cart_repo.lock_customer(profile_id)
+        return profile_id
 
     def _build_cart_response(self, cart: Cart) -> CartResponse:
         items_resp: list[CartItemResponse] = []
@@ -141,7 +162,7 @@ class CartService(CartServiceInterface):
     async def add_item(
         self, user_id: uuid.UUID, req: CartItemAddRequest
     ) -> CartResponse:
-        profile_id = await self._get_customer_profile_id(user_id)
+        profile_id = await self._begin_mutation(user_id)
 
         # 1. Availability check: verify menu_item exists and is available
         menu_item = await self.cart_repo.get_menu_item(req.menu_item_id)
@@ -218,7 +239,7 @@ class CartService(CartServiceInterface):
     async def update_item_quantity(
         self, user_id: uuid.UUID, item_id: uuid.UUID, req: CartItemUpdateRequest
     ) -> CartResponse:
-        profile_id = await self._get_customer_profile_id(user_id)
+        profile_id = await self._begin_mutation(user_id)
         cart = await self.cart_repo.get_by_customer_id(profile_id)
 
         if not cart:
@@ -252,7 +273,7 @@ class CartService(CartServiceInterface):
         return self._build_cart_response(updated_cart)
 
     async def remove_item(self, user_id: uuid.UUID, item_id: uuid.UUID) -> CartResponse:
-        profile_id = await self._get_customer_profile_id(user_id)
+        profile_id = await self._begin_mutation(user_id)
         cart = await self.cart_repo.get_by_customer_id(profile_id)
 
         if not cart:
@@ -275,7 +296,7 @@ class CartService(CartServiceInterface):
         return self._build_cart_response(updated_cart)
 
     async def clear_cart(self, user_id: uuid.UUID) -> None:
-        profile_id = await self._get_customer_profile_id(user_id)
+        profile_id = await self._begin_mutation(user_id)
         cart = await self.cart_repo.get_by_customer_id(profile_id)
         if cart:
             await self.cart_repo.clear_cart(cart.id)

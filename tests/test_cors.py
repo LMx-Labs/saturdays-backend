@@ -72,3 +72,39 @@ async def test_unhandled_500_still_carries_cors_headers():
     assert resp.headers["access-control-allow-origin"] == origin
     assert resp.json()["error_code"] == "INTERNAL_SERVER_ERROR"
     assert resp.headers["x-correlation-id"]
+
+
+def test_env_example_matches_code_defaults_for_hosted_frontends():
+    """Regression: the old .env.example narrowed the regex to Vercel only,
+    which silently blocked every Firebase-hosted frontend (incl. DineGuru)."""
+    import re
+    from pathlib import Path
+
+    example = Settings(_env_file=Path(__file__).parent.parent / ".env.example")
+    defaults = Settings(_env_file=None)
+    assert example.CORS_ORIGIN_REGEX == defaults.CORS_ORIGIN_REGEX
+    for origin in (
+        "https://dineguru.web.app",
+        "https://saturdays-restaurant.firebaseapp.com",
+        "https://preview-123.vercel.app",
+        "https://saturdays.co.in",
+    ):
+        assert re.fullmatch(example.CORS_ORIGIN_REGEX, origin), origin
+    for origin in ("https://evil.example.com", "https://web.app.evil.com"):
+        assert not re.fullmatch(example.CORS_ORIGIN_REGEX, origin), origin
+
+
+@pytest.mark.asyncio
+async def test_preflight_firebase_hosted_origin_allowed_by_default():
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        resp = await client.options(
+            "/api/v1/auth/login",
+            headers={
+                "Origin": "https://dineguru.web.app",
+                "Access-Control-Request-Method": "POST",
+            },
+        )
+    assert resp.status_code == 200
+    assert resp.headers["access-control-allow-origin"] == "https://dineguru.web.app"
