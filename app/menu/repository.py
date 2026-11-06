@@ -58,6 +58,10 @@ class MenuRepositoryInterface(ABC):
     async def update_menu_item(self, item: MenuItem) -> MenuItem:
         pass
 
+    @abstractmethod
+    async def soft_delete_menu_item(self, item: MenuItem) -> None:
+        pass
+
 
 class MenuRepository(MenuRepositoryInterface):
     def __init__(self, session: AsyncSession):
@@ -162,3 +166,11 @@ class MenuRepository(MenuRepositoryInterface):
         self.session.add(item)
         await self.session.flush()
         return item
+
+    async def soft_delete_menu_item(self, item: MenuItem) -> None:
+        # Soft delete: past orders keep pointing at the dish. Marking it
+        # unavailable too means nothing that still holds the row can sell it.
+        item.deleted_at = datetime.now(UTC)
+        item.is_available = False
+        self.session.add(item)
+        await self.session.flush()

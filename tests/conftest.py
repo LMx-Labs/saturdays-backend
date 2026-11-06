@@ -91,3 +91,4 @@ async def seed_user_login(
 
 # Shared with the cart robustness tests (pytest discovers fixtures in conftest).
 from tests.test_cart import setup_cart_fixture  # noqa: F401
+from tests.test_menu import setup_branch_and_manager  # noqa: F401
