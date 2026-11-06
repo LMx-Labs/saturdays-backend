@@ -171,3 +171,22 @@ async def update_menu_item(
     menu_service: MenuServiceInterface = Depends(get_menu_service),
 ) -> Any:
     return await menu_service.update_menu_item(item_id, req)
+
+
+@router.delete(
+    "/menu/items/{item_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete menu item",
+    description=(
+        "Removes a dish from the menu. It disappears for students and from any "
+        "cart that holds it; past orders keep their record of it."
+    ),
+)
+async def delete_menu_item(
+    item_id: uuid.UUID,
+    _current_user=Depends(
+        require_role(["BranchManager", "MerchantOwner", "PlatformAdmin"])
+    ),
+    menu_service: MenuServiceInterface = Depends(get_menu_service),
+) -> None:
+    await menu_service.delete_menu_item(item_id)

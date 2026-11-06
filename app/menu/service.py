@@ -2,8 +2,10 @@ import uuid
 from abc import ABC, abstractmethod
 
 import structlog
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.cart.models import CartItem
 from app.core.exceptions import DomainInvariantError, EntityNotFoundError
 from app.menu.models import Menu, MenuCategory, MenuItem
 from app.menu.repository import MenuRepositoryInterface
@@ -65,6 +67,10 @@ class MenuServiceInterface(ABC):
     async def update_menu_item(
         self, item_id: uuid.UUID, req: MenuItemUpdate
     ) -> MenuItem:
+        pass
+
+    @abstractmethod
+    async def delete_menu_item(self, item_id: uuid.UUID) -> None:
         pass
 
 
@@ -279,3 +285,13 @@ class MenuService(MenuServiceInterface):
         await self.menu_repo.update_menu_item(item)
         await self.session.commit()
         return await self.get_menu_item(item_id)
+
+    async def delete_menu_item(self, item_id: uuid.UUID) -> None:
+        item = await self.get_menu_item(item_id)
+        await self.menu_repo.soft_delete_menu_item(item)
+        # Take it out of any cart that holds it, so nobody reaches checkout with
+        # a dish that no longer exists.
+        await self.session.execute(
+            delete(CartItem).where(CartItem.menu_item_id == item_id)
+        )
+        await self.session.commit()
