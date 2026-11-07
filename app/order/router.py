@@ -15,6 +15,8 @@ from app.auth.schemas import UserClaims
 from app.core.database import get_db_session
 from app.core.exceptions import EntityNotFoundError, ForbiddenError
 from app.customer.repository import CustomerRepository
+from app.notification.whatsapp_service import WhatsAppNotifier, get_whatsapp_notifier
+from app.order.models import Order
 from app.order.repository import OrderRepository, OrderRepositoryInterface
 from app.order.schemas import (
     OrderCreateRequest,
@@ -22,6 +24,7 @@ from app.order.schemas import (
     OrderStatusUpdateRequest,
 )
 from app.order.service import OrderService, OrderServiceInterface
+from app.order.visibility import was_never_placed
 from app.order.websocket_manager import ws_manager
 
 router = APIRouter(prefix="", tags=["Order"])
@@ -33,6 +36,24 @@ STAFF_ROLES = {
     "PlatformAdmin",
     "Admin",
 }
+
+
+# Platform staff may look at unpaid orders (to help a student whose payment went wrong). The
+# restaurant may not: an order is theirs only once it has been paid.
+PLATFORM_ADMIN_ROLES = {"PlatformAdmin", "Admin"}
+
+
+def _hide_unpaid_from_restaurant(user: UserClaims, order: Order) -> None:
+    """To a restaurant, an order that has not been paid for does not exist."""
+    if (
+        user.role in STAFF_ROLES
+        and user.role not in PLATFORM_ADMIN_ROLES
+        and was_never_placed(order)
+    ):
+        raise EntityNotFoundError(
+            message=f"Order '{order.id}' not found.",
+            error_code="ORDER_NOT_FOUND",
+        )
 
 
 def _assert_staff_branch_access(user: UserClaims, branch_id: uuid.UUID) -> None:
@@ -68,8 +89,9 @@ def get_order_repository(
 def get_order_service(
     session: AsyncSession = Depends(get_db_session),
     order_repo: OrderRepositoryInterface = Depends(get_order_repository),
+    whatsapp: WhatsAppNotifier = Depends(get_whatsapp_notifier),
 ) -> OrderServiceInterface:
-    return OrderService(session=session, order_repo=order_repo)
+    return OrderService(session=session, order_repo=order_repo, whatsapp=whatsapp)
 
 
 @router.post(
@@ -112,14 +134,16 @@ async def list_orders(
     session: AsyncSession = Depends(get_db_session),
     order_service: OrderServiceInterface = Depends(get_order_service),
 ) -> list[OrderResponse]:
-    if branch_id and current_user.role in [
-        "KitchenStaff",
-        "BranchManager",
-        "MerchantOwner",
-        "Admin",
-    ]:
+    if branch_id and current_user.role in STAFF_ROLES:
         _assert_staff_branch_access(current_user, branch_id)
-        orders = await order_service.get_branch_orders(branch_id, status=order_status)
+        # Only platform staff, and only when they ask for them by name, ever see unpaid orders.
+        include_pending = (
+            current_user.role in PLATFORM_ADMIN_ROLES
+            and order_status == "PENDING_PAYMENT"
+        )
+        orders = await order_service.get_branch_orders(
+            branch_id, status=order_status, include_pending=include_pending
+        )
     else:
         cust_repo = CustomerRepository(session)
         profile = await cust_repo.get_by_user_id(uuid.UUID(current_user.sub))
@@ -150,6 +174,7 @@ async def get_order(
         )
     elif current_user.role in STAFF_ROLES:
         _assert_staff_branch_access(current_user, order.branch_id)
+        _hide_unpaid_from_restaurant(current_user, order)
     return OrderResponse.model_validate(order)
 
 
@@ -170,6 +195,7 @@ async def update_order_status(
     existing = await order_service.get_order(id)
     if current_user.role in STAFF_ROLES:
         _assert_staff_branch_access(current_user, existing.branch_id)
+        _hide_unpaid_from_restaurant(current_user, existing)
     elif not (req.status == "CANCELLED" and current_user.role == "Customer"):
         # Only staff drive the kitchen workflow (and trigger merchant payouts);
         # customers may only cancel their own order.
@@ -209,6 +235,7 @@ async def cancel_order(
         )
     elif current_user.role in STAFF_ROLES:
         _assert_staff_branch_access(current_user, existing.branch_id)
+        _hide_unpaid_from_restaurant(current_user, existing)
     else:
         raise ForbiddenError(
             message="You do not have access to this order.",

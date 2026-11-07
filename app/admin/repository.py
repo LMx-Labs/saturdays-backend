@@ -9,6 +9,7 @@ from app.admin.models import AdminAuditLog, Banner
 from app.customer.models import CustomerProfile
 from app.merchant.models import Merchant
 from app.order.models import Order
+from app.order.visibility import never_placed
 from app.subscription.models import PlatformCommission
 
 
@@ -84,10 +85,12 @@ class AdminRepository(AdminRepositoryInterface):
         active_merchants = res_ma.scalar() or 0
 
         # Total orders & gross revenue
+        # An order that was never paid for (still waiting, or cancelled while waiting) was never
+        # really an order: leave it out of both numbers.
         res_o = await self.session.execute(
             select(
                 func.count(Order.id), func.coalesce(func.sum(Order.total_amount), 0.0)
-            )
+            ).where(~never_placed())
         )
         row_o = res_o.one()
         total_orders = row_o[0] or 0

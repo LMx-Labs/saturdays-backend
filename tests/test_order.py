@@ -9,6 +9,7 @@ from app.core.security import create_access_token, hash_password
 from app.customer.models import CustomerProfile
 from app.menu.models import Menu, MenuCategory, MenuItem
 from app.merchant.models import Merchant
+from tests.conftest import pay_for_order
 
 
 @pytest.fixture
@@ -113,11 +114,12 @@ async def test_order_creation_flow(client: AsyncClient, setup_order_fixture: dic
     assert response.status_code == 201
     data = response.json()
     assert data["branch_id"] == str(branch_id)
-    assert data["status"] == "PLACED"
+    # Not paid yet, so not the restaurant's order yet.
+    assert data["status"] == "PENDING_PAYMENT"
     assert data["total_amount"] == 190.00  # (80 * 2) + 30
     assert len(data["items"]) == 2
     assert len(data["status_logs"]) == 1
-    assert data["status_logs"][0]["new_status"] == "PLACED"
+    assert data["status_logs"][0]["new_status"] == "PENDING_PAYMENT"
 
 
 @pytest.mark.asyncio
@@ -161,6 +163,12 @@ async def test_order_state_transitions(client: AsyncClient, setup_order_fixture:
         headers=headers,
     )
     order_id = create_res.json()["id"]
+
+    # The restaurant cannot see or touch an order until it is paid.
+    assert (
+        await client.get(f"/api/v1/orders/{order_id}", headers=staff_headers)
+    ).status_code == 404
+    await pay_for_order(client, headers, order_id)
 
     # 2. PLACED -> ACCEPTED
     res1 = await client.patch(
@@ -217,6 +225,7 @@ async def test_illegal_state_transition(client: AsyncClient, setup_order_fixture
         headers=headers,
     )
     order_id = create_res.json()["id"]
+    await pay_for_order(client, headers, order_id)
 
     # Attempt illegal transition: PLACED -> READY
     illegal_res = await client.patch(

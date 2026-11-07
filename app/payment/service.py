@@ -1,6 +1,7 @@
 import json
 import uuid
 from abc import ABC, abstractmethod
+from decimal import Decimal
 from typing import Any
 
 import structlog
@@ -8,7 +9,22 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.exceptions import DomainInvariantError, EntityNotFoundError
+from app.core.exceptions import (
+    DomainInvariantError,
+    EntityNotFoundError,
+    ForbiddenError,
+    UnprocessableEntityError,
+)
+from app.credit.service import StoreCreditService
+from app.customer.models import CustomerProfile
+from app.notification.whatsapp_service import ORDER_CONFIRMED, WhatsAppNotifier
+from app.order.models import Order
+from app.order.placement import (
+    CANCELLED_EARLIER,
+    PENDING_PAYMENT,
+    order_is_paid,
+    place_paid_order,
+)
 from app.payment.models import Payment, PaymentTransaction
 from app.payment.razorpay_adapter import RazorpayAdapter
 from app.payment.repository import PaymentRepositoryInterface
@@ -72,10 +88,104 @@ class PaymentService(PaymentServiceInterface):
         session: AsyncSession,
         payment_repo: PaymentRepositoryInterface,
         razorpay_adapter: RazorpayAdapter | None = None,
+        whatsapp: WhatsAppNotifier | None = None,
     ):
         self.session = session
         self.payment_repo = payment_repo
         self.razorpay_adapter = razorpay_adapter or RazorpayAdapter()
+        self.whatsapp = whatsapp
+
+    async def _tell_customer_order_is_confirmed(self, order_id: uuid.UUID) -> None:
+        """WhatsApp "order confirmed": sent once the money is in, from either the student's own
+        confirmation or Razorpay's webhook, whichever arrives first (the second finds it already
+        sent). Never fails the payment."""
+        if self.whatsapp is not None:
+            await self.whatsapp.notify(order_id, ORDER_CONFIRMED)
+
+    async def _check_order_can_be_paid(
+        self, customer_profile_id: uuid.UUID, order_id: uuid.UUID, amount: float
+    ) -> None:
+        """Only the order's own customer can pay for it, only while it is waiting for payment, and
+        only the amount it really costs. (Without this, anyone could ask for a payment of Rs 1 against
+        a Rs 150 order and have it treated as paid.)"""
+        order = await self.session.get(Order, order_id)
+        if order is None:
+            raise EntityNotFoundError(
+                message=f"Order '{order_id}' not found.", error_code="ORDER_NOT_FOUND"
+            )
+        if order.customer_profile_id != customer_profile_id:
+            raise ForbiddenError(
+                message="You do not have access to this order.",
+                error_code="ORDER_ACCESS_FORBIDDEN",
+            )
+        if order.status == "PLACED":
+            # Created before payment was required: payable only if it really is still unpaid.
+            if await order_is_paid(self.session, order_id):
+                raise DomainInvariantError(
+                    message="This order has already been paid for.",
+                    error_code="ORDER_ALREADY_PAID",
+                )
+        elif order.status != PENDING_PAYMENT:
+            raise DomainInvariantError(
+                message=(
+                    "This order has expired or was cancelled, so it can't be paid for. "
+                    "Please place it again."
+                    if order.status == "CANCELLED"
+                    else "This order can no longer be paid for."
+                ),
+                error_code="ORDER_NOT_PAYABLE",
+            )
+        expected = Decimal(str(order.total_amount)) - Decimal(
+            str(order.store_credit_applied or 0)
+        )
+        if expected <= 0:
+            raise DomainInvariantError(
+                message="This order has nothing left to pay.",
+                error_code="ORDER_NOTHING_TO_PAY",
+            )
+        if abs(Decimal(str(amount)) - expected) > Decimal("0.01"):
+            raise UnprocessableEntityError(
+                message=f"The amount to pay for this order is {expected:.2f}.",
+                error_code="PAYMENT_AMOUNT_MISMATCH",
+            )
+
+    async def _after_capture(self, payment: Payment, new_capture: bool) -> None:
+        """The money is in. Show the order to the restaurant (once), then tell the customer.
+
+        If the order was already cancelled (it waited too long and was expired) the restaurant never
+        sees it and the customer is not told it is confirmed: what they paid becomes store credit
+        instead, like any other cancelled order.
+        """
+        profile = await self.session.get(CustomerProfile, payment.customer_profile_id)
+        placed = await place_paid_order(
+            self.session,
+            payment.order_id,
+            profile.user_id if profile else payment.customer_profile_id,
+        )
+        if placed == CANCELLED_EARLIER:
+            if new_capture:
+                await self._credit_late_payment(payment)
+            return
+        await self._tell_customer_order_is_confirmed(payment.order_id)
+
+    async def _credit_late_payment(self, payment: Payment) -> None:
+        order = await self.session.get(Order, payment.order_id)
+        if order is None:
+            return
+        credit = StoreCreditService(self.session)
+        await credit.issue(
+            customer_profile_id=payment.customer_profile_id,
+            brand_id=await credit.brand_id_for_branch(order.branch_id),
+            amount=float(payment.amount),
+            reason="PAYMENT_AFTER_CANCEL",
+        )
+        await self.session.commit()
+        logger.warning(
+            "PaymentAfterOrderCancelled",
+            order_id=str(payment.order_id),
+            payment_id=str(payment.id),
+            amount=float(payment.amount),
+        )
 
     async def create_payment_intent(
         self,
@@ -84,6 +194,7 @@ class PaymentService(PaymentServiceInterface):
         amount: float,
         currency: str = "INR",
     ) -> PaymentIntentResponse:
+        await self._check_order_can_be_paid(customer_profile_id, order_id, amount)
         # Create Razorpay order intent via adapter
         rzp_order = await self.razorpay_adapter.create_order(
             amount=amount, currency=currency, receipt=str(order_id)
@@ -141,27 +252,35 @@ class PaymentService(PaymentServiceInterface):
                 error_code="INVALID_PAYMENT_SIGNATURE",
             )
 
-        # Record VERIFIED transaction
-        await self.payment_repo.append_transaction(
-            payment_id=payment.id,
-            transaction_type="VERIFIED",
-            amount=float(payment.amount),
-            status="SUCCESS",
-            razorpay_payment_id=req.razorpay_payment_id,
-            razorpay_order_id=req.razorpay_order_id,
-            razorpay_signature=req.razorpay_signature,
+        # Confirming the same payment twice (a retry, or Razorpay's webhook got there first) must
+        # not record the money as captured twice: a cancellation turns "everything captured" into
+        # store credit, so a double count would hand out double credit.
+        existing = await self.payment_repo.get_transaction_by_razorpay_payment_id(
+            req.razorpay_payment_id, transaction_type="CAPTURED"
         )
+        new_capture = existing is None or existing.status != "SUCCESS"
+        if new_capture:
+            # Record VERIFIED transaction
+            await self.payment_repo.append_transaction(
+                payment_id=payment.id,
+                transaction_type="VERIFIED",
+                amount=float(payment.amount),
+                status="SUCCESS",
+                razorpay_payment_id=req.razorpay_payment_id,
+                razorpay_order_id=req.razorpay_order_id,
+                razorpay_signature=req.razorpay_signature,
+            )
 
-        # Record CAPTURED transaction
-        await self.payment_repo.append_transaction(
-            payment_id=payment.id,
-            transaction_type="CAPTURED",
-            amount=float(payment.amount),
-            status="SUCCESS",
-            razorpay_payment_id=req.razorpay_payment_id,
-            razorpay_order_id=req.razorpay_order_id,
-        )
-        await self.session.commit()
+            # Record CAPTURED transaction
+            await self.payment_repo.append_transaction(
+                payment_id=payment.id,
+                transaction_type="CAPTURED",
+                amount=float(payment.amount),
+                status="SUCCESS",
+                razorpay_payment_id=req.razorpay_payment_id,
+                razorpay_order_id=req.razorpay_order_id,
+            )
+            await self.session.commit()
 
         # Publish PaymentVerifiedEvent
         logger.info(
@@ -172,6 +291,7 @@ class PaymentService(PaymentServiceInterface):
             amount=float(payment.amount),
             status="CAPTURED",
         )
+        await self._after_capture(payment, new_capture)
 
         return PaymentVerifyResponse(
             success=True,
@@ -250,6 +370,7 @@ class PaymentService(PaymentServiceInterface):
             logger.info(
                 "PaymentVerifiedEvent", payment_id=str(payment.id), status="CAPTURED"
             )
+            await self._after_capture(payment, True)
 
         elif event_type == "payment.failed":
             await self.payment_repo.append_transaction(

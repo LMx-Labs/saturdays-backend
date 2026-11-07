@@ -1,9 +1,15 @@
 import uuid
 from abc import ABC, abstractmethod
+from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import ConflictError, EntityNotFoundError
+from app.core.config import settings
+from app.core.exceptions import (
+    ConflictError,
+    EntityNotFoundError,
+    UnprocessableEntityError,
+)
 from app.customer.models import CustomerAddress, CustomerFavorite, CustomerProfile
 from app.customer.repository import CustomerRepositoryInterface
 from app.customer.schemas import (
@@ -13,6 +19,7 @@ from app.customer.schemas import (
     CustomerProfileResponse,
     CustomerProfileUpdate,
 )
+from app.notification.phone import normalize_phone
 
 
 class CustomerServiceInterface(ABC):
@@ -82,10 +89,47 @@ class CustomerService(CustomerServiceInterface):
         await self.session.commit()
         return CustomerProfileResponse.model_validate(profile)
 
+    @staticmethod
+    def _apply_whatsapp_consent(
+        profile: CustomerProfile, opt_in: bool | None, phone_changed: bool
+    ) -> None:
+        """Keep the WhatsApp consent and the number it applies to consistent.
+
+        - Turning it ON needs a number that can actually receive WhatsApp: a typo is caught
+          here, not later when a message silently never arrives.
+        - Turning it OFF clears the number too, so nothing can be sent.
+        - Changing the phone number while opted in re-points the messages at the new number
+          (or switches them off if the new one isn't usable).
+        """
+        country = settings.WHATSAPP_DEFAULT_COUNTRY_CODE
+        if opt_in is True:
+            number = normalize_phone(profile.phone_number, country)
+            if number is None:
+                raise UnprocessableEntityError(
+                    message="Add a valid mobile number to get WhatsApp updates.",
+                    error_code="WHATSAPP_PHONE_INVALID",
+                )
+            if not profile.whatsapp_opt_in:
+                profile.whatsapp_opt_in_at = datetime.now(UTC)
+            profile.whatsapp_opt_in = True
+            profile.whatsapp_phone = number
+        elif opt_in is False:
+            profile.whatsapp_opt_in = False
+            profile.whatsapp_phone = None
+        elif phone_changed and profile.whatsapp_opt_in:
+            number = normalize_phone(profile.phone_number, country)
+            profile.whatsapp_phone = number
+            if number is None:
+                profile.whatsapp_opt_in = False
+
     async def update_profile(
         self, user_id: uuid.UUID, req: CustomerProfileUpdate
     ) -> CustomerProfileResponse:
         profile = await self.customer_repo.get_by_user_id(user_id)
+        update_data = req.model_dump(exclude_unset=True)
+        # Consent is handled on its own below: it needs rules, and "False" must be able to switch
+        # things off (the generic update ignores empty values).
+        opt_in = update_data.pop("whatsapp_opt_in", None)
         if not profile:
             profile = CustomerProfile(
                 user_id=user_id,
@@ -93,10 +137,16 @@ class CustomerService(CustomerServiceInterface):
                 phone_number=req.phone_number,
             )
             profile = await self.customer_repo.create_profile(profile)
+            phone_changed = req.phone_number is not None
         else:
-            update_data = req.model_dump(exclude_unset=True)
+            phone_changed = "phone_number" in update_data
             profile = await self.customer_repo.update_profile(profile, update_data)
 
+        self._apply_whatsapp_consent(profile, opt_in, phone_changed)
+        await self.session.flush()
+        # Saving touches updated_at on the database side; reload it, or building the response
+        # from the now-stale object fails.
+        await self.session.refresh(profile)
         await self.session.commit()
         return CustomerProfileResponse.model_validate(profile)
 
