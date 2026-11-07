@@ -1,6 +1,7 @@
 import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
+from decimal import Decimal
 from typing import ClassVar
 
 import structlog
@@ -11,7 +12,9 @@ from sqlalchemy.orm import selectinload
 from app.core.exceptions import DomainInvariantError, EntityNotFoundError
 from app.credit.service import StoreCreditService
 from app.menu.models import MenuCategory, MenuItem
+from app.notification.whatsapp_service import EVENT_FOR_STATUS, WhatsAppNotifier
 from app.order.models import Order, OrderItem
+from app.order.placement import expire_stale_pending_orders, place_paid_order
 from app.order.repository import OrderRepositoryInterface
 from app.order.schemas import OrderCreateRequest
 from app.order.websocket_manager import ws_manager
@@ -59,13 +62,19 @@ class OrderServiceInterface(ABC):
 
     @abstractmethod
     async def get_branch_orders(
-        self, branch_id: uuid.UUID, status: str | None = None
+        self,
+        branch_id: uuid.UUID,
+        status: str | None = None,
+        include_pending: bool = False,
     ) -> Sequence[Order]:
         pass
 
 
 class OrderService(OrderServiceInterface):
     VALID_TRANSITIONS: ClassVar[dict[str, set[str]]] = {
+        # Created, not yet paid. It becomes PLACED only when the payment is confirmed
+        # (see app/order/placement.py), never by hand, so the only way out here is cancelling.
+        "PENDING_PAYMENT": {"CANCELLED"},
         "PLACED": {"ACCEPTED", "CANCELLED"},
         "ACCEPTED": {"PREPARING", "CANCELLED"},
         "PREPARING": {"READY"},
@@ -74,9 +83,15 @@ class OrderService(OrderServiceInterface):
         "CANCELLED": set(),
     }
 
-    def __init__(self, session: AsyncSession, order_repo: OrderRepositoryInterface):
+    def __init__(
+        self,
+        session: AsyncSession,
+        order_repo: OrderRepositoryInterface,
+        whatsapp: WhatsAppNotifier | None = None,
+    ):
         self.session = session
         self.order_repo = order_repo
+        self.whatsapp = whatsapp
 
     async def create_order(
         self,
@@ -136,7 +151,8 @@ class OrderService(OrderServiceInterface):
             customer_profile_id=customer_profile_id,
             branch_id=req.branch_id,
             total_amount=round(total_amount, 2),
-            status="PLACED",
+            # Not visible to the restaurant until the payment is confirmed.
+            status="PENDING_PAYMENT",
             delivery_address_snapshot=req.delivery_address_snapshot,
         )
 
@@ -159,27 +175,25 @@ class OrderService(OrderServiceInterface):
 
         await self.session.commit()
         refreshed_order = await self.get_order(created_order.id)
-
-        # Publish OrderPlacedEvent
         logger.info(
-            "OrderPlacedEvent",
+            "OrderCreatedEvent",
             order_id=str(refreshed_order.id),
             branch_id=str(refreshed_order.branch_id),
             customer_profile_id=str(refreshed_order.customer_profile_id),
             total_amount=float(refreshed_order.total_amount),
+            status=refreshed_order.status,
         )
 
-        # Real-time WebSocket broadcast to kitchen terminals (ADR-0010)
-        await ws_manager.broadcast_to_branch(
-            branch_id=refreshed_order.branch_id,
-            message={
-                "event": "ORDER_PLACED",
-                "order_id": str(refreshed_order.id),
-                "total_amount": float(refreshed_order.total_amount),
-                "status": refreshed_order.status,
-            },
+        # Nothing left to pay (store credit covered all of it, or it was free): there will never
+        # be a payment to wait for, so it goes straight to the restaurant.
+        payable = Decimal(str(refreshed_order.total_amount)) - Decimal(
+            str(refreshed_order.store_credit_applied or 0)
         )
+        if payable <= 0:
+            await place_paid_order(self.session, refreshed_order.id, user_id)
+            refreshed_order = await self.get_order(refreshed_order.id)
 
+        # Otherwise the restaurant is told when the payment is confirmed, not now (ADR-0010).
         return refreshed_order
 
     async def update_order_status(
@@ -227,16 +241,27 @@ class OrderService(OrderServiceInterface):
                 branch_id=str(refreshed_order.branch_id),
             )
 
-        # Real-time WebSocket broadcast
-        await ws_manager.broadcast_to_branch(
-            branch_id=refreshed_order.branch_id,
-            message={
-                "event": "ORDER_STATUS_CHANGED",
-                "order_id": str(refreshed_order.id),
-                "previous_status": current_status,
-                "status": target_status,
-            },
-        )
+        # Real-time WebSocket broadcast. Not for an order that was never paid and so was never
+        # shown to the restaurant (a student cancelling a checkout they abandoned).
+        if current_status != "PENDING_PAYMENT":
+            await ws_manager.broadcast_to_branch(
+                branch_id=refreshed_order.branch_id,
+                message={
+                    "event": "ORDER_STATUS_CHANGED",
+                    "order_id": str(refreshed_order.id),
+                    "previous_status": current_status,
+                    "status": target_status,
+                },
+            )
+
+        # Tell the customer on WhatsApp (if they opted in). After the kitchen screens have been
+        # updated, and it can never fail the status change: the notifier swallows its own errors.
+        if self.whatsapp is not None and target_status in EVENT_FOR_STATUS:
+            await self.whatsapp.notify(
+                refreshed_order.id,
+                EVENT_FOR_STATUS[target_status],
+                actor_user_id=changed_by_user_id,
+            )
 
         return refreshed_order
 
@@ -264,9 +289,17 @@ class OrderService(OrderServiceInterface):
     async def get_customer_orders(
         self, customer_profile_id: uuid.UUID
     ) -> Sequence[Order]:
+        # Orders that waited too long for payment are cancelled (and any credit returned) as the
+        # student opens their list: no background job needed.
+        await expire_stale_pending_orders(self.session, customer_profile_id)
         return await self.order_repo.get_customer_orders(customer_profile_id)
 
     async def get_branch_orders(
-        self, branch_id: uuid.UUID, status: str | None = None
+        self,
+        branch_id: uuid.UUID,
+        status: str | None = None,
+        include_pending: bool = False,
     ) -> Sequence[Order]:
-        return await self.order_repo.get_branch_orders(branch_id, status)
+        return await self.order_repo.get_branch_orders(
+            branch_id, status, include_pending=include_pending
+        )

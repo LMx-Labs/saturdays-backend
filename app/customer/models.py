@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import Boolean, DateTime, ForeignKey, String, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import expression
 
 from app.core.base_model import Base, TimestampMixin
 from app.core.uuidv7 import uuid7
@@ -30,6 +31,19 @@ class CustomerProfile(Base, TimestampMixin):
     )
     full_name: Mapped[str] = mapped_column(String(100), nullable=False)
     phone_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+    # WhatsApp order updates. Only ever sent to a customer who ticked the box.
+    whatsapp_opt_in: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=expression.false()
+    )
+    whatsapp_opt_in_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # Where the messages go: the number as digits with its country code. Kept in step with
+    # phone_number, and what an inbound "STOP" is matched against.
+    whatsapp_phone: Mapped[str | None] = mapped_column(
+        String(20), nullable=True, index=True
+    )
 
     # Relationships
     user: Mapped["User"] = relationship("User")

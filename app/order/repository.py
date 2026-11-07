@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import EntityNotFoundError
 from app.order.models import Order, OrderItem, OrderStatusLog
+from app.order.visibility import never_placed
 
 
 class OrderRepositoryInterface(ABC):
@@ -36,7 +37,10 @@ class OrderRepositoryInterface(ABC):
 
     @abstractmethod
     async def get_branch_orders(
-        self, branch_id: uuid.UUID, status: str | None = None
+        self,
+        branch_id: uuid.UUID,
+        status: str | None = None,
+        include_pending: bool = False,
     ) -> Sequence[Order]:
         pass
 
@@ -126,7 +130,10 @@ class OrderRepository(OrderRepositoryInterface):
         return res.scalars().all()
 
     async def get_branch_orders(
-        self, branch_id: uuid.UUID, status: str | None = None
+        self,
+        branch_id: uuid.UUID,
+        status: str | None = None,
+        include_pending: bool = False,
     ) -> Sequence[Order]:
         stmt = (
             select(Order)
@@ -136,6 +143,11 @@ class OrderRepository(OrderRepositoryInterface):
                 selectinload(Order.status_logs),
             )
         )
+        if not include_pending:
+            # An order nobody paid for is not the restaurant's business: it must not appear on
+            # their screens, make their phone beep, or be cooked. That includes one that was
+            # cancelled or expired while still unpaid: it never reached them.
+            stmt = stmt.where(~never_placed())
         if status:
             stmt = stmt.where(Order.status == status)
         stmt = stmt.order_by(Order.created_at.desc())

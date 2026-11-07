@@ -9,6 +9,7 @@ from app.auth.schemas import UserClaims
 from app.core.database import get_db_session
 from app.core.exceptions import EntityNotFoundError
 from app.customer.repository import CustomerRepository
+from app.notification.whatsapp_service import WhatsAppNotifier, get_whatsapp_notifier
 from app.payment.repository import PaymentRepository, PaymentRepositoryInterface
 from app.payment.schemas import (
     PaymentIntentCreateRequest,
@@ -33,8 +34,9 @@ def get_payment_repository(
 def get_payment_service(
     session: AsyncSession = Depends(get_db_session),
     payment_repo: PaymentRepositoryInterface = Depends(get_payment_repository),
+    whatsapp: WhatsAppNotifier = Depends(get_whatsapp_notifier),
 ) -> PaymentServiceInterface:
-    return PaymentService(session=session, payment_repo=payment_repo)
+    return PaymentService(session=session, payment_repo=payment_repo, whatsapp=whatsapp)
 
 
 @router.post(

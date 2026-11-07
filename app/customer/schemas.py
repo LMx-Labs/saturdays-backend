@@ -11,6 +11,7 @@ class CustomerProfileResponse(BaseModel):
     user_id: uuid.UUID
     full_name: str
     phone_number: str | None = None
+    whatsapp_opt_in: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -23,6 +24,8 @@ class CustomerProfileCreate(BaseModel):
 class CustomerProfileUpdate(BaseModel):
     full_name: str | None = Field(None, min_length=1, max_length=100)
     phone_number: str | None = Field(None, max_length=20)
+    # True needs a valid mobile number on the profile; False stops all WhatsApp messages.
+    whatsapp_opt_in: bool | None = None
 
 
 class CustomerAddressCreate(BaseModel):

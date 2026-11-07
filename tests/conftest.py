@@ -89,6 +89,45 @@ async def seed_user_login(
     }
 
 
+async def pay_for_order(client, headers: dict, order_id: str) -> None:
+    """Pay for an order the way a student does: ask for a payment, then confirm it with a valid
+    Razorpay signature. Orders are invisible to the restaurant until this has happened.
+    """
+    import hashlib
+    import hmac
+    import uuid as _uuid
+
+    from app.payment.razorpay_adapter import RazorpayAdapter
+
+    order = (await client.get(f"/api/v1/orders/{order_id}", headers=headers)).json()
+    amount = float(order["total_amount"]) - float(
+        order.get("store_credit_applied") or 0
+    )
+    intent = await client.post(
+        "/api/v1/payments/intent",
+        json={"order_id": order_id, "amount": amount},
+        headers=headers,
+    )
+    assert intent.status_code == 201, intent.text
+    rzp_order = str(intent.json()["razorpay_order_id"])
+    rzp_pay = f"pay_{_uuid.uuid4().hex[:10]}"
+    secret = (RazorpayAdapter().key_secret or "").encode()
+    signature = hmac.new(
+        secret, f"{rzp_order}|{rzp_pay}".encode(), hashlib.sha256
+    ).hexdigest()
+    verified = await client.post(
+        "/api/v1/payments/verify",
+        json={
+            "order_id": order_id,
+            "razorpay_order_id": rzp_order,
+            "razorpay_payment_id": rzp_pay,
+            "razorpay_signature": signature,
+        },
+        headers=headers,
+    )
+    assert verified.status_code == 200, verified.text
+
+
 # Shared with the cart robustness tests (pytest discovers fixtures in conftest).
 from tests.test_cart import setup_cart_fixture  # noqa: F401
 from tests.test_menu import setup_branch_and_manager  # noqa: F401

@@ -128,14 +128,32 @@ async def seed_menu(sessions) -> dict:
         return {"branch": str(branch.id), "item": str(item.id)}
 
 
-@pytest.mark.parametrize("schema", ["0006", "head"])
+async def drop_cart_constraints(url: str) -> None:
+    """Take away exactly what migration 0007 added: the database as it is between a deploy and
+    the moment someone applies that migration by hand."""
+    conn = await asyncpg.connect(asyncpg_dsn(url))
+    try:
+        await conn.execute(
+            "ALTER TABLE cart_items DROP CONSTRAINT uq_cart_items_cart_menu_item"
+        )
+        await conn.execute(
+            "ALTER TABLE carts DROP CONSTRAINT uq_carts_customer_profile_id"
+        )
+    finally:
+        await conn.close()
+
+
+@pytest.mark.parametrize("schema", ["without-constraints", "head"])
 async def test_simultaneous_adds_produce_one_cart(pg, schema):
     """Five taps in flight at once (the old code created five carts, then 500'd).
 
-    Runs on the pre-constraint schema too: the row lock alone must prevent it,
-    because migrations are applied by hand after a deploy.
+    Runs without the 0007 constraints too: the row lock alone must prevent it, because
+    migrations are applied by hand after a deploy. (Built from the full schema with just those
+    two constraints removed, not from an old migration: today's code needs today's columns.)
     """
-    url = await asyncio.to_thread(make_database, pg, schema)
+    url = await asyncio.to_thread(make_database, pg, "head")
+    if schema == "without-constraints":
+        await drop_cart_constraints(url)
     engine = create_async_engine(url)
     sessions = async_sessionmaker(engine, expire_on_commit=False)
 

@@ -79,6 +79,35 @@ class Settings(BaseSettings):
     # and payouts are simulated locally. Production must set this to false.
     RAZORPAY_SIMULATE: bool = True
 
+    # WhatsApp order updates (Meta WhatsApp Business Cloud API). Off until switched on:
+    # nothing is sent, and orders behave exactly as before. See WHATSAPP_SETUP.md.
+    WHATSAPP_ENABLED: bool = False
+    # "cloud" sends for real; "mock" only logs (local development, demos, tests).
+    WHATSAPP_PROVIDER: str = "cloud"
+    WHATSAPP_PHONE_NUMBER_ID: str = ""
+    WHATSAPP_ACCESS_TOKEN: str = ""
+    WHATSAPP_API_VERSION: str = "v21.0"
+    WHATSAPP_API_BASE_URL: str = "https://graph.facebook.com"
+    # Secret for checking that delivery reports really come from Meta (the app secret).
+    WHATSAPP_APP_SECRET: str = ""
+    # A password you invent; Meta sends it back once when you register the webhook.
+    WHATSAPP_VERIFY_TOKEN: str = ""
+    WHATSAPP_LANGUAGE: str = "en"
+    # The approved template for each event. Leave one empty to switch that message off.
+    WHATSAPP_TEMPLATE_ORDER_CONFIRMED: str = "order_confirmed"
+    WHATSAPP_TEMPLATE_ORDER_READY: str = "order_ready"
+    WHATSAPP_TEMPLATE_ORDER_CANCELLED: str = "order_cancelled"
+    # While testing: comma-separated numbers (digits, with country code). When set, ONLY
+    # these numbers are ever messaged, so nobody else receives a test message by mistake.
+    WHATSAPP_TEST_ALLOWLIST: str = ""
+    WHATSAPP_DEFAULT_COUNTRY_CODE: str = "91"
+    # A slow WhatsApp must never hold up an order: give up after this many seconds.
+    WHATSAPP_TIMEOUT_SECONDS: float = 3.5
+
+    # An order waits for payment this long (minutes) before it is cancelled as abandoned. The
+    # restaurant never sees an order until it is paid; the student's store credit is returned.
+    ORDER_PAYMENT_WINDOW_MINUTES: int = 30
+
     # Refund policy: cancelled/unfulfilled orders get store credit, not cash back.
     # Keep false; true re-enables the legacy cash-refund endpoints.
     REFUNDS_ENABLED: bool = False

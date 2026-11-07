@@ -264,6 +264,9 @@ async def test_order_authorization(client: AsyncClient, shop: dict):
         await client.get(f"/api/v1/orders/{order['id']}", headers=_hdr(shop["cust2"]))
     ).status_code == 403
 
+    # The restaurant only gets the order once it is paid for.
+    await pay_order(client, shop, order)
+
     # staff bound to a different branch is rejected; own branch is fine
     wrong = await client.patch(
         f"/api/v1/orders/{order['id']}/status",
