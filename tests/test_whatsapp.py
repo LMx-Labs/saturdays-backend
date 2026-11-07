@@ -9,6 +9,7 @@ import re
 import time
 import uuid
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from types import SimpleNamespace
 
 import httpx
@@ -221,6 +222,15 @@ def test_the_order_code_matches_the_frontend_exactly():
         assert order_code(order_id) == expected
     assert order_code(uuid.UUID(vectors[0][0])) == "5H8A"
     assert order_code("") == "----"
+
+
+def test_the_stalls_clock_needs_no_time_zone_database_on_the_server():
+    """A server with no time-zone data must still start: India's offset is fixed, so it is built in."""
+    from app.notification import whatsapp_service
+
+    assert whatsapp_service.CAMPUS_TZ.utcoffset(None) == timedelta(hours=5, minutes=30)
+    source = Path(whatsapp_service.__file__).read_text(encoding="utf-8")
+    assert "zoneinfo" not in source.split("CAMPUS_TZ")[0]
 
 
 def test_pickup_is_described_in_plain_words():

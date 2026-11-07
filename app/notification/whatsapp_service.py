@@ -18,8 +18,7 @@ import asyncio
 import logging
 import re
 import uuid
-from datetime import UTC, datetime
-from zoneinfo import ZoneInfo
+from datetime import UTC, datetime, timedelta, timezone
 
 from fastapi import Depends
 from sqlalchemy import select, text, update
@@ -47,7 +46,9 @@ from app.payment.models import Payment, PaymentTransaction
 
 logger = logging.getLogger(__name__)
 
-CAMPUS_TZ = ZoneInfo("Asia/Kolkata")
+# India has no daylight saving, so a fixed +05:30 is exact. Unlike a named time zone it needs no
+# time-zone database on the server, and a server without one would fail to start at all.
+CAMPUS_TZ = timezone(timedelta(hours=5, minutes=30), "IST")
 CHANNEL = "WHATSAPP"
 
 ORDER_CONFIRMED = "order_confirmed"
