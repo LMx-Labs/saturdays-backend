@@ -4,7 +4,6 @@ from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.brand.models import Brand
 
@@ -52,7 +51,7 @@ class BrandRepository(BrandRepositoryInterface):
         return brand
 
     async def get_by_id(self, brand_id: uuid.UUID) -> Brand | None:
-        stmt = select(Brand).options(selectinload(Brand.merchant)).where(
+        stmt = select(Brand).where(
             Brand.id == brand_id,
             Brand.deleted_at.is_(None),
         )
@@ -64,7 +63,6 @@ class BrandRepository(BrandRepositoryInterface):
     ) -> list[Brand]:
         stmt = (
             select(Brand)
-            .options(selectinload(Brand.merchant))
             .where(
                 Brand.merchant_id == merchant_id,
                 Brand.deleted_at.is_(None),
@@ -76,7 +74,7 @@ class BrandRepository(BrandRepositoryInterface):
         return list(result.scalars().all())
 
     async def list_all(self, skip: int = 0, limit: int = 100) -> list[Brand]:
-        stmt = select(Brand).options(selectinload(Brand.merchant)).where(Brand.deleted_at.is_(None)).offset(skip).limit(limit)
+        stmt = select(Brand).where(Brand.deleted_at.is_(None)).offset(skip).limit(limit)
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 

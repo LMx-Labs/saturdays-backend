@@ -192,7 +192,6 @@ class BrandService(BrandServiceInterface):
         await self.session.commit()
 
     def _to_response(self, brand: Brand) -> BrandResponse:
-        merchant = getattr(brand, "merchant", None)
         return BrandResponse(
             id=str(brand.id),
             merchant_id=str(brand.merchant_id),
@@ -201,7 +200,6 @@ class BrandService(BrandServiceInterface):
             banner_url=brand.banner_url,
             description=brand.description,
             cuisine_types=brand.cuisine_types,
-            fssai_license_number=getattr(merchant, "fssai_license_number", None) if merchant else None,
             created_at=brand.created_at,
             updated_at=brand.updated_at,
         )
