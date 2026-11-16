@@ -25,6 +25,7 @@ class Brand(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     logo_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     banner_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    cover_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     cuisine_types: Mapped[list[str] | None] = mapped_column(
         ARRAY(String(255)).with_variant(JSON(), "sqlite"), nullable=True
