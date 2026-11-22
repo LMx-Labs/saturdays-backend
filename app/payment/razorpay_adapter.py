@@ -27,16 +27,17 @@ class RazorpayAdapter:
         # Dev/test fall back to a fixed dummy secret; production never does, so a
         # missing secret fails closed instead of accepting forgeable signatures.
         dev = not settings.is_production
+        self.key_id = (settings.RAZORPAY_KEY_ID or "").strip()
         self.key_secret = (
             key_secret
             or settings.RAZORPAY_KEY_SECRET
             or ("dummy_secret" if dev else "")
-        )
+        ).strip()
         self.webhook_secret = (
             webhook_secret
             or settings.RAZORPAY_WEBHOOK_SECRET
             or ("dummy_webhook_secret" if dev else "")
-        )
+        ).strip()
 
     async def create_order(
         self, amount: float, currency: str = "INR", receipt: str | None = None
@@ -58,7 +59,10 @@ class RazorpayAdapter:
                 "status": "created",
             }
 
-        if not settings.RAZORPAY_KEY_ID or not settings.RAZORPAY_KEY_SECRET:
+        key_id = self.key_id or (settings.RAZORPAY_KEY_ID or "").strip()
+        key_secret = self.key_secret or (settings.RAZORPAY_KEY_SECRET or "").strip()
+
+        if not key_id or not key_secret:
             raise AppException(
                 message="Razorpay is not configured.",
                 error_code="RAZORPAY_NOT_CONFIGURED",
@@ -76,7 +80,7 @@ class RazorpayAdapter:
                 resp = await client.post(
                     url,
                     json=body,
-                    auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET),
+                    auth=(key_id, key_secret),
                 )
         except httpx.HTTPError as exc:
             raise AppException(
@@ -90,10 +94,15 @@ class RazorpayAdapter:
         except ValueError:
             payload = {}
         if resp.status_code >= 400 or not payload.get("id"):
+            err_desc = (
+                payload.get("error", {}).get("description")
+                if isinstance(payload.get("error"), dict)
+                else None
+            )
             raise AppException(
-                message="Razorpay did not return an order id.",
+                message=f"Razorpay order failed: {err_desc}" if err_desc else "Razorpay did not return an order id.",
                 error_code="RAZORPAY_ORDER_FAILED",
-                status_code=502,
+                status_code=502 if resp.status_code != 401 else 401,
             )
         return payload
 

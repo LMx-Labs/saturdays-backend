@@ -119,6 +119,19 @@ class Settings(BaseSettings):
     PAYOUT_SCHEDULER_ENABLED: bool = False
     PAYOUT_SCHEDULE_HOUR_UTC: int = 21  # 02:30 IST
 
+    @field_validator(
+        "RAZORPAY_KEY_ID",
+        "RAZORPAY_KEY_SECRET",
+        "RAZORPAY_WEBHOOK_SECRET",
+        "RAZORPAYX_ACCOUNT_NUMBER",
+        mode="before",
+    )
+    @classmethod
+    def _strip_razorpay_credentials(cls, v):
+        if isinstance(v, str):
+            return v.strip()
+        return v
+
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def _split_cors_origins(cls, v):
