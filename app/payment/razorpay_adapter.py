@@ -100,7 +100,11 @@ class RazorpayAdapter:
                 else None
             )
             raise AppException(
-                message=f"Razorpay order failed: {err_desc}" if err_desc else "Razorpay did not return an order id.",
+                message=(
+                    f"Razorpay order failed: {err_desc}"
+                    if err_desc
+                    else "Razorpay did not return an order id."
+                ),
                 error_code="RAZORPAY_ORDER_FAILED",
                 status_code=502 if resp.status_code != 401 else 401,
             )
