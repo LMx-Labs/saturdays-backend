@@ -6,13 +6,13 @@
 # If 'n' or enter -> "ok no problem" and proceeds with git push.
 # ==============================================================================
 
-# Reconnect stdin to terminal if available (stdin contains ref list during git push)
-if [ -e /dev/tty ]; then
-    exec < /dev/tty 2>/dev/null || true
+# Reconnect stdin to controlling terminal if available
+if (exec < /dev/tty) 2>/dev/null; then
+    exec < /dev/tty 2>/dev/null
 elif [ -t 0 ]; then
     :
 else
-    # Non-interactive session (CI/headless) — skip prompt and allow push
+    # Non-interactive session without terminal (CI / automation) — allow push
     exit 0
 fi
 
