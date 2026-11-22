@@ -12,11 +12,18 @@ from app.core.config import get_settings
 
 settings = get_settings()
 
+# Pool sizing for Cloud Run + Neon
+# concurrency=8, max_instances=5 → peak = 5*(5+5)=50 connections
+# Neon free tier cap ≈100; this leaves headroom for alembic migrations.
 engine: AsyncEngine = create_async_engine(
     settings.DATABASE_URL,
     echo=(settings.ENVIRONMENT == "development"),
     future=True,
-    pool_pre_ping=True,
+    pool_pre_ping=True,   # detects stale connections after Neon idle-disconnect
+    pool_size=5,
+    max_overflow=5,
+    pool_timeout=30,
+    pool_recycle=1800,    # recycle before Neon's idle-timeout disconnects the socket
 )
 
 AsyncSessionLocal = async_sessionmaker(

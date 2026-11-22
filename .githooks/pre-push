@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# Saturdays Backend — Git Pre-Push Deployment Hook
+# Interactively prompts whether to deploy to Cloud Run when pushing to git.
+# If 'y' -> runs deployment to Cloud Run.
+# If 'n' or enter -> "ok no problem" and proceeds with git push.
+# ==============================================================================
+
+# Reconnect stdin to terminal if available (stdin contains ref list during git push)
+if [ -e /dev/tty ]; then
+    exec < /dev/tty 2>/dev/null || true
+elif [ -t 0 ]; then
+    :
+else
+    # Non-interactive session (CI/headless) — skip prompt and allow push
+    exit 0
+fi
+
+echo ""
+echo "=================================================================="
+echo "  🚀 SATURDAYS BACKEND — DEPLOYMENT CHECK"
+echo "=================================================================="
+echo "  Target: Google Cloud Run (saturdays-api / us-central1)"
+echo "  You are about to push commits to remote repository."
+echo ""
+
+# Ask the developer: 30-second timeout, default is 'n'
+read -t 30 -p "  👉 Do you want to deploy to Google Cloud Run now? [y/N]: " CONFIRM_DEPLOY
+PROMPT_EXIT=$?
+echo ""
+
+if [ $PROMPT_EXIT -ne 0 ]; then
+    echo "  ⏱️  Prompt timed out (30s). Skipping deployment."
+    CONFIRM_DEPLOY="n"
+fi
+
+case "$CONFIRM_DEPLOY" in
+    [yY]|[yY][eE][sS])
+        echo "  ⚡ Starting deployment to Google Cloud Run..."
+        echo "------------------------------------------------------------------"
+        
+        # Locate gcloud CLI
+        if command -v gcloud >/dev/null 2>&1; then
+            GCLOUD_BIN="gcloud"
+        elif [ -f "$LOCALAPPDATA/Google/Cloud SDK/google-cloud-sdk/bin/gcloud.cmd" ]; then
+            GCLOUD_BIN="$LOCALAPPDATA/Google/Cloud SDK/google-cloud-sdk/bin/gcloud.cmd"
+        else
+            echo "  ⚠️  gcloud CLI not found. Skipping deploy and continuing push."
+            echo "=================================================================="
+            echo ""
+            exit 0
+        fi
+
+        # Optional env vars file
+        EXTRA_ARGS=""
+        if [ -f "env.yaml" ]; then
+            EXTRA_ARGS="--env-vars-file env.yaml"
+        fi
+
+        if "$GCLOUD_BIN" run deploy saturdays-api \
+            --source . \
+            --region us-central1 \
+            --project saturdays-campus \
+            --platform managed \
+            --allow-unauthenticated \
+            $EXTRA_ARGS \
+            --quiet; then
+            echo ""
+            echo "  ✅ Cloud Run deployment succeeded! Proceeding with git push..."
+        else
+            echo ""
+            echo "  ⚠️  Deployment encountered an issue."
+            read -p "  Do you want to continue with git push anyway? [y/N]: " PROCEED
+            case "$PROCEED" in
+                [yY]|[yY][eE][sS])
+                    echo "  Proceeding with git push..."
+                    ;;
+                *)
+                    echo "  🛑 Git push aborted."
+                    exit 1
+                    ;;
+            esac
+        fi
+        ;;
+    *)
+        echo "  👍 Ok, no problem! Skipping deployment."
+        echo "  Proceeding with git push..."
+        ;;
+esac
+
+echo "=================================================================="
+echo ""
+exit 0
