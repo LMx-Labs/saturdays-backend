@@ -14,7 +14,9 @@ class BrandCreateRequest(BaseModel):
         ..., min_length=2, max_length=100, description="Public brand name"
     )
     logo_url: str | None = Field(None, max_length=2048, description="Logo image URL")
-    banner_url: str | None = Field(None, max_length=2048, description="Banner image URL")
+    banner_url: str | None = Field(
+        None, max_length=2048, description="Banner image URL"
+    )
     description: str | None = Field(None, description="Brand story or description")
     cuisine_types: list[str] | None = Field(
         None, description="List of cuisine categories (e.g. ['Italian', 'Pizza'])"

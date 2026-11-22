@@ -101,7 +101,7 @@ async def _order(
     total=100,
     credit=0,
     paid=False,
-    failed_capture=False
+    failed_capture=False,
 ) -> uuid.UUID:
     async with sessions() as s:
         order = Order(

@@ -19,11 +19,11 @@ engine: AsyncEngine = create_async_engine(
     settings.DATABASE_URL,
     echo=(settings.ENVIRONMENT == "development"),
     future=True,
-    pool_pre_ping=True,   # detects stale connections after Neon idle-disconnect
+    pool_pre_ping=True,  # detects stale connections after Neon idle-disconnect
     pool_size=5,
     max_overflow=5,
     pool_timeout=30,
-    pool_recycle=1800,    # recycle before Neon's idle-timeout disconnects the socket
+    pool_recycle=1800,  # recycle before Neon's idle-timeout disconnects the socket
 )
 
 AsyncSessionLocal = async_sessionmaker(

@@ -284,4 +284,3 @@ class AdminCustomerUpdateRequest(BaseModel):
     phone_number: str | None = Field(None, max_length=20)
     is_active: bool | None = None
     is_verified: bool | None = None
-

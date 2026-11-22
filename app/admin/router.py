@@ -603,4 +603,3 @@ async def update_customer(
         admin_user_id=uuid.UUID(current_user.sub),
         ip_address=ip,
     )
-

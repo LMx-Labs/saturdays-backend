@@ -269,9 +269,7 @@ class AdminServiceInterface(ABC):
         pass
 
     @abstractmethod
-    async def get_customer(
-        self, customer_id: uuid.UUID
-    ) -> AdminCustomerDetailResponse:
+    async def get_customer(self, customer_id: uuid.UUID) -> AdminCustomerDetailResponse:
         pass
 
     @abstractmethod
@@ -1287,9 +1285,7 @@ class AdminService(AdminServiceInterface):
             for c in customers
         ]
 
-    async def get_customer(
-        self, customer_id: uuid.UUID
-    ) -> AdminCustomerDetailResponse:
+    async def get_customer(self, customer_id: uuid.UUID) -> AdminCustomerDetailResponse:
         customer = await self.customer_repo.get_by_id(customer_id)
         if not customer:
             raise EntityNotFoundError(
@@ -1384,4 +1380,3 @@ class AdminService(AdminServiceInterface):
         self.session.expire_all()
 
         return await self.get_customer(customer_id)
-
