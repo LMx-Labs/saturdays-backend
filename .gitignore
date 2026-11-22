@@ -32,6 +32,7 @@ venv.bak/
 .env.local
 .env.*.local
 .vercel/
+env.yaml
 
 # IDEs
 .idea/
@@ -47,3 +48,5 @@ htmlcov/
 # Database & Storage
 *.sqlite3
 *.db
+.vercel
+.env*
