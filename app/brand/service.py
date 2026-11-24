@@ -158,11 +158,17 @@ class BrandService(BrandServiceInterface):
 
         if req.name is not None:
             brand.name = req.name
-        if req.logo_url is not None:
+        if "logo_url" in req.model_fields_set:
+            brand.logo_url = req.logo_url or ""
+        elif req.logo_url is not None:
             brand.logo_url = req.logo_url
-        if req.banner_url is not None:
+        if "banner_url" in req.model_fields_set:
+            brand.banner_url = req.banner_url or ""
+        elif req.banner_url is not None:
             brand.banner_url = req.banner_url
-        if req.description is not None:
+        if "description" in req.model_fields_set:
+            brand.description = req.description or ""
+        elif req.description is not None:
             brand.description = req.description
         if req.cuisine_types is not None:
             brand.cuisine_types = req.cuisine_types
