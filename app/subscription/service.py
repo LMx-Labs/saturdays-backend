@@ -17,9 +17,9 @@ from app.subscription.schemas import (
 )
 
 PLAN_DETAILS = {
-    "BASIC": {"max_branches": 1, "commission_rate": 5.00, "price": 0.0},
-    "PROFESSIONAL": {"max_branches": 5, "commission_rate": 3.50, "price": 1999.0},
-    "ENTERPRISE": {"max_branches": -1, "commission_rate": 2.00, "price": 4999.0},
+    "BASIC": {"max_branches": 1, "commission_rate": 7.00, "price": 999.0, "max_orders_per_day": 40},
+    "PROFESSIONAL": {"max_branches": 5, "commission_rate": 5.00, "price": 2499.0, "max_orders_per_day": 100},
+    "ENTERPRISE": {"max_branches": 20, "commission_rate": 3.50, "price": 4999.0, "max_orders_per_day": 200},
 }
 
 
@@ -62,6 +62,10 @@ class SubscriptionServiceInterface(ABC):
 
     @abstractmethod
     async def validate_branch_limit(self, merchant_id: uuid.UUID) -> None:
+        pass
+
+    @abstractmethod
+    async def check_daily_order_quota(self, merchant_id: uuid.UUID) -> None:
         pass
 
 
@@ -276,4 +280,44 @@ class SubscriptionService(SubscriptionServiceInterface):
             raise UnprocessableEntityError(
                 message=f"Branch creation limit reached for your '{plan_tier}' subscription tier (Max: {max_allowed}).",
                 error_code="SUBSCRIPTION_BRANCH_LIMIT_EXCEEDED",
+            )
+
+    async def check_daily_order_quota(self, merchant_id: uuid.UUID) -> None:
+        sub = await self.sub_repo.get_active_subscription(merchant_id)
+        plan_tier = sub.plan_tier if sub else "BASIC"
+        tier_info = PLAN_DETAILS.get(plan_tier, PLAN_DETAILS["BASIC"])
+        max_orders = (
+            sub.max_orders_per_day
+            if sub and sub.max_orders_per_day is not None
+            else tier_info.get("max_orders_per_day", 40)
+        )
+        if max_orders == -1:
+            return
+
+        today_start = datetime.now(UTC).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        from sqlalchemy import func, select
+        from app.order.models import Order
+        from app.branch.models import Branch
+        from app.brand.models import Brand
+
+        stmt = (
+            select(func.count(Order.id))
+            .select_from(Order)
+            .join(Branch, Branch.id == Order.branch_id)
+            .join(Brand, Brand.id == Branch.brand_id)
+            .where(
+                Brand.merchant_id == merchant_id,
+                Order.created_at >= today_start,
+                Order.deleted_at.is_(None),
+            )
+        )
+        res = await self.session.execute(stmt)
+        count = res.scalar() or 0
+
+        if count >= max_orders:
+            raise UnprocessableEntityError(
+                message=f"Daily order limit reached for your '{plan_tier}' plan ({max_orders} orders/day). Please upgrade your plan to accept more orders.",
+                error_code="ORDER_QUOTA_EXCEEDED",
             )

@@ -99,6 +99,28 @@ class OrderService(OrderServiceInterface):
         customer_profile_id: uuid.UUID,
         req: OrderCreateRequest,
     ) -> Order:
+        # Enforce merchant subscription daily order quota
+        from app.branch.models import Branch
+        from app.brand.models import Brand
+        stmt_merchant = (
+            select(Brand.merchant_id)
+            .select_from(Branch)
+            .join(Brand, Brand.id == Branch.brand_id)
+            .where(Branch.id == req.branch_id, Branch.deleted_at.is_(None))
+        )
+        merchant_res = await self.session.execute(stmt_merchant)
+        merchant_id = merchant_res.scalar_one_or_none()
+        if merchant_id:
+            from app.subscription.service import SubscriptionService
+            from app.subscription.repository import SubscriptionRepository
+            from app.merchant.repository import MerchantRepository
+            sub_service = SubscriptionService(
+                self.session,
+                SubscriptionRepository(self.session),
+                MerchantRepository(self.session),
+            )
+            await sub_service.check_daily_order_quota(merchant_id)
+
         total_amount = 0.0
         order_items: list[OrderItem] = []
 

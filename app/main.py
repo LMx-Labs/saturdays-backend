@@ -118,6 +118,10 @@ from app.payout.router import router as payout_router
 from app.review.router import router as review_router
 from app.search.router import router as search_router
 from app.subscription.router import router as subscription_router
+from app.subscription.webhook_router import router as razorpay_webhook_router
+from app.subscription.plan_config_router import router as subscription_plan_config_router
+from app.subscription.settlement_router import router as settlement_router
+from app.subscription.qr_router import router as qr_router
 
 register_exception_handlers(app)
 
@@ -142,6 +146,11 @@ app.include_router(media_router, prefix=settings.API_V1_STR)
 app.include_router(payment_router, prefix=settings.API_V1_STR)
 app.include_router(payout_router, prefix=settings.API_V1_STR)
 app.include_router(search_router, prefix=settings.API_V1_STR)
+# Razorpay subscription extensions
+app.include_router(razorpay_webhook_router)  # public — no API prefix
+app.include_router(subscription_plan_config_router, prefix=settings.API_V1_STR)
+app.include_router(settlement_router, prefix=settings.API_V1_STR)
+app.include_router(qr_router, prefix=settings.API_V1_STR)
 
 
 @app.get("/health", tags=["Health"])

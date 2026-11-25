@@ -17,7 +17,13 @@ from app.order.models import Order, OrderItem, OrderStatusLog
 from app.payment.models import Payment, PaymentTransaction
 from app.payout.models import MerchantPayoutAccount, Payout, PayoutItem
 from app.review.models import Review
-from app.subscription.models import MerchantSubscription, PlatformCommission
+from app.subscription.models import (
+    MerchantSettlement,
+    MerchantSubscription,
+    PlatformCommission,
+    RazorpayWebhookEvent,
+    SubscriptionPlanConfig,
+)
 
 __all__ = [
     "AdminAuditLog",
@@ -41,6 +47,7 @@ __all__ = [
     "MenuModifier",
     "Merchant",
     "MerchantPayoutAccount",
+    "MerchantSettlement",
     "MerchantSubscription",
     "Notification",
     "Order",
@@ -51,9 +58,11 @@ __all__ = [
     "Payout",
     "PayoutItem",
     "PlatformCommission",
+    "RazorpayWebhookEvent",
     "Review",
     "StoreCredit",
     "StoreCreditTransaction",
+    "SubscriptionPlanConfig",
     "TimestampMixin",
     "User",
 ]
