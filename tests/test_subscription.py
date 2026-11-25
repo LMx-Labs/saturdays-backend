@@ -61,7 +61,7 @@ async def test_subscription_lifecycle(client: AsyncClient, setup_sub_fixture: di
     assert up_resp.status_code == 201
     up_data = up_resp.json()
     assert up_data["plan_tier"] == "PROFESSIONAL"
-    assert up_data["commission_rate_percentage"] == 3.5
+    assert up_data["commission_rate_percentage"] == 5.0
     assert up_data["max_branches"] == 5
 
     # Renew subscription
@@ -78,4 +78,15 @@ async def test_subscription_lifecycle(client: AsyncClient, setup_sub_fixture: di
     assert inv_resp.status_code == 200
     invoices = inv_resp.json()
     assert len(invoices) >= 1
-    assert invoices[0]["amount"] == 1999.0
+    assert invoices[0]["amount"] == 2499.0
+
+    # Get QR Codes and payment links
+    qr_resp = await client.get("/api/v1/merchants/me/qr-codes", headers=headers)
+    assert qr_resp.status_code == 200
+    qr_data = qr_resp.json()
+    assert qr_data["merchant_id"] == str(fixture["merchant"].id)
+    assert qr_data["plan_tier"] == "PROFESSIONAL"
+    assert qr_data["registration_fee_payment_link"] is not None
+    assert qr_data["registration_fee_qr_url"] is not None
+    assert qr_data["plan_payment_link"] is not None
+    assert qr_data["plan_qr_url"] is not None

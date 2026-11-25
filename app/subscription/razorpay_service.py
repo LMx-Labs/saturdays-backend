@@ -6,6 +6,7 @@ All amounts are in INR paise (₹1 = 100 paise).
 import hashlib
 import hmac
 import time
+import urllib.parse
 from typing import Any
 
 import httpx
@@ -61,7 +62,13 @@ async def create_razorpay_subscription(
     """POST /v1/subscriptions — creates a recurring subscription for a merchant."""
     if _simulate():
         logger.info("SIMULATE: create_razorpay_subscription", plan_id=razorpay_plan_id)
-        return {"id": f"sub_SIMULATED_{razorpay_plan_id[:8]}", "status": "created"}
+        short_url = f"https://rzp.io/i/SIMULATED_{razorpay_plan_id[:8]}"
+        return {
+            "id": f"sub_SIMULATED_{razorpay_plan_id[:8]}",
+            "status": "created",
+            "short_url": short_url,
+            "qr_code_url": f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={urllib.parse.quote(short_url)}",
+        }
 
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.post(
@@ -71,11 +78,19 @@ async def create_razorpay_subscription(
                 "plan_id": razorpay_plan_id,
                 "total_count": total_count,
                 "quantity": 1,
-                "notify_info": {"notify_whatsapp": int(notify_whatsapp)},
+                "customer_notify": 1 if notify_whatsapp else 0,
             },
         )
         resp.raise_for_status()
-        return resp.json()
+        data = resp.json()
+        short_url = data.get("short_url") or ""
+        qr_url = None
+        if isinstance(data.get("qr_code"), dict):
+            qr_url = data["qr_code"].get("image_url")
+        if not qr_url and short_url:
+            qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={urllib.parse.quote(short_url)}"
+        data["qr_code_url"] = qr_url
+        return data
 
 
 async def cancel_razorpay_subscription(
@@ -118,12 +133,15 @@ async def create_registration_payment_link(
     """POST /v1/payment_links — ₹500 one-time registration fee link with QR."""
     if _simulate():
         logger.info("SIMULATE: create_registration_payment_link", merchant_id=merchant_id)
+        short_url = f"https://rzp.io/l/SIMULATED_{merchant_id[:6]}"
         return {
             "id": f"plink_SIMULATED_{merchant_id[:8]}",
-            "short_url": f"https://rzp.io/l/SIMULATED_{merchant_id[:6]}",
+            "short_url": short_url,
+            "qr_code_url": f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={urllib.parse.quote(short_url)}",
         }
 
     async with httpx.AsyncClient(timeout=10) as client:
+        ref_id = f"REG-{merchant_id[:8].upper()}-{int(time.time())}"[-40:]
         resp = await client.post(
             f"{RAZORPAY_BASE}/payment_links",
             auth=_auth(),
@@ -131,7 +149,7 @@ async def create_registration_payment_link(
                 "amount": 50000,  # ₹500 in paise
                 "currency": "INR",
                 "description": f"Saturdays Platform Registration Fee — {merchant_name}",
-                "reference_id": f"REG-{merchant_id[:8].upper()}",
+                "reference_id": ref_id,
                 "notes": {
                     "merchant_id": merchant_id,
                     "type": "REGISTRATION_FEE",
@@ -145,7 +163,71 @@ async def create_registration_payment_link(
             },
         )
         resp.raise_for_status()
-        return resp.json()
+        data = resp.json()
+        short_url = data.get("short_url") or ""
+        qr_url = None
+        if isinstance(data.get("qr_code"), dict):
+            qr_url = data["qr_code"].get("image_url")
+        if not qr_url and short_url:
+            qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={urllib.parse.quote(short_url)}"
+        data["qr_code_url"] = qr_url
+        return data
+
+
+async def create_subscription_payment_link(
+    merchant_id: str,
+    merchant_name: str,
+    plan_tier: str,
+    plan_name: str,
+    amount_in_rupees: int,
+) -> dict[str, Any]:
+    """POST /v1/payment_links — payment link for subscription plan."""
+    if _simulate():
+        logger.info(
+            "SIMULATE: create_subscription_payment_link",
+            merchant_id=merchant_id,
+            plan_tier=plan_tier,
+        )
+        short_url = f"https://rzp.io/l/SIMULATED_SUB_{merchant_id[:6]}"
+        return {
+            "id": f"plink_sub_SIMULATED_{merchant_id[:8]}",
+            "short_url": short_url,
+            "qr_code_url": f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={urllib.parse.quote(short_url)}",
+        }
+
+    async with httpx.AsyncClient(timeout=10) as client:
+        ref_id = f"SUB-{plan_tier[:4]}-{merchant_id[:6]}-{int(time.time())}"[-40:]
+        resp = await client.post(
+            f"{RAZORPAY_BASE}/payment_links",
+            auth=_auth(),
+            json={
+                "amount": amount_in_rupees * 100,  # In paise
+                "currency": "INR",
+                "description": f"Saturdays {plan_name} Plan Subscription — {merchant_name}",
+                "reference_id": ref_id,
+                "notes": {
+                    "merchant_id": merchant_id,
+                    "plan_tier": plan_tier,
+                    "type": "SUBSCRIPTION_PLAN",
+                },
+                "options": {
+                    "checkout": {
+                        "name": "Saturdays Platform",
+                        "description": f"Monthly {plan_name} Plan",
+                    }
+                },
+            },
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        short_url = data.get("short_url") or ""
+        qr_url = None
+        if isinstance(data.get("qr_code"), dict):
+            qr_url = data["qr_code"].get("image_url")
+        if not qr_url and short_url:
+            qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={urllib.parse.quote(short_url)}"
+        data["qr_code_url"] = qr_url
+        return data
 
 
 async def fetch_settlements(

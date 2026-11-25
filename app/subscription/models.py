@@ -48,6 +48,15 @@ class MerchantSubscription(Base, TimestampMixin):
     registration_fee_payment_id: Mapped[str | None] = mapped_column(
         String(100), nullable=True, default=None
     )
+    registration_fee_qr_url: Mapped[str | None] = mapped_column(
+        String(500), nullable=True, default=None
+    )
+    plan_payment_link: Mapped[str | None] = mapped_column(
+        String(500), nullable=True, default=None
+    )
+    plan_qr_url: Mapped[str | None] = mapped_column(
+        String(500), nullable=True, default=None
+    )
     is_trial: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     trial_ends_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, default=None
