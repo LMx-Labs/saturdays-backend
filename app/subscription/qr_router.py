@@ -186,7 +186,7 @@ async def _build_qr_response(
 )
 async def admin_get_merchant_qr_codes(
     merchant_id: str,
-    _: UserClaims = Depends(require_role("admin")),
+    _: UserClaims = Depends(require_role(["PlatformAdmin", "Admin", "admin"])),
     session: AsyncSession = Depends(get_db_session),
 ) -> QRCodeResponse:
     """Admin: fetch (and auto-generate if missing) QR codes and payment links for a merchant."""
@@ -216,7 +216,7 @@ async def admin_get_merchant_qr_codes(
 )
 async def admin_refresh_merchant_qr_codes(
     merchant_id: str,
-    _: UserClaims = Depends(require_role("admin")),
+    _: UserClaims = Depends(require_role(["PlatformAdmin", "Admin", "admin"])),
     session: AsyncSession = Depends(get_db_session),
 ) -> QRCodeResponse:
     """Admin: force regenerate Razorpay payment links and QR codes for a merchant."""

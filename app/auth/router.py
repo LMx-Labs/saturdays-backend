@@ -68,13 +68,26 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> UserClaims:
     )
 
 
-def require_role(allowed_roles: list[str]):
+def require_role(allowed_roles: list[str] | str):
     """RBAC Role check dependency factory."""
+    if isinstance(allowed_roles, str):
+        allowed_list = [allowed_roles]
+    else:
+        allowed_list = list(allowed_roles)
+
+    normalized = set()
+    for r in allowed_list:
+        r_str = str(r).strip()
+        normalized.add(r_str.lower())
+        if r_str.lower() in ("admin", "platformadmin"):
+            normalized.add("admin")
+            normalized.add("platformadmin")
 
     def role_checker(
         current_user: UserClaims = Depends(get_current_user),
     ) -> UserClaims:
-        if current_user.role not in allowed_roles:
+        user_role_lower = (current_user.role or "").strip().lower()
+        if user_role_lower not in normalized and current_user.role not in allowed_list:
             raise ForbiddenError(
                 message=f"Access denied for role '{current_user.role}'.",
                 error_code="ROLE_NOT_AUTHORIZED",

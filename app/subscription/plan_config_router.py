@@ -149,7 +149,7 @@ def _to_response(c: SubscriptionPlanConfig) -> PlanConfigResponse:
 
 @router.get("", response_model=list[PlanConfigResponse], status_code=status.HTTP_200_OK)
 async def list_plan_configs(
-    _: UserClaims = Depends(require_role("admin")),
+    _: UserClaims = Depends(require_role(["PlatformAdmin", "Admin", "admin"])),
     session: AsyncSession = Depends(get_db_session),
 ) -> list[PlanConfigResponse]:
     """Return all 3 plan configs; seeds defaults for any missing tier."""
@@ -164,7 +164,7 @@ async def list_plan_configs(
 async def update_plan_config(
     tier: str,
     req: PlanConfigUpdateRequest,
-    _: UserClaims = Depends(require_role("admin")),
+    _: UserClaims = Depends(require_role(["PlatformAdmin", "Admin", "admin"])),
     session: AsyncSession = Depends(get_db_session),
 ) -> PlanConfigResponse:
     """Admin edits any plan field — name, features, price, quota, commission, etc."""
@@ -209,7 +209,7 @@ async def update_plan_config(
 )
 async def sync_plan_to_razorpay(
     tier: str,
-    _: UserClaims = Depends(require_role("admin")),
+    _: UserClaims = Depends(require_role(["PlatformAdmin", "Admin", "admin"])),
     session: AsyncSession = Depends(get_db_session),
 ) -> PlanConfigResponse:
     """Creates a Razorpay plan for this tier and stores its plan_id."""

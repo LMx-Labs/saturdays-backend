@@ -53,7 +53,7 @@ class SettlementResponse(BaseModel):
 async def update_settlement_cycle(
     merchant_id: str,
     req: SettlementCycleRequest,
-    _: UserClaims = Depends(require_role("admin")),
+    _: UserClaims = Depends(require_role(["PlatformAdmin", "Admin", "admin"])),
     session: AsyncSession = Depends(get_db_session),
 ) -> SettlementCycleResponse:
     """Toggle settlement cycle for a merchant: 1=daily, 3=every 3 days, 7=weekly."""
@@ -94,7 +94,7 @@ async def list_settlements(
     settlement_status: str | None = Query(default=None, alias="status"),
     limit: int = Query(default=50, le=200),
     skip: int = Query(default=0),
-    _: UserClaims = Depends(require_role("admin")),
+    _: UserClaims = Depends(require_role(["PlatformAdmin", "Admin", "admin"])),
     session: AsyncSession = Depends(get_db_session),
 ) -> list[SettlementResponse]:
     """List all settlements; filterable by merchant or status."""
@@ -150,7 +150,7 @@ async def list_settlements(
 async def get_merchant_settlements(
     merchant_id: str,
     limit: int = Query(default=20, le=100),
-    _: UserClaims = Depends(require_role("admin")),
+    _: UserClaims = Depends(require_role(["PlatformAdmin", "Admin", "admin"])),
     session: AsyncSession = Depends(get_db_session),
 ) -> list[SettlementResponse]:
     """Settlement history for a specific restaurant."""
