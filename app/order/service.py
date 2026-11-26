@@ -169,13 +169,20 @@ class OrderService(OrderServiceInterface):
             )
             order_items.append(order_item)
 
+        snapshot = dict(req.delivery_address_snapshot or {})
+        if not snapshot.get("customer_name"):
+            from app.customer.models import CustomerProfile
+            cust_profile = await self.session.get(CustomerProfile, customer_profile_id)
+            if cust_profile and cust_profile.full_name:
+                snapshot["customer_name"] = cust_profile.full_name
+
         order = Order(
             customer_profile_id=customer_profile_id,
             branch_id=req.branch_id,
             total_amount=round(total_amount, 2),
             # Not visible to the restaurant until the payment is confirmed.
             status="PENDING_PAYMENT",
-            delivery_address_snapshot=req.delivery_address_snapshot,
+            delivery_address_snapshot=snapshot,
         )
 
         created_order = await self.order_repo.create_order(

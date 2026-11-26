@@ -310,7 +310,7 @@ class SubscriptionService(SubscriptionServiceInterface):
             .where(
                 Brand.merchant_id == merchant_id,
                 Order.created_at >= today_start,
-                Order.deleted_at.is_(None),
+                Order.status != "CANCELLED",
             )
         )
         res = await self.session.execute(stmt)

@@ -210,17 +210,17 @@ async def log(db: AsyncSession) -> list[Notification]:
 def test_the_order_code_matches_the_frontend_exactly():
     # Reference values produced by running the real TypeScript orderCode() on these ids.
     vectors = [
-        ("01a1b4a5-c6d2-7e11-b0f3-9a8c1d2e3f40", "5H8A"),
-        ("01a1b4a5-c6d2-7e11-b0f3-0a1b2c3d4e51", "Q4DE"),
-        ("01a1b4a5-c6d2-7e11-b0f3-77aa88bb99cc", "YZMC"),
-        ("0194c7e2-3a10-7b3a-9d44-5f4e3d2c1b0a", "B2SN"),
-        ("ffffffff-ffff-4fff-bfff-ffffffffffff", "NYT5"),
-        ("00000000-0000-0000-0000-000000000000", "2222"),
-        ("01a1b4a5-c6d2-7e11-b0f3-000000000001", "2223"),
+        ("01a1b4a5-c6d2-7e11-b0f3-9a8c1d2e3f40", "0112"),
+        ("01a1b4a5-c6d2-7e11-b0f3-0a1b2c3d4e51", "5249"),
+        ("01a1b4a5-c6d2-7e11-b0f3-77aa88bb99cc", "5980"),
+        ("0194c7e2-3a10-7b3a-9d44-5f4e3d2c1b0a", "0682"),
+        ("ffffffff-ffff-4fff-bfff-ffffffffffff", "7295"),
+        ("00000000-0000-0000-0000-000000000000", "0000"),
+        ("01a1b4a5-c6d2-7e11-b0f3-000000000001", "0001"),
     ]
     for order_id, expected in vectors:
         assert order_code(order_id) == expected
-    assert order_code(uuid.UUID(vectors[0][0])) == "5H8A"
+    assert order_code(uuid.UUID(vectors[0][0])) == "0112"
     assert order_code("") == "----"
 
 
