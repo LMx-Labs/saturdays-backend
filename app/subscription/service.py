@@ -89,9 +89,17 @@ class SubscriptionService(SubscriptionServiceInterface):
         return merchant
 
     def _to_sub_response(
-        self, sub: MerchantSubscription
+        self,
+        sub: MerchantSubscription,
+        today_order_count: int = 0,
+        is_quota_exceeded: bool = False,
     ) -> MerchantSubscriptionResponse:
         tier_info = PLAN_DETAILS.get(sub.plan_tier, PLAN_DETAILS["BASIC"])
+        max_orders = (
+            sub.max_orders_per_day
+            if getattr(sub, "max_orders_per_day", None) is not None
+            else tier_info.get("max_orders_per_day", 40)
+        )
         return MerchantSubscriptionResponse(
             id=sub.id,
             merchant_id=sub.merchant_id,
@@ -103,6 +111,9 @@ class SubscriptionService(SubscriptionServiceInterface):
             valid_until=sub.valid_until,
             created_at=sub.created_at,
             updated_at=sub.updated_at,
+            max_orders_per_day=max_orders,
+            today_order_count=today_order_count,
+            is_quota_exceeded=is_quota_exceeded,
         )
 
     async def get_active_subscription(
@@ -124,7 +135,41 @@ class SubscriptionService(SubscriptionServiceInterface):
             sub = await self.sub_repo.create_subscription(sub)
             await self.session.commit()
 
-        return self._to_sub_response(sub)
+        today_start = datetime.now(UTC).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        from sqlalchemy import func, select
+        from app.order.models import Order
+        from app.branch.models import Branch
+        from app.brand.models import Brand
+
+        stmt = (
+            select(func.count(Order.id))
+            .select_from(Order)
+            .join(Branch, Branch.id == Order.branch_id)
+            .join(Brand, Brand.id == Branch.brand_id)
+            .where(
+                Brand.merchant_id == merchant.id,
+                Order.created_at >= today_start,
+                Order.status != "CANCELLED",
+            )
+        )
+        count_res = await self.session.execute(stmt)
+        today_order_count = count_res.scalar() or 0
+
+        tier_info = PLAN_DETAILS.get(sub.plan_tier, PLAN_DETAILS["BASIC"])
+        max_orders = (
+            sub.max_orders_per_day
+            if getattr(sub, "max_orders_per_day", None) is not None
+            else tier_info.get("max_orders_per_day", 40)
+        )
+        is_quota_exceeded = max_orders != -1 and today_order_count >= max_orders
+
+        return self._to_sub_response(
+            sub,
+            today_order_count=today_order_count,
+            is_quota_exceeded=is_quota_exceeded,
+        )
 
     async def create_subscription(
         self, user_id: uuid.UUID, req: SubscriptionCreateRequest
@@ -317,7 +362,44 @@ class SubscriptionService(SubscriptionServiceInterface):
         count = res.scalar() or 0
 
         if count >= max_orders:
-            raise UnprocessableEntityError(
-                message=f"Daily order limit reached for your '{plan_tier}' plan ({max_orders} orders/day). Please upgrade your plan to accept more orders.",
-                error_code="ORDER_QUOTA_EXCEEDED",
+            # DO NOT LOCK: Allow order to proceed, and notify merchant of great sales
+            import structlog
+            _logger = structlog.get_logger()
+            _logger.info(
+                "Daily order quota reached/exceeded; order accepted without locking",
+                merchant_id=str(merchant_id),
+                orders_today=count,
+                max_orders=max_orders,
             )
+            try:
+                merchant = await self.merchant_repo.get_by_id(merchant_id)
+                if merchant and merchant.owner_user_id:
+                    from app.notification.models import Notification
+
+                    notif_stmt = (
+                        select(Notification.id)
+                        .where(
+                            Notification.user_id == merchant.owner_user_id,
+                            Notification.event == "quota_exceeded",
+                            Notification.created_at >= today_start,
+                        )
+                        .limit(1)
+                    )
+                    existing = (await self.session.execute(notif_stmt)).scalar_one_or_none()
+                    if not existing:
+                        notif = Notification(
+                            user_id=merchant.owner_user_id,
+                            channel="IN_APP",
+                            recipient="merchant",
+                            subject="You are having good sales on Saturdays! Consider upgrading your plan",
+                            body=(
+                                f"You are having good sales on Saturdays! You have exceeded your daily order limit of "
+                                f"{max_orders} orders. Consider upgrading your plan — we would be happy to serve you better."
+                            ),
+                            status="DELIVERED",
+                            event="quota_exceeded",
+                        )
+                        self.session.add(notif)
+            except Exception as e:
+                import structlog
+                structlog.get_logger().warning("Failed to record quota notification", error=str(e))

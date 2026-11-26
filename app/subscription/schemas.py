@@ -31,6 +31,9 @@ class MerchantSubscriptionResponse(BaseModel):
     valid_until: datetime
     created_at: datetime
     updated_at: datetime
+    max_orders_per_day: int | None = 40
+    today_order_count: int | None = 0
+    is_quota_exceeded: bool | None = False
 
 
 class PlatformCommissionResponse(BaseModel):

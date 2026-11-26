@@ -284,3 +284,41 @@ class AdminCustomerUpdateRequest(BaseModel):
     phone_number: str | None = Field(None, max_length=20)
     is_active: bool | None = None
     is_verified: bool | None = None
+
+
+class RestaurantDailyOrderSummary(BaseModel):
+    order_id: str
+    created_at: str
+    status: str
+    total_amount: float
+    store_credit_applied: float = 0.0
+    commission_amount: float = 0.0
+    net_payout: float = 0.0
+    customer_name: str | None = None
+
+
+class RestaurantDailySalesItem(BaseModel):
+    date: str
+    branch_id: str
+    branch_name: str
+    brand_name: str
+    merchant_name: str
+    order_count: int
+    gross_sales: float
+    platform_commission: float
+    net_payout: float
+    orders: list[RestaurantDailyOrderSummary] = []
+
+
+class RestaurantDailySalesSummary(BaseModel):
+    total_gross_sales: float
+    total_commission: float
+    total_net_payout: float
+    total_orders: int
+    distinct_restaurants: int
+    distinct_dates: int
+
+
+class RestaurantDailySalesResponse(BaseModel):
+    summary: RestaurantDailySalesSummary
+    items: list[RestaurantDailySalesItem]

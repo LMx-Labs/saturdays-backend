@@ -28,6 +28,10 @@ from app.admin.schemas import (
     PlatformAnalyticsOverview,
     RefundOverrideRequest,
     RefundOverrideResponse,
+    RestaurantDailyOrderSummary,
+    RestaurantDailySalesItem,
+    RestaurantDailySalesResponse,
+    RestaurantDailySalesSummary,
 )
 from app.admin.service import AdminService, AdminServiceInterface
 from app.auth.router import require_role
@@ -603,3 +607,223 @@ async def update_customer(
         admin_user_id=uuid.UUID(current_user.sub),
         ip_address=ip,
     )
+
+
+@router.get(
+    "/analytics/restaurant-daily-sales",
+    response_model=RestaurantDailySalesResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get restaurant-wise day-wise sales and transactions",
+    description="Calculates gross sales, platform commission, net payout, and daily transactions grouped by restaurant branch and date.",
+)
+async def get_restaurant_daily_sales(
+    branch_id: str | None = Query(None, description="Optional branch UUID filter"),
+    merchant_id: str | None = Query(None, description="Optional merchant UUID filter"),
+    start_date: str | None = Query(None, description="Start date YYYY-MM-DD"),
+    end_date: str | None = Query(None, description="End date YYYY-MM-DD"),
+    limit: int = Query(100, ge=1, le=500),
+    skip: int = Query(0, ge=0),
+    current_user: UserClaims = Depends(require_role(["PlatformAdmin", "Admin", "admin"])),
+    session: AsyncSession = Depends(get_db_session),
+) -> RestaurantDailySalesResponse:
+    from collections import defaultdict
+    from datetime import date, datetime, time, timezone
+    from typing import Any
+
+    from sqlalchemy import desc, select
+
+    from app.branch.models import Branch
+    from app.brand.models import Brand
+    from app.customer.models import CustomerProfile
+    from app.merchant.models import Merchant
+    from app.order.models import Order
+    from app.subscription.models import PlatformCommission
+
+    # 1. Base query for orders
+    order_query = select(Order).where(Order.status != "CANCELLED")
+
+    if branch_id:
+        try:
+            b_uuid = uuid.UUID(branch_id)
+            order_query = order_query.where(Order.branch_id == b_uuid)
+        except ValueError:
+            pass
+
+    if start_date:
+        try:
+            s_d = date.fromisoformat(start_date.split("T")[0])
+            start_dt = datetime.combine(s_d, time.min).replace(tzinfo=timezone.utc)
+            order_query = order_query.where(Order.created_at >= start_dt)
+        except Exception:
+            pass
+
+    if end_date:
+        try:
+            e_d = date.fromisoformat(end_date.split("T")[0])
+            end_dt = datetime.combine(e_d, time.max).replace(tzinfo=timezone.utc)
+            order_query = order_query.where(Order.created_at <= end_dt)
+        except Exception:
+            pass
+
+    order_query = order_query.order_by(desc(Order.created_at)).limit(1000)
+    order_res = await session.execute(order_query)
+    orders = order_res.scalars().all()
+
+    # 2. Gather branch, brand, merchant info
+    branch_ids = {o.branch_id for o in orders}
+    if branch_id:
+        try:
+            branch_ids.add(uuid.UUID(branch_id))
+        except ValueError:
+            pass
+
+    branch_info_map: dict[uuid.UUID, dict[str, Any]] = {}
+    if branch_ids:
+        b_stmt = (
+            select(
+                Branch.id,
+                Branch.name.label("branch_name"),
+                Brand.name.label("brand_name"),
+                Merchant.id.label("merchant_id"),
+                Merchant.business_name.label("merchant_name"),
+            )
+            .join(Brand, Branch.brand_id == Brand.id)
+            .join(Merchant, Brand.merchant_id == Merchant.id)
+            .where(Branch.id.in_(branch_ids))
+        )
+        if merchant_id:
+            try:
+                b_stmt = b_stmt.where(Merchant.id == uuid.UUID(merchant_id))
+            except ValueError:
+                pass
+        b_rows = (await session.execute(b_stmt)).all()
+        for row in b_rows:
+            branch_info_map[row.id] = {
+                "branch_name": row.branch_name,
+                "brand_name": row.brand_name,
+                "merchant_id": str(row.merchant_id),
+                "merchant_name": row.merchant_name or row.brand_name,
+            }
+
+    # Also customer names
+    customer_ids = {o.customer_profile_id for o in orders if o.customer_profile_id}
+    cust_map: dict[uuid.UUID, str] = {}
+    if customer_ids:
+        c_stmt = select(CustomerProfile.id, CustomerProfile.full_name).where(
+            CustomerProfile.id.in_(customer_ids)
+        )
+        c_rows = (await session.execute(c_stmt)).all()
+        for c in c_rows:
+            cust_map[c.id] = c.full_name or "Customer"
+
+    # Commissions
+    order_ids = [o.id for o in orders]
+    commission_map: dict[uuid.UUID, float] = {}
+    if order_ids:
+        comm_stmt = select(
+            PlatformCommission.order_id, PlatformCommission.commission_amount
+        ).where(PlatformCommission.order_id.in_(order_ids))
+        comm_rows = (await session.execute(comm_stmt)).all()
+        for c in comm_rows:
+            commission_map[c.order_id] = float(c.commission_amount)
+
+    # 3. Group by (day_str, branch_id)
+    grouped: dict[tuple[str, str], list[Any]] = defaultdict(list)
+    for o in orders:
+        if merchant_id and o.branch_id not in branch_info_map:
+            continue
+        day_str = o.created_at.strftime("%Y-%m-%d")
+        b_key = str(o.branch_id)
+        grouped[(day_str, b_key)].append(o)
+
+    # 4. Build response items
+    items: list[RestaurantDailySalesItem] = []
+    total_gross = 0.0
+    total_commission = 0.0
+    total_net = 0.0
+    total_orders = 0
+    distinct_restaurants_set: set[str] = set()
+    distinct_dates_set: set[str] = set()
+
+    sorted_keys = sorted(grouped.keys(), key=lambda k: k[0], reverse=True)
+
+    for day_str, b_key in sorted_keys:
+        try:
+            b_uuid = uuid.UUID(b_key)
+        except ValueError:
+            continue
+
+        info = branch_info_map.get(
+            b_uuid,
+            {
+                "branch_name": f"Outlet {b_key[:8]}",
+                "brand_name": "Saturdays Partner",
+                "merchant_name": "Saturdays Partner",
+            },
+        )
+
+        group_orders = grouped[(day_str, b_key)]
+        daily_gross = 0.0
+        daily_comm = 0.0
+        daily_order_summaries: list[RestaurantDailyOrderSummary] = []
+
+        for o in group_orders:
+            gross = float(o.total_amount)
+            comm = commission_map.get(o.id, round(gross * 0.10, 2))
+            net = round(max(0.0, gross - comm), 2)
+            c_name = cust_map.get(o.customer_profile_id, "Customer")
+
+            daily_gross += gross
+            daily_comm += comm
+            daily_order_summaries.append(
+                RestaurantDailyOrderSummary(
+                    order_id=str(o.id),
+                    created_at=o.created_at.isoformat(),
+                    status=o.status,
+                    total_amount=gross,
+                    store_credit_applied=float(o.store_credit_applied or 0.0),
+                    commission_amount=comm,
+                    net_payout=net,
+                    customer_name=c_name,
+                )
+            )
+
+        daily_gross = round(daily_gross, 2)
+        daily_comm = round(daily_comm, 2)
+        daily_net = round(max(0.0, daily_gross - daily_comm), 2)
+        order_count = len(group_orders)
+
+        total_gross += daily_gross
+        total_commission += daily_comm
+        total_net += daily_net
+        total_orders += order_count
+        distinct_restaurants_set.add(b_key)
+        distinct_dates_set.add(day_str)
+
+        items.append(
+            RestaurantDailySalesItem(
+                date=day_str,
+                branch_id=b_key,
+                branch_name=info["branch_name"],
+                brand_name=info["brand_name"],
+                merchant_name=info["merchant_name"],
+                order_count=order_count,
+                gross_sales=daily_gross,
+                platform_commission=daily_comm,
+                net_payout=daily_net,
+                orders=daily_order_summaries,
+            )
+        )
+
+    paginated_items = items[skip : skip + limit]
+
+    summary = RestaurantDailySalesSummary(
+        total_gross_sales=round(total_gross, 2),
+        total_commission=round(total_commission, 2),
+        total_net_payout=round(total_net, 2),
+        total_orders=total_orders,
+        distinct_restaurants=len(distinct_restaurants_set),
+        distinct_dates=len(distinct_dates_set),
+    )
+
+    return RestaurantDailySalesResponse(summary=summary, items=paginated_items)
