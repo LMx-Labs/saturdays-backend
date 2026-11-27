@@ -47,10 +47,12 @@ class QRCodeResponse(BaseModel):
     registration_payment_link: str | None = None  # Admin alias
     registration_fee_qr_url: str | None = None
     registration_qr_url: str | None = None  # Admin alias
+    registration_expires_at: int | None = None  # Epoch timestamp in seconds when QR expires
     is_trial: bool = False
     trial_ends_at: str | None = None
     plan_tier: str | None = None
     plan_name: str | None = None
+    plan_price: int = 999
     plan_payment_link: str | None = None
     subscription_payment_link: str | None = None  # Admin alias
     plan_qr_url: str | None = None
@@ -81,9 +83,11 @@ async def _build_qr_response(
 
     reg_link: str | None = None
     reg_qr: str | None = None
+    reg_expires_at: int | None = None
     plan_link: str | None = None
     plan_qr: str | None = None
     plan_name: str | None = None
+    plan_price: int = 999
 
     if sub:
         tier = (sub.plan_tier or "BASIC").upper()
@@ -112,10 +116,11 @@ async def _build_qr_response(
             elif generate_link_if_missing or force_refresh:
                 try:
                     link_data = await create_registration_payment_link(
-                        str(merchant_id), merchant_name
+                        str(merchant_id), merchant_name, expires_in_minutes=15
                     )
                     reg_link = link_data.get("short_url")
                     reg_qr = link_data.get("qr_code_url")
+                    reg_expires_at = link_data.get("expire_by")
                     link_id = link_data.get("id")
                     if link_id:
                         sub.razorpay_payment_link_id = link_id
@@ -169,10 +174,12 @@ async def _build_qr_response(
         registration_payment_link=reg_link,
         registration_fee_qr_url=reg_qr,
         registration_qr_url=reg_qr,
+        registration_expires_at=reg_expires_at,
         is_trial=sub.is_trial if sub else False,
         trial_ends_at=sub.trial_ends_at.isoformat() if sub and sub.trial_ends_at else None,
         plan_tier=sub.plan_tier if sub else None,
         plan_name=plan_name,
+        plan_price=plan_price,
         plan_payment_link=plan_link,
         subscription_payment_link=plan_link,
         plan_qr_url=plan_qr,
@@ -244,6 +251,7 @@ async def admin_refresh_merchant_qr_codes(
     response_model=QRCodeResponse,
 )
 async def merchant_get_own_qr_codes(
+    force_refresh: bool = False,
     current_user: UserClaims = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
 ) -> QRCodeResponse:
@@ -258,5 +266,53 @@ async def merchant_get_own_qr_codes(
         or "Restaurant"
     )
     return await _build_qr_response(
-        session, merchant.id, merchant_name, generate_link_if_missing=True
+        session, merchant.id, merchant_name, generate_link_if_missing=True, force_refresh=force_refresh
+    )
+
+
+@router.post(
+    "/merchants/me/refresh-qr-codes",
+    response_model=QRCodeResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def merchant_refresh_own_qr_codes(
+    current_user: UserClaims = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+) -> QRCodeResponse:
+    """Restaurant: force regenerate fresh QR codes and payment links for active plan & fee."""
+    merchant_repo = MerchantRepository(session=session)
+    merchant = await merchant_repo.get_by_owner_user_id(uuid.UUID(current_user.sub))
+    if not merchant:
+        raise HTTPException(status_code=404, detail="Merchant not found")
+    merchant_name = (
+        getattr(merchant, "business_name", None)
+        or getattr(merchant, "legal_entity_name", None)
+        or "Restaurant"
+    )
+    return await _build_qr_response(
+        session, merchant.id, merchant_name, generate_link_if_missing=True, force_refresh=True
+    )
+
+
+@router.post(
+    "/merchants/me/initiate-registration-fee",
+    response_model=QRCodeResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def merchant_initiate_registration_fee(
+    current_user: UserClaims = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+) -> QRCodeResponse:
+    """Restaurant: initiate fresh ₹500 registration fee payment with a 15-minute live expiring QR code."""
+    merchant_repo = MerchantRepository(session=session)
+    merchant = await merchant_repo.get_by_owner_user_id(uuid.UUID(current_user.sub))
+    if not merchant:
+        raise HTTPException(status_code=404, detail="Merchant not found")
+    merchant_name = (
+        getattr(merchant, "business_name", None)
+        or getattr(merchant, "legal_entity_name", None)
+        or "Restaurant"
+    )
+    return await _build_qr_response(
+        session, merchant.id, merchant_name, generate_link_if_missing=True, force_refresh=True
     )

@@ -86,7 +86,29 @@ async def test_subscription_lifecycle(client: AsyncClient, setup_sub_fixture: di
     qr_data = qr_resp.json()
     assert qr_data["merchant_id"] == str(fixture["merchant"].id)
     assert qr_data["plan_tier"] == "PROFESSIONAL"
+    assert qr_data["plan_price"] == 2499
     assert qr_data["registration_fee_payment_link"] is not None
     assert qr_data["registration_fee_qr_url"] is not None
+    assert qr_data["registration_expires_at"] is not None
     assert qr_data["plan_payment_link"] is not None
     assert qr_data["plan_qr_url"] is not None
+
+    # Initiate fresh registration fee QR with countdown
+    init_resp = await client.post("/api/v1/merchants/me/initiate-registration-fee", headers=headers)
+    assert init_resp.status_code == 200
+    init_data = init_resp.json()
+    assert init_data["registration_expires_at"] is not None
+
+    # Switch plan to ENTERPRISE -> plan_price changes to 4999
+    ent_resp = await client.post(
+        "/api/v1/merchants/me/subscription",
+        headers=headers,
+        json={"plan_tier": "ENTERPRISE", "billing_cycle": "MONTHLY"},
+    )
+    assert ent_resp.status_code == 201
+
+    qr_ent_resp = await client.get("/api/v1/merchants/me/qr-codes", headers=headers)
+    assert qr_ent_resp.status_code == 200
+    qr_ent_data = qr_ent_resp.json()
+    assert qr_ent_data["plan_tier"] == "ENTERPRISE"
+    assert qr_ent_data["plan_price"] == 4999

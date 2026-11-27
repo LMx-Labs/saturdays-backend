@@ -63,7 +63,7 @@ class OrderServiceInterface(ABC):
     @abstractmethod
     async def get_branch_orders(
         self,
-        branch_id: uuid.UUID,
+        branch_id: uuid.UUID | None = None,
         status: str | None = None,
         include_pending: bool = False,
     ) -> Sequence[Order]:
@@ -325,7 +325,7 @@ class OrderService(OrderServiceInterface):
 
     async def get_branch_orders(
         self,
-        branch_id: uuid.UUID,
+        branch_id: uuid.UUID | None = None,
         status: str | None = None,
         include_pending: bool = False,
     ) -> Sequence[Order]:

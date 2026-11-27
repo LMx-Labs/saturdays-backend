@@ -38,7 +38,7 @@ class OrderRepositoryInterface(ABC):
     @abstractmethod
     async def get_branch_orders(
         self,
-        branch_id: uuid.UUID,
+        branch_id: uuid.UUID | None = None,
         status: str | None = None,
         include_pending: bool = False,
     ) -> Sequence[Order]:
@@ -131,18 +131,19 @@ class OrderRepository(OrderRepositoryInterface):
 
     async def get_branch_orders(
         self,
-        branch_id: uuid.UUID,
+        branch_id: uuid.UUID | None = None,
         status: str | None = None,
         include_pending: bool = False,
     ) -> Sequence[Order]:
         stmt = (
             select(Order)
-            .where(Order.branch_id == branch_id)
             .options(
                 selectinload(Order.items),
                 selectinload(Order.status_logs),
             )
         )
+        if branch_id is not None:
+            stmt = stmt.where(Order.branch_id == branch_id)
         if not include_pending:
             # An order nobody paid for is not the restaurant's business: it must not appear on
             # their screens, make their phone beep, or be cooked. That includes one that was

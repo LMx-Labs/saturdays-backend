@@ -134,15 +134,15 @@ async def list_orders(
     session: AsyncSession = Depends(get_db_session),
     order_service: OrderServiceInterface = Depends(get_order_service),
 ) -> list[OrderResponse]:
-    if branch_id and current_user.role in STAFF_ROLES:
-        _assert_staff_branch_access(current_user, branch_id)
-        # Only platform staff, and only when they ask for them by name, ever see unpaid orders.
-        include_pending = (
-            current_user.role in PLATFORM_ADMIN_ROLES
-            and order_status == "PENDING_PAYMENT"
-        )
+    if current_user.role in PLATFORM_ADMIN_ROLES:
+        include_pending = order_status == "PENDING_PAYMENT"
         orders = await order_service.get_branch_orders(
             branch_id, status=order_status, include_pending=include_pending
+        )
+    elif branch_id and current_user.role in STAFF_ROLES:
+        _assert_staff_branch_access(current_user, branch_id)
+        orders = await order_service.get_branch_orders(
+            branch_id, status=order_status, include_pending=False
         )
     else:
         cust_repo = CustomerRepository(session)

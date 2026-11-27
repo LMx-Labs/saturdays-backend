@@ -129,8 +129,15 @@ async def fetch_razorpay_subscription(razorpay_sub_id: str) -> dict[str, Any]:
 async def create_registration_payment_link(
     merchant_id: str,
     merchant_name: str,
+    expires_in_minutes: int = 20,
 ) -> dict[str, Any]:
-    """POST /v1/payment_links — ₹500 one-time registration fee link with QR."""
+    """POST /v1/payment_links — ₹500 one-time registration fee link with QR and live expiration.
+    Note: Razorpay requires expire_by to be at least 16 minutes in the future.
+    """
+    now_ts = int(time.time())
+    expire_by = now_ts + (max(expires_in_minutes, 20) * 60)
+    ref_id = f"REG-{merchant_id[:8].upper()}-{now_ts}"[-40:]
+
     if _simulate():
         logger.info("SIMULATE: create_registration_payment_link", merchant_id=merchant_id)
         short_url = f"https://rzp.io/l/SIMULATED_{merchant_id[:6]}"
@@ -138,10 +145,10 @@ async def create_registration_payment_link(
             "id": f"plink_SIMULATED_{merchant_id[:8]}",
             "short_url": short_url,
             "qr_code_url": f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={urllib.parse.quote(short_url)}",
+            "expire_by": expire_by,
         }
 
     async with httpx.AsyncClient(timeout=10) as client:
-        ref_id = f"REG-{merchant_id[:8].upper()}-{int(time.time())}"[-40:]
         resp = await client.post(
             f"{RAZORPAY_BASE}/payment_links",
             auth=_auth(),
@@ -150,6 +157,7 @@ async def create_registration_payment_link(
                 "currency": "INR",
                 "description": f"Saturdays Platform Registration Fee — {merchant_name}",
                 "reference_id": ref_id,
+                "expire_by": expire_by,
                 "notes": {
                     "merchant_id": merchant_id,
                     "type": "REGISTRATION_FEE",
@@ -171,6 +179,7 @@ async def create_registration_payment_link(
         if not qr_url and short_url:
             qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={urllib.parse.quote(short_url)}"
         data["qr_code_url"] = qr_url
+        data["expire_by"] = expire_by
         return data
 
 

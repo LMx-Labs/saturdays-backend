@@ -193,9 +193,20 @@ class SubscriptionService(SubscriptionServiceInterface):
 
         existing_sub = await self.sub_repo.get_active_subscription(merchant.id)
         if existing_sub:
-            await self.sub_repo.update_subscription(
-                existing_sub, {"status": "SUPERSEDED"}
-            )
+            tier_changed = existing_sub.plan_tier != tier
+            existing_sub.plan_tier = tier
+            existing_sub.billing_cycle = req.billing_cycle.upper()
+            existing_sub.commission_rate_percentage = tier_info["commission_rate"]
+            existing_sub.max_orders_per_day = tier_info.get("max_orders_per_day", 40)
+            existing_sub.status = "ACTIVE"
+            if tier_changed:
+                existing_sub.plan_payment_link = None
+                existing_sub.plan_qr_url = None
+                existing_sub.razorpay_subscription_id = None
+
+            await self.session.commit()
+            await self.session.refresh(existing_sub)
+            return self._to_sub_response(existing_sub)
 
         sub = MerchantSubscription(
             merchant_id=merchant.id,
@@ -204,6 +215,7 @@ class SubscriptionService(SubscriptionServiceInterface):
             status="ACTIVE",
             commission_rate_percentage=tier_info["commission_rate"],
             valid_until=valid_until,
+            max_orders_per_day=tier_info.get("max_orders_per_day", 40),
         )
 
         created = await self.sub_repo.create_subscription(sub)
