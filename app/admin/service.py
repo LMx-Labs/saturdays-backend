@@ -12,6 +12,7 @@ from app.admin.repository import AdminRepositoryInterface
 from app.admin.schemas import (
     STAFF_ACCOUNT_ROLES,
     AdminAuditLogResponse,
+    AdminCommissionRateModifyRequest,
     AdminCustomerAddressResponse,
     AdminCustomerDetailResponse,
     AdminCustomerResponse,
@@ -54,7 +55,7 @@ from app.customer.repository import (
 from app.merchant.models import Merchant
 from app.merchant.repository import MerchantRepositoryInterface
 from app.payment.service import ensure_refunds_enabled
-from app.subscription.models import MerchantSubscription
+from app.subscription.models import MerchantSubscription, PlatformCommission
 from app.subscription.repository import (
     SubscriptionRepository,
     SubscriptionRepositoryInterface,
@@ -225,6 +226,16 @@ class AdminServiceInterface(ABC):
         pass
 
     @abstractmethod
+    async def modify_merchant_commission_rate(
+        self,
+        merchant_id: uuid.UUID,
+        req: AdminCommissionRateModifyRequest,
+        admin_user_id: uuid.UUID,
+        ip_address: str = "127.0.0.1",
+    ) -> AdminSubscriptionResponse:
+        pass
+
+    @abstractmethod
     async def list_staff_users(
         self,
         roles: list[str] | None = None,
@@ -365,7 +376,10 @@ class AdminService(AdminServiceInterface):
 
     @staticmethod
     def _to_admin_merchant_response(
-        merchant: Merchant, owner: User
+        merchant: Merchant,
+        owner: User,
+        commission_rate_percentage: float | None = None,
+        plan_tier: str | None = None,
     ) -> AdminMerchantResponse:
         return AdminMerchantResponse(
             id=merchant.id,
@@ -378,6 +392,8 @@ class AdminService(AdminServiceInterface):
             bank_account_number=merchant.bank_account_number,
             bank_ifsc_code=merchant.bank_ifsc_code,
             status=merchant.status,
+            commission_rate_percentage=commission_rate_percentage,
+            plan_tier=plan_tier,
             created_at=merchant.created_at,
             updated_at=merchant.updated_at,
         )
@@ -394,7 +410,40 @@ class AdminService(AdminServiceInterface):
         if status:
             stmt = stmt.where(func.upper(Merchant.status) == status.strip().upper())
         res = await self.session.execute(stmt)
-        return [self._to_admin_merchant_response(m, u) for m, u in res.all()]
+        merchants_users = res.all()
+        if not merchants_users:
+            return []
+
+        merchant_ids = [m.id for m, _ in merchants_users]
+        sub_stmt = (
+            select(
+                MerchantSubscription.merchant_id,
+                MerchantSubscription.commission_rate_percentage,
+                MerchantSubscription.plan_tier,
+            )
+            .where(
+                MerchantSubscription.merchant_id.in_(merchant_ids),
+                MerchantSubscription.status == "ACTIVE",
+            )
+        )
+        sub_rows = (await self.session.execute(sub_stmt)).all()
+        sub_map = {
+            m_id: (float(comm_pct), p_tier)
+            for m_id, comm_pct, p_tier in sub_rows
+        }
+
+        result = []
+        for m, u in merchants_users:
+            rate_pct, tier = sub_map.get(m.id, (None, None))
+            result.append(
+                self._to_admin_merchant_response(
+                    merchant=m,
+                    owner=u,
+                    commission_rate_percentage=rate_pct,
+                    plan_tier=tier,
+                )
+            )
+        return result
 
     async def admin_create_coupon(
         self, admin_user_id: uuid.UUID, req: CouponCreate, ip_address: str = "127.0.0.1"
@@ -1012,7 +1061,7 @@ class AdminService(AdminServiceInterface):
         )
 
     def _to_admin_sub_response(
-        self, sub: MerchantSubscription
+        self, sub: MerchantSubscription, commission_earned: float = 0.0
     ) -> AdminSubscriptionResponse:
         tier_info = PLAN_DETAILS.get(sub.plan_tier, PLAN_DETAILS["BASIC"])
         business_name = sub.merchant.business_name if sub.merchant else None
@@ -1026,6 +1075,7 @@ class AdminService(AdminServiceInterface):
             status=sub.status,
             commission_rate_percentage=float(sub.commission_rate_percentage),
             max_branches=int(tier_info["max_branches"]),
+            commission_earned=commission_earned,
             valid_until=sub.valid_until,
             created_at=sub.created_at,
             updated_at=sub.updated_at,
@@ -1046,7 +1096,28 @@ class AdminService(AdminServiceInterface):
             skip=skip,
             limit=limit,
         )
-        return [self._to_admin_sub_response(s) for s in subs]
+        if not subs:
+            return []
+
+        # Aggregate total commission earned per merchant
+        m_ids = [s.merchant_id for s in subs]
+        comm_stmt = (
+            select(
+                PlatformCommission.merchant_id,
+                func.coalesce(func.sum(PlatformCommission.commission_amount), 0.0),
+            )
+            .where(PlatformCommission.merchant_id.in_(m_ids))
+            .group_by(PlatformCommission.merchant_id)
+        )
+        comm_rows = (await self.session.execute(comm_stmt)).all()
+        comm_map = {m_id: float(amt) for m_id, amt in comm_rows}
+
+        return [
+            self._to_admin_sub_response(
+                s, commission_earned=comm_map.get(s.merchant_id, 0.0)
+            )
+            for s in subs
+        ]
 
     async def get_subscription_history(
         self,
@@ -1256,6 +1327,59 @@ class AdminService(AdminServiceInterface):
         await self.session.commit()
         self.session.expire_all()
 
+        refreshed = await self.sub_repo.get_subscription_by_id(sub_id)
+        assert refreshed is not None
+        return self._to_admin_sub_response(refreshed)
+
+    async def modify_merchant_commission_rate(
+        self,
+        merchant_id: uuid.UUID,
+        req: AdminCommissionRateModifyRequest,
+        admin_user_id: uuid.UUID,
+        ip_address: str = "127.0.0.1",
+    ) -> AdminSubscriptionResponse:
+        merchant = await self.merchant_repo.get_by_id(merchant_id)
+        if not merchant:
+            raise EntityNotFoundError(
+                message="Merchant not found.", error_code="MERCHANT_NOT_FOUND"
+            )
+
+        active_sub = await self.sub_repo.get_active_subscription(merchant_id)
+        if active_sub:
+            old_rate = float(active_sub.commission_rate_percentage)
+            await self.sub_repo.update_subscription(
+                active_sub,
+                {"commission_rate_percentage": req.commission_rate_percentage},
+            )
+            sub_id = active_sub.id
+        else:
+            old_rate = float(PLAN_DETAILS["BASIC"]["commission_rate"])
+            new_sub = MerchantSubscription(
+                merchant_id=merchant_id,
+                plan_tier="BASIC",
+                billing_cycle="MONTHLY",
+                status="ACTIVE",
+                commission_rate_percentage=req.commission_rate_percentage,
+                valid_until=datetime.now(UTC) + timedelta(days=30),
+            )
+            created_sub = await self.sub_repo.create_subscription(new_sub)
+            sub_id = created_sub.id
+
+        await self._write_audit_log(
+            admin_user_id=admin_user_id,
+            action="COMMISSION_RATE_MODIFIED",
+            target_entity="merchant_subscriptions",
+            target_entity_id=sub_id,
+            changes_payload={
+                "merchant_id": str(merchant_id),
+                "old_commission_rate_percentage": old_rate,
+                "new_commission_rate_percentage": req.commission_rate_percentage,
+                "reason": req.reason or "Admin updated restaurant commission rate",
+            },
+            ip_address=ip_address,
+        )
+        await self.session.commit()
+        self.session.expire_all()
         refreshed = await self.sub_repo.get_subscription_by_id(sub_id)
         assert refreshed is not None
         return self._to_admin_sub_response(refreshed)

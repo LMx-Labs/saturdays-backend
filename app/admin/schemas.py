@@ -25,6 +25,8 @@ class AdminMerchantResponse(BaseModel):
     bank_account_number: str | None = None
     bank_ifsc_code: str | None = None
     status: str
+    commission_rate_percentage: float | None = None
+    plan_tier: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -174,9 +176,21 @@ class AdminSubscriptionResponse(BaseModel):
     status: str
     commission_rate_percentage: float
     max_branches: int
+    commission_earned: float = 0.0
     valid_until: datetime
     created_at: datetime
     updated_at: datetime
+
+
+class AdminCommissionRateModifyRequest(BaseModel):
+    """Schema for administrator modifying a restaurant's commission rate specifically."""
+
+    commission_rate_percentage: float = Field(
+        ..., ge=0.0, le=100.0, description="Custom platform commission percentage"
+    )
+    reason: str | None = Field(
+        None, max_length=500, description="Audit reason for modifying commission rate"
+    )
 
 
 class AdminSubscriptionModifyRequest(BaseModel):

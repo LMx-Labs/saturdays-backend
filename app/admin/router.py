@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.admin.repository import AdminRepository, AdminRepositoryInterface
 from app.admin.schemas import (
     AdminAuditLogResponse,
+    AdminCommissionRateModifyRequest,
     AdminCustomerDetailResponse,
     AdminCustomerResponse,
     AdminCustomerUpdateRequest,
@@ -237,6 +238,29 @@ async def modify_merchant_subscription(
 ) -> AdminSubscriptionResponse:
     ip = request.client.host if request.client else "127.0.0.1"
     return await admin_service.modify_merchant_subscription(
+        merchant_id=merchant_id,
+        req=req,
+        admin_user_id=uuid.UUID(current_user.sub),
+        ip_address=ip,
+    )
+
+
+@router.patch(
+    "/merchants/{merchant_id}/commission-rate",
+    response_model=AdminSubscriptionResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Modify restaurant commission rate",
+    description="Directly modify the platform commission rate percentage specifically for a restaurant.",
+)
+async def modify_merchant_commission_rate(
+    merchant_id: uuid.UUID,
+    req: AdminCommissionRateModifyRequest,
+    request: Request,
+    current_user: UserClaims = Depends(require_role(["PlatformAdmin"])),
+    admin_service: AdminServiceInterface = Depends(get_admin_service),
+) -> AdminSubscriptionResponse:
+    ip = request.client.host if request.client else "127.0.0.1"
+    return await admin_service.modify_merchant_commission_rate(
         merchant_id=merchant_id,
         req=req,
         admin_user_id=uuid.UUID(current_user.sub),
@@ -745,6 +769,29 @@ async def get_restaurant_daily_sales(
     distinct_restaurants_set: set[str] = set()
     distinct_dates_set: set[str] = set()
 
+    # Gather merchant subscription commission rates for fallback calculation
+    merchant_rate_map: dict[str, float] = {}
+    m_uuids: set[uuid.UUID] = set()
+    for info_val in branch_info_map.values():
+        m_id_str = info_val.get("merchant_id")
+        if m_id_str:
+            try:
+                m_uuids.add(uuid.UUID(m_id_str))
+            except ValueError:
+                pass
+    if m_uuids:
+        from app.subscription.models import MerchantSubscription
+        sub_stmt = select(
+            MerchantSubscription.merchant_id,
+            MerchantSubscription.commission_rate_percentage,
+        ).where(
+            MerchantSubscription.merchant_id.in_(m_uuids),
+            MerchantSubscription.status == "ACTIVE",
+        )
+        sub_rows = (await session.execute(sub_stmt)).all()
+        for m_id, rate_pct in sub_rows:
+            merchant_rate_map[str(m_id)] = float(rate_pct)
+
     sorted_keys = sorted(grouped.keys(), key=lambda k: k[0], reverse=True)
 
     for day_str, b_key in sorted_keys:
@@ -769,7 +816,14 @@ async def get_restaurant_daily_sales(
 
         for o in group_orders:
             gross = float(o.total_amount)
-            comm = commission_map.get(o.id, round(gross * 0.10, 2))
+            if o.id in commission_map:
+                comm = commission_map[o.id]
+            else:
+                m_key = info.get("merchant_id", "")
+                m_rate = merchant_rate_map.get(
+                    m_key, float(PLAN_DETAILS["BASIC"]["commission_rate"])
+                )
+                comm = round(gross * (m_rate / 100.0), 2)
             net = round(max(0.0, gross - comm), 2)
             c_name = cust_map.get(o.customer_profile_id, "Customer")
 

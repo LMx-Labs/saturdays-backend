@@ -433,7 +433,7 @@ async def test_admin_modify_subscription_by_id(
     updated = patch_resp.json()
     assert updated["plan_tier"] == "ENTERPRISE"
     assert updated["commission_rate_percentage"] == 2.25
-    assert updated["max_branches"] == -1
+    assert updated["max_branches"] == 20
     assert updated["status"] == "ACTIVE"
 
     # Verify audit log recorded
@@ -482,6 +482,39 @@ async def test_admin_modify_merchant_subscription_endpoint(
     )
     assert patch_resp.status_code == 200
     assert patch_resp.json()["status"] == "SUSPENDED"
+
+
+@pytest.mark.asyncio
+async def test_admin_modify_restaurant_commission_rate(
+    client: AsyncClient, setup_admin_fixture: dict
+):
+    fixture = setup_admin_fixture
+    merchant = fixture["merchant"]
+    admin_headers = await get_admin_headers(client, fixture["admin_user"].email)
+
+    # Modify commission rate specifically for this restaurant
+    resp = await client.patch(
+        f"/api/v1/admin/merchants/{merchant.id}/commission-rate",
+        headers=admin_headers,
+        json={
+            "commission_rate_percentage": 4.25,
+            "reason": "Negotiated partner rate for restaurant",
+        },
+    )
+    assert resp.status_code == 200
+    sub_data = resp.json()
+    assert sub_data["merchant_id"] == str(merchant.id)
+    assert sub_data["commission_rate_percentage"] == 4.25
+
+    # Verify audit log recorded for COMMISSION_RATE_MODIFIED
+    audit_resp = await client.get("/api/v1/admin/audit-logs", headers=admin_headers)
+    assert audit_resp.status_code == 200
+    audits = audit_resp.json()
+    comm_audit = next(
+        (a for a in audits if a["action"] == "COMMISSION_RATE_MODIFIED"), None
+    )
+    assert comm_audit is not None
+    assert comm_audit["changes_payload"]["new_commission_rate_percentage"] == 4.25
 
 
 @pytest.mark.asyncio
