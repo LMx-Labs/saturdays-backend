@@ -115,6 +115,8 @@ class BranchService(BranchServiceInterface):
             brand_id=brand.id,
             name=req.name,
             address_text=req.address_text,
+            short_location=req.short_location,
+            google_maps_url=req.google_maps_url,
             latitude=req.latitude,
             longitude=req.longitude,
             is_active=req.is_active,
@@ -204,6 +206,10 @@ class BranchService(BranchServiceInterface):
             branch.name = req.name
         if req.address_text is not None:
             branch.address_text = req.address_text
+        if req.short_location is not None:
+            branch.short_location = req.short_location
+        if req.google_maps_url is not None:
+            branch.google_maps_url = req.google_maps_url
         if req.latitude is not None:
             branch.latitude = req.latitude
         if req.longitude is not None:
@@ -279,6 +285,8 @@ class BranchService(BranchServiceInterface):
             brand_id=str(branch.brand_id),
             name=branch.name,
             address_text=branch.address_text,
+            short_location=branch.short_location,
+            google_maps_url=branch.google_maps_url,
             latitude=float(branch.latitude) if branch.latitude is not None else None,
             longitude=float(branch.longitude) if branch.longitude is not None else None,
             is_active=branch.is_active,

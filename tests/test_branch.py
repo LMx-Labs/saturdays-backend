@@ -36,6 +36,8 @@ async def test_branch_crud_flow(client: AsyncClient, db_session: AsyncSession):
         "brand_id": brand_id,
         "name": "Burger Shack VIT Main Campus",
         "address_text": "Food Court Block 2, VIT Campus",
+        "short_location": "Food Court Block 2",
+        "google_maps_url": "https://maps.google.com/?q=12.9692,79.1559",
         "latitude": 12.9692,
         "longitude": 79.1559,
         "opening_time": "09:00:00",
@@ -47,6 +49,8 @@ async def test_branch_crud_flow(client: AsyncClient, db_session: AsyncSession):
     assert branch_res.status_code == 201
     branch_data = branch_res.json()
     assert branch_data["name"] == "Burger Shack VIT Main Campus"
+    assert branch_data["short_location"] == "Food Court Block 2"
+    assert branch_data["google_maps_url"] == "https://maps.google.com/?q=12.9692,79.1559"
     assert branch_data["brand_id"] == brand_id
     assert branch_data["is_active"] is True
     assert branch_data["opening_time"] == "09:00:00"
@@ -75,11 +79,18 @@ async def test_branch_crud_flow(client: AsyncClient, db_session: AsyncSession):
     # 7. Update branch details
     update_res = await client.patch(
         f"/api/v1/branches/{branch_id}",
-        json={"name": "Burger Shack VIT Main Canteen", "is_active": True},
+        json={
+            "name": "Burger Shack VIT Main Canteen",
+            "short_location": "Main Canteen",
+            "google_maps_url": "https://maps.app.goo.gl/test",
+            "is_active": True,
+        },
         headers=headers,
     )
     assert update_res.status_code == 200
     assert update_res.json()["name"] == "Burger Shack VIT Main Canteen"
+    assert update_res.json()["short_location"] == "Main Canteen"
+    assert update_res.json()["google_maps_url"] == "https://maps.app.goo.gl/test"
     assert update_res.json()["is_active"] is True
 
     # 8. Soft delete branch

@@ -27,6 +27,12 @@ class BranchCreateRequest(BaseModel):
     address_text: str = Field(
         ..., min_length=2, max_length=255, description="Full physical address"
     )
+    short_location: str | None = Field(
+        None, max_length=100, description="Short location label for student cards"
+    )
+    google_maps_url: str | None = Field(
+        None, max_length=500, description="Google Maps navigation link configured by admin"
+    )
     latitude: float | None = Field(
         None, ge=-90.0, le=90.0, description="Latitude coordinate"
     )
@@ -50,6 +56,8 @@ class BranchUpdateRequest(BaseModel):
     brand_id: str | None = None
     name: str | None = Field(None, min_length=2, max_length=150)
     address_text: str | None = Field(None, min_length=2, max_length=255)
+    short_location: str | None = Field(None, max_length=100)
+    google_maps_url: str | None = Field(None, max_length=500)
     latitude: float | None = Field(None, ge=-90.0, le=90.0)
     longitude: float | None = Field(None, ge=-180.0, le=180.0)
     is_active: bool | None = None
@@ -82,6 +90,8 @@ class BranchResponse(BaseModel):
     brand_id: str
     name: str
     address_text: str
+    short_location: str | None = None
+    google_maps_url: str | None = None
     latitude: float | None
     longitude: float | None
     is_active: bool

@@ -32,6 +32,8 @@ class Branch(Base, TimestampMixin):
     )
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     address_text: Mapped[str] = mapped_column(String(255), nullable=False)
+    short_location: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    google_maps_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     latitude: Mapped[float | None] = mapped_column(Numeric(10, 7), nullable=True)
     longitude: Mapped[float | None] = mapped_column(Numeric(10, 7), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
